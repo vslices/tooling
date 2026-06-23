@@ -163,7 +163,7 @@ En esta iteración, VSlices Tooling aparece principalmente como una línea de tr
 
 Esto no descarta que VSlices Tooling pueda evolucionar más adelante hacia un proyecto, producto o componente de VSlices Framework. Sin embargo, para esta iteración, tratarlo como línea de trabajo reduce sobreingeniería y mantiene el foco en el dolor actual.
 
-5. Llevar a cabo Contextualizing
+## 5. Llevar a cabo Contextualizing
 
    Actividades:
 
@@ -185,3 +185,19 @@ La regla inicial queda así:
 
 > Understanding descubre el material.  
 > Contextualizing ordena el material.
+
+## 6. Llevar a cabo Planning
+
+   Actividades:
+
+   - Definir el slice de trabajo.
+   - Separar problema actual de problemas futuros.
+   - Decidir alcance, límites, riesgos, alternativas y criterios de avance.
+   - Generar documentación necesaria para preservar intención de diseño.
+
+   Cierre del stage:
+
+   - Actualizar y/o extender caminos de continuidad según el plan.
+
+
+    

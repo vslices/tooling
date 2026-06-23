@@ -49,15 +49,23 @@ flowchart LR
     INC --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
     P1 --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
 
-    A --> EM[No se emplean servicios o productos]
+    A --> EM[Emplean]
+    EM --> U1[[<b>Caso de uso</b><br/>Generación desde template]]
     
-    A --> CAP[No se requieren de capacidades]
+    A --> CAP[Requiere]
+    CAP --> C1>Lectura de archivos]
+    CAP --> C2>Escritura de archivos]
 
-    A --> INF[No es influenciado por decisiones]
+    A --> INF[Influenciado por]
+    INF --> D1[[Definición de tooling]]
+    INF --> D2[[Definición de comandos]]
 
     click A "Ir a Contexto de VSlices Tooling" "../context.vslices-tooling.md"
     click E1 "Ir a introducción de VSlices Docs Standard" "https://"
     click P1 "Ir a la Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
+    click D1 "Ir a definición de VSlices Tooling" "../decisions/0001.vslices-tooling-definition.md"
+    click D2 "Ir a definición de comandos de VSlices Tooling" "../decisions/0002.vslices-commands-definition.md"
+    click U1 "Ir a definición de Caso de uso de Generación desde template" "planning/flow.use-case.template-generation.md"
 
 
 ```
@@ -72,28 +80,33 @@ Se empleará el camino de "Contexto de dominio" para dar sentido y eliminar ambi
 flowchart LR
     A[[VSlices Docs Standard<br/><small>Contexto</small>]]
 
-    A --> L1[[Definiciones de términos generales]]
-    A --> L2[[Definiciones de términos específicos]]
+    A --> LE[Definiciones de términos] 
+    LE --> T1[[Términos generales]]
+    LE --> T2[[Términos específicos]]
 
-    A --> R>No aplican definiciones de reglas]
+    A --> ID>Invariantes definidas]
+    ID -- De --> TI{{Invariantes de Template}}
 
     A --> B[Expresa comportamientos]
     
     B -- dentro de --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
     P1 -- está --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
 
-    A --> C>No hay capacidades originales]
+    A --> OR[Origina capacidades]
+    OR --> C1>Generación documental]
 
-    A --> S>No hay servicios o productos<br/>en este contexto]
+    A --> OW[Dueño de]
+    OW --> PR1[[VSlces Tooling<br/><small>Contexto</small>]]
     
     A --> D[Delimitado por]
     D --> D1[[Introducción de<br/>VSlices Docs Standard]]
 
     click A "Ir a introducción de VSlices Docs Standard" "https://"
-    click L1 "Ir a glosario de VSlices Docs Standard" "https://"
-    click L2 "Ir a vocabulario de VSlices Tooling" "../../../vocabulary.vslices-tooling.md"
+    click T1 "Ir a glosario de VSlices Docs Standard" "https://"
+    click T2 "Ir a vocabulario de VSlices Tooling" "../../../vocabulary.vslices-tooling.md"
     click D1 "Ir a introducción de VSlices Standard" "https://"
     click P1 "Ir a Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
+    click PR1 "Ir a definición de VSlices Tooling" "https://"
 
 ```
 

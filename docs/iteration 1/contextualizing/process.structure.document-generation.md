@@ -83,11 +83,22 @@ Su propósito no es solo producir archivos Markdown, sino mantener continuidad e
 * Puede aparecer sobre-documentación si se crean documentos antes de validar su necesidad.
 * El proceso manual puede dificultar mantener continuidad entre Method, Docs Standard y artifacts reales.
 
-## Preguntas abiertas
+## Decisiones iniciales
 
-* ¿Qué parte de este proceso debería mantenerse manual por criterio de diseño?
-* ¿Qué parte podría apoyarse con tooling sin reemplazar el juicio documental?
-* ¿Cuál debería ser el primer tipo documental generado?
-* ¿Cómo representar tipo documental, idioma y nivel de detalle sin sobrediseñar?
-* ¿Cuándo una estructura documental debe nacer como L0 y cuándo como L1?
-* ¿Qué reglas editoriales deberían ser verificables por tooling?
+| Pregunta | Decisión |
+| --- | --- |
+| ¿Qué parte de este proceso debería mantenerse manual por criterio de diseño? | La generación del contenido específico de cada documento debe mantenerse manual. |
+| ¿Qué parte podría apoyarse con tooling sin reemplazar el juicio documental? | La generación de esqueletos documentales, variando por tipo documental, idioma y nivel. |
+| ¿Cuál debería ser el primer tipo documental generado? | Documento de contexto. |
+| ¿Cómo representar tipo documental, idioma y nivel de detalle sin sobrediseñar? | Mediante un template YAML por tipo documental, con segmentos encargados de definir títulos y contenido. Cada segmento puede variar su escritura según pertenezca a metadata o body. |
+| ¿Cuándo una estructura documental debe nacer como L0 y cuándo como L1? | Cada nivel debe responder a una necesidad específica del documento. Para el caso de uso, L0 describe el caso de éxito y L1 agrega respuestas ante condiciones esperadas. |
+| ¿Qué reglas editoriales deberían ser verificables por tooling? | Ninguna regla editorial profunda en esta iteración. Si el template es válido, el tooling debe generar el documento correctamente. La responsabilidad de diseñar templates correctos pertenece al estándar documental. |
+
+### Ejemplo de niveles para Use Case Document
+
+| Nivel | Responsabilidad |
+| --- | --- |
+| L0 | Describe el comportamiento mínimo para el caso de éxito. |
+| L1 | Agrega lo mínimo necesario para responder apropiadamente ante condiciones esperadas. |
+| L2 | Agrega documentación de soporte sobre respuestas, alternativas o extensiones conocidas. |
+| L3 | Agrega guía explícita para expandir el caso de uso correctamente. |

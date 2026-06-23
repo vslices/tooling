@@ -90,12 +90,3 @@ No incluye todavía:
 * validación profunda de documentos
 * integración con MkDocs
 * generación multilenguaje
-
-## Preguntas abiertas
-
-* ¿Qué parte de la generación documental debe seguir siendo manual?
-* ¿Qué parte se puede apoyar con tooling sin perder intención documental?
-* ¿Cuál es el primer documento que conviene generar?
-* ¿Cómo representar tipo documental, scope y nivel de detalle?
-* ¿Qué reglas editoriales deben estabilizarse antes de automatizar?
-* ¿Cuándo corresponde crear un documento L0, L1 o una Support Note?

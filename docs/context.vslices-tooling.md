@@ -18,9 +18,9 @@ Level: L0, L1.
 
 ## Escenario
 
-VSlices Tooling es el proyecto de software destinado a apoyar tareas repetibles dentro de la suite VSlices.
+VSlices Tooling es un proyecto de software que apoya las tareas repetibles dentro de la suite VSlices.
 
-En esta iteración, el foco inicial está en tooling documental para VSlices Docs Standard, especialmente en la posibilidad de generar documentos Markdown desde una definición estructurada mínima.
+En esta iteración, el foco inicial está facilitar la generacion documental para VSlices Docs Standard, teniendolo desde una base de templates minimos, que den cabida al multilenguaje y sean escalables a la evolución del producto.
 
 ## Por qué importa
 
@@ -66,16 +66,6 @@ Las líneas de trabajo iniciales son:
 Las áreas involucradas son:
 
 * VSlices Docs Standard
-* VSlices Method
-* VSlices Framework
-* Alive Lab
-
-Los actores principales son:
-
-* autores de VSlices
-* futuros mantenedores de la documentación
-* futuros contribuidores
-* proyectos usados para validar la suite
 
 ## Situación actual
 
@@ -110,17 +100,13 @@ Los límites todavía no están completamente claros entre:
 * VSlices Docs Standard como fuente de estructuras documentales
 * VSlices Method como guía para decidir cuándo documentar
 
-## Preguntas abiertas
+## Decisiones iniciales
 
-* ¿VSlices Tooling vivirá como proyecto propio o como parte de VSlices Framework?
-  * VSlices Tooling vivirá como proyecto propio, pero irá de la mano con Framework y Docs Standard  
-* ¿El primer slice debe generar documentos desde YAML u otra fuente estructurada?
-  * Por ahora, solo YAML, pero pueden considerando otros a futuro
-* ¿Qué parte pertenece al Docs Standard y qué parte pertenece al tooling?
-  * Docs Standard define documentos, diagramas y caminos de continuidad; el Tooling es un herramienta para generarlas y para conectar con otros proyectos 
-* ¿Cuánto debe validar el tooling en esta primera iteración?
-  * El poder generar un documentos L0 y en español
-* ¿Qué documento debe ser el primer caso generado?
-  * El documento de contexto
-* ¿Cómo se representarán idioma, tipo documental y nivel de detalle sin sobrediseñar?
-  * Cada documento tendrá su propio .yaml
+| Pregunta | Decisión |
+| --- | --- |
+| ¿VSlices Tooling vivirá como proyecto propio o como parte de VSlices Framework? | VSlices Tooling vivirá como proyecto propio, pero evolucionará de la mano de VSlices Framework y VSlices Docs Standard. |
+| ¿El primer slice debe generar documentos desde YAML u otra fuente estructurada? | Por ahora, solo YAML. Otras fuentes estructuradas pueden considerarse en iteraciones futuras. |
+| ¿Qué parte pertenece a Docs Standard y qué parte pertenece al tooling? | VSlices Docs Standard define documentos, diagramas y caminos de continuidad. VSlices Tooling entrega herramientas para generarlos y conectarlos con otros proyectos. |
+| ¿Cuánto debe validar el tooling en esta primera iteración? | Debe validar que puede generar un documento L0 en español. |
+| ¿Qué documento debe ser el primer caso generado? | El Documento de contexto. |
+| ¿Cómo se representarán idioma, tipo documental y nivel de detalle sin sobrediseñar? | Cada tipo documental tendrá su propio template YAML. |
