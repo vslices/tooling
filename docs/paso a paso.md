@@ -154,3 +154,11 @@ La regla inicial es:
 Para iteraciones simples se prefiere `[doc-type].[name].md`.  
 Para documentos metodológicos de ciclo puede usarse `[doc-type].[doc-scope].md`.  
 Para jerarquías documentales más grandes puede usarse `[doc-scope].[doc-type].[name].md`.
+
+### Observación crítica: VSlices Tooling como línea de trabajo
+
+Durante Understanding se observó que VSlices Tooling todavía no debe tratarse como producto independiente.
+
+En esta iteración, VSlices Tooling aparece principalmente como una línea de trabajo de VSlices Docs Standard, nacida desde la necesidad de preservar continuidad entre intención documental, plantillas, niveles documentales, scopes y documentos Markdown reales.
+
+Esto no descarta que VSlices Tooling pueda evolucionar más adelante hacia un proyecto, producto o componente de VSlices Framework. Sin embargo, para esta iteración, tratarlo como línea de trabajo reduce sobreingeniería y mantiene el foco en el dolor actual.

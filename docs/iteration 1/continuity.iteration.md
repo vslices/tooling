@@ -5,7 +5,9 @@ status: draft
 level: L0
 scope: iteration
 related:
-    - context.current-tooling
+    - context.vslices-tooling
+    - process.context.document-generation
+    - process.structure.document-generation
 ---
 
 <!--
@@ -21,7 +23,7 @@ Scope: stage, iteration, project
 
 ## Contexto de continuidad
 
-Dado que el tooling de VSlices está recién empezando, uno de los puntos importantes es mantener la raíz del proyecto de software de la fricción nacida al momento de definir las plantillas de VSlices Docs Standard.
+Dado que el tooling de VSlices está recién empezando, uno de los puntos importantes es mantener la raíz de la línea de trabajo técnica nacida desde la fricción documental al momento de definir las plantillas de VSlices Docs Standard.
 
 Es importante mencionar que estamos trabajando esto en medio de un proceso de documentación de la suite, por lo que mantener en línea el porqué estamos haciendo esto es vital para no salir de lo que haremos.
 
@@ -33,9 +35,9 @@ La continuidad entre la intención documental definida por VSlices Docs Standard
 
 ## Camino principal
 
-Se empleará el camino de "Proyecto de software" para preservar esta continuidad, ya que se encarga de definir el contexto, scope y componentes de una solución de software desde el punto de vista de un analista de software.
+Se empleará el camino de "Proyecto de software" para preservar esta continuidad, porque la iteración está convirtiendo una fricción documental observada en una línea de trabajo técnica (no de negocio) dentro de VSlices Docs Standard.
 
-A finales de esta iteración, esperamos elaborar sobre este camino de continuidad.
+A finales de esta iteración, esperamos entender si esta línea de trabajo debe mantenerse dentro de Docs Standard, evolucionar hacia tooling propio o integrarse más adelante con VSlices Framework.
 
 ```mermaid
 flowchart LR
@@ -45,7 +47,7 @@ flowchart LR
 
     A --> INC[Abarca]
     INC --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
-    P1 --> F1[[<b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]]
+    P1 --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
 
     A --> EM[No se emplean servicios o productos]
     
@@ -56,7 +58,6 @@ flowchart LR
     click A "Ir a Contexto de VSlices Tooling" "../context.vslices-tooling.md"
     click E1 "Ir a introducción de VSlices Docs Standard" "https://"
     click P1 "Ir a la Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
-    click F1 "Ir a la Contexto del Flujo de Generación Manual" "understanding/process.context.document-generation.md"
 
 
 ```
@@ -72,14 +73,14 @@ flowchart LR
     A[[VSlices Docs Standard<br/><small>Contexto</small>]]
 
     A --> L1[[Definiciones de términos generales]]
-    A --> L2[[Definiciones de términos especificos]]
+    A --> L2[[Definiciones de términos específicos]]
 
     A --> R>No aplican definiciones de reglas]
 
     A --> B[Expresa comportamientos]
     
     B -- dentro de --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
-    P1 -- esta --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
+    P1 -- está --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
 
     A --> C>No hay capacidades originales]
 
@@ -93,7 +94,6 @@ flowchart LR
     click L2 "Ir a vocabulario de VSlices Tooling" "../../../vocabulary.vslices-tooling.md"
     click D1 "Ir a introducción de VSlices Standard" "https://"
     click P1 "Ir a Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
-    click F1 "Ir a Contexto del Flujo de Generación Manual" "understanding/process.context.document-generation.md"
 
 ```
 
@@ -103,10 +103,10 @@ Se empleará el camino de "Escenario de trabajo" para dar sentido de negocio a l
 
 ```mermaid
 flowchart TD
-    E1[[VSlices Docs Standard<br/><small>Contexto</small>]]
-    L1[[VSlices tooling<br/><small>Contexto</small>]]
-    P1[[Generación documental<br/><small>Estructura</small>]]
-    F1>Generación manual<br/><small>Estructura</small>]
+    E1[[<b>Escenario</b><br/>VSlices Docs Standard<br/><small>Contexto</small>]]
+    L1[[<b>Línea técnica</b><br/>VSlices Tooling<br/><small>Contexto</small>]]
+    P1[[<b>Proceso</b><br/>Generación documental<br/><small>Estructura</small>]]
+    F1><b>Flujo</b><br/>Generación manual<br/><small>Estructura</small>]
     
     E1 --> L1
     L1 --> P1
@@ -122,7 +122,8 @@ flowchart TD
 
 | Stage           | Resultado | Cambio en continuidad | Referencia |
 | --------------- | --------- | --------------------- | ---------- |
-| Understanding   | Pendiente | Pendiente             | Pendiente  |
+| Start           | Aprobado  | Creación              | Pendiente  | 
+| Understanding   | Aprobado  | Actualización         | Pendiente  |
 | Contextualizing | Pendiente | Pendiente             | Pendiente  |
 | Planning        | Pendiente | Pendiente             | Pendiente  |
 | Building        | Pendiente | Pendiente             | Pendiente  |
