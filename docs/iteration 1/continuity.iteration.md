@@ -65,7 +65,8 @@ Se empleará el camino de "Contexto de dominio" para dar sentido y eliminar ambi
 flowchart LR
     A[[VSlices Docs Standard<br/><small>Contexto</small>]]
 
-    A --> L[[Definiciones de términos]]
+    A --> L1[[Definiciones de términos generales]]
+    A --> L2{{Definiciones de términos especificos}}
 
     A --> R>No aplican definiciones de reglas]
 
@@ -81,7 +82,7 @@ flowchart LR
     D --> D1[[Introducción de<br/>VSlices Docs Standard]]
 
     click A "Ir a introducción de VSlices Docs Standard" "https://"
-    click L "Ir a glosarios de VSlices" "https://"
+    click L1 "Ir a glosarios de VSlices" "https://"
     click D1 "Ir a introducción de VSlices Standard" "https://"
 
 ```
