@@ -27,6 +27,14 @@ Dado el dolor y el contexto, lo prioritario es preservar:
 * posibilidad de evolución progresiva
 * trazabilidad entre Method, Docs Standard y artifacts reales
 
+!!! note "¡Cuidado! El contexto afecta"
+
+    Dado que el equipo y el contexto es pequeño, no es necesario generar un documento de contexto de empresa o proyecto; pero en equipos más grandes, es más probable que se deban generar un documento, para centralizar la verdad
+
+Por ejemplo, para si donde trabajas dan servicios de desarrollo a una empresa externa, seria conveniente tener un context.[organization-name] y un context.[project-name], ya que personas nevas no tienen este contexto
+
+En cambio, si eres interno de una empresa y trabajas en un proyecto de la misma, puedes solo generar un context.[project-name]
+
 ## 2. Definir continuidad inicial y modalidad
 
 Aquí todavía seguimos antes de Understanding formal.
@@ -54,3 +62,95 @@ La modalidad de trabajo escogida es Slice-first, ya que nos permitirá sanar el 
 
 [Ver doucmento de continuidad del stage de understanding](./iteration%201/understanding/continuity.stage.md)
 
+!!! risk "Cuidado con el alcance"
+
+    Considera que el documento de continuidad evoluciona junto con las mismas iteraciones y stages de cada una, en esta versión debes especificar unicamente lo minimo para poder orientarte en base a lo que sabe sin indagar a fondo, es algo así como un tanteo de terreno
+
+## 4. Llevar a cabo Understanding
+
+    Dolor visible:
+      En el proceso de documentación de VSlices, se deben generar las plantillas de Docs Standard de forma manual
+
+    Dolor profundo:
+      Se debe mantener la coherencia entre tipo de lenguaje, idioma y nivel de detalle de forma manual
+
+    Riesgo:
+      Que cada documento termine evolucionando distinto, aunque comparta una intención común, variando según tipo, lenguaje y nivel de detalle
+  
+    Lenguage inicial: 
+      - [Vocabulario de dominio de VSlices Tooling](./vocabulary.vslices-tooling.md)
+
+    
+    
+
+   - Reconocer actores, artefactos, procesos, fricciones y conocimiento implícito.
+   - Generar documentación necesaria para preservar entendimiento.
+
+   Cierre del stage:
+
+   - Actualizar y/o extender caminos de continuidad según lo descubierto.
+
+### Observación critica
+
+Durante Understanding apareció una observación crítica sobre la estructura documental mínima necesaria para explicar software desde VSlices.
+
+Para evitar que `Process Document`, `Flow Document` y `Work Line Document` se conviertan en tipos documentales separados con responsabilidades solapadas, se propone observar una tríada documental base:
+
+- **Documento de contexto**: explica qué es algo y dónde está.
+- **Documento de estructura**: explica cómo es algo y qué hace.
+- **Documento de caso de uso**: explica cómo lo implementaremos como comportamiento del sistema.
+
+Estos documentos pueden relacionarse en cascada:
+
+```txt
+Contexto
+  contiene N estructuras
+
+Estructura
+  contiene N casos de uso
+````
+
+También pueden ser recursivos:
+
+```txt
+Contexto
+  contiene N contextos
+
+Estructura
+  contiene N estructuras
+```
+
+Esta observación permite explicar conceptos con detalle progresivo sin crear un tipo documental distinto para cada profundidad del trabajo.
+
+Una línea de trabajo, un proceso y un flujo pueden entenderse como distintos niveles o enfoques de una misma familia documental: **estructura**.
+
+La regla inicial queda así:
+
+> Contexto explica qué es y dónde está.
+> Estructura explica cómo es y qué hace.
+> Caso de uso explica cómo lo implementaremos.
+
+Esta observación todavía no formaliza una decisión final del Docs Standard, pero debe preservarse porque afecta directamente el lenguaje documental, el modelado de templates y el futuro tooling.
+
+
+### Observación: estrategias de nombre documental
+
+Durante Understanding apareció la necesidad de permitir más de una estrategia de naming para documentos.
+
+Una convención única puede volver algunos nombres poco claros. Por eso, los nombres de archivo deberían preservar intención documental y claridad de lectura.
+
+Se observan tres estrategias útiles:
+
+| Patrón | Uso | Ejemplo |
+| --- | --- | --- |
+| `[doc-type].[doc-scope].md` | Cuando el scope es más importante que un nombre específico. | `context.iteration.md` |
+| `[doc-type].[name].md` | Cuando el nombre del concepto es más claro que el scope. | `context.vslices-tooling.md` |
+| `[doc-scope].[doc-type].[name].md` | Cuando el scope agrupa varios documentos relacionados del mismo concepto. | `work-line.structure.buy-line.md` |
+
+La regla inicial es:
+
+> El nombre del archivo debe optimizar la claridad documental, no imponer una fórmula única.
+
+Para iteraciones simples se prefiere `[doc-type].[name].md`.  
+Para documentos metodológicos de ciclo puede usarse `[doc-type].[doc-scope].md`.  
+Para jerarquías documentales más grandes puede usarse `[doc-scope].[doc-type].[name].md`.
