@@ -3,9 +3,9 @@ id: continuity.iteration
 type: continuity-document
 status: draft
 level: L0
+scope: iteration
 related:
     - context.current-tooling
-scope: iteration
 ---
 
 <!--
@@ -44,8 +44,8 @@ flowchart LR
     A --> AB[Aborda] --> E1[[VSlices Docs Standard<br/><small>Contexto</small>]]
 
     A --> INC[Abarca]
-    INC --> P1[[[Proceso]<br/>Generación documental<br/><small>Contexto</small>]]
-    P1 --> F1[[[Flujo]Generación manual<br/><small>Contexto</small>]]
+    INC --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
+    P1 --> F1[[<b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]]
 
     A --> EM[No se emplean servicios o productos]
     
@@ -56,7 +56,7 @@ flowchart LR
     click A "Ir a Contexto de VSlices Tooling" "../context.vslices-tooling.md"
     click E1 "Ir a introducción de VSlices Docs Standard" "https://"
     click P1 "Ir a la Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
-    click P1 "Ir a la Contexto del Flujo de Generación Manual" "understanding/process.context.document-generation.md"
+    click F1 "Ir a la Contexto del Flujo de Generación Manual" "understanding/process.context.document-generation.md"
 
 
 ```
@@ -78,8 +78,8 @@ flowchart LR
 
     A --> B[Expresa comportamientos]
     
-    B -- dentro de --> P1[[[Proceso]<br/>Generación documental<br/><small>Contexto</small>]]
-    P1 -- esta --> F1[[[Flujo]<br/>Generación manual<br/><small>Contexto</small>]]
+    B -- dentro de --> P1[[<b>Proceso</b><br/>Generación documental<br/><small>Contexto</small>]]
+    P1 -- esta --> F1><b>Flujo</b><br/>Generación manual<br/><small>Contexto</small>]
 
     A --> C>No hay capacidades originales]
 
@@ -103,14 +103,18 @@ Se empleará el camino de "Escenario de trabajo" para dar sentido de negocio a l
 
 ```mermaid
 flowchart TD
-    E1[VSlices Docs Standard<br/><small>Contexto</small>]
-    L1[VSlices tooling<br/><small>Contexto</small>]
-    P1[Generación documental<br/><small>Estructura</small>]
-    F1[Generación manual<br/><small>Estructura</small>]
+    E1[[VSlices Docs Standard<br/><small>Contexto</small>]]
+    L1[[VSlices tooling<br/><small>Contexto</small>]]
+    P1[[Generación documental<br/><small>Estructura</small>]]
+    F1>Generación manual<br/><small>Estructura</small>]
     
     E1 --> L1
     L1 --> P1
     P1 --> F1 
+
+    click E1 "Ir a introducción de VSlices Docs Standard" "https://"
+    click L1 "Ir a Contexto de VSlices Tooling" "../context.vslices-tooling.md"
+    click P1 "Ir a Estructura del Proceso de Generación documental" "understanding/process.structure.document-generation.md"
 
 ```
 
