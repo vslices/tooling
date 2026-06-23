@@ -122,7 +122,7 @@ flowchart TD
 
 | Stage           | Resultado | Cambio en continuidad | Referencia |
 | --------------- | --------- | --------------------- | ---------- |
-| Understanding   | Pendiente | Pendiente             | Pendiente  |
+| Understanding   | Aprobado  | Actualización         | Pendiente  |
 | Contextualizing | Pendiente | Pendiente             | Pendiente  |
 | Planning        | Pendiente | Pendiente             | Pendiente  |
 | Building        | Pendiente | Pendiente             | Pendiente  |
