@@ -1,7 +1,7 @@
 ---
 id: process.structure.document-generation
 type: structure-document
-status: draft
+status: active
 scope: process
 level: L0
 related:

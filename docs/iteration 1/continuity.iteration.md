@@ -99,7 +99,7 @@ flowchart LR
 
 ### Escenario de trabajo
 
-Se empleará el camino de "Escenario de trabajo" para dar sentido de negocio a los flujos que se emplean, así como delimitarlos correctamente.
+Se empleará el camino de "Escenario de trabajo" para dar sentido al escenario donde nace esta línea técnica, así como delimitar correctamente sus estructuras de trabajo.
 
 ```mermaid
 flowchart TD
@@ -120,12 +120,12 @@ flowchart TD
 
 ## Revisiones de continuidad
 
-| Stage           | Resultado | Cambio en continuidad | Referencia |
-| --------------- | --------- | --------------------- | ---------- |
-| Start           | Aprobado  | Creación              | Pendiente  | 
-| Understanding   | Aprobado  | Actualización         | Pendiente  |
-| Contextualizing | Pendiente | Pendiente             | Pendiente  |
-| Planning        | Pendiente | Pendiente             | Pendiente  |
-| Building        | Pendiente | Pendiente             | Pendiente  |
-| Validating      | Pendiente | Pendiente             | Pendiente  |
+| Stage | Resultado | Cambio en continuidad | Referencia |
+| --- | --- | --- | --- |
+| Start | Aprobado | Creación del mapa inicial | Pendiente | 
+| Understanding | Aprobado | Se identificaron conceptos y relaciones candidatas. Los diagramas detallados se moverán a Contextualizing. | Pendiente |
+| Contextualizing | Aprobado | VSlices Tooling es una línea técnica dentro de VSlices Docs Standard y de ordenaron las relaciones que en Understanding se dejaron como candidadas | Pendiente |
+| Planning | Pendiente | Pendiente | Pendiente |
+| Building | Pendiente | Pendiente | Pendiente |
+| Validating | Pendiente | Pendiente | Pendiente |
 

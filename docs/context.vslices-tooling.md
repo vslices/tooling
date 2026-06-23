@@ -1,7 +1,7 @@
 ---
 id: context.vslices-tooling
 type: context-document
-status: draft
+status: active
 scope: project
 level: L1
 related:

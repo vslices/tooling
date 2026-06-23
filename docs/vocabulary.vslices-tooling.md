@@ -1,7 +1,7 @@
 ---
 id: vocabulary.vslices-tooling
 type: domain-vocabulary
-status: draft
+status: active
 scope: project
 related:
   - <optional-related-artifact-id>

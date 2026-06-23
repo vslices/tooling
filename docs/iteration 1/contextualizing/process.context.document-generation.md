@@ -1,7 +1,7 @@
 ---
 id: process.context.document-generation
 type: context-document
-status: draft
+status: active
 scope: process
 level: L0
 related:

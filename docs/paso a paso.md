@@ -162,3 +162,26 @@ Durante Understanding se observó que VSlices Tooling todavía no debe tratarse 
 En esta iteración, VSlices Tooling aparece principalmente como una línea de trabajo de VSlices Docs Standard, nacida desde la necesidad de preservar continuidad entre intención documental, plantillas, niveles documentales, scopes y documentos Markdown reales.
 
 Esto no descarta que VSlices Tooling pueda evolucionar más adelante hacia un proyecto, producto o componente de VSlices Framework. Sin embargo, para esta iteración, tratarlo como línea de trabajo reduce sobreingeniería y mantiene el foco en el dolor actual.
+
+5. Llevar a cabo Contextualizing
+
+   Actividades:
+
+   - Ubicar el problema dentro de su contexto.
+   - Relacionar dominio, producto, proyecto, usuarios, sistemas o procesos involucrados.
+   - Generar documentación necesaria para preservar contexto.
+
+   Cierre del stage:
+
+   - Actualizar ý/o extender caminos de continuidad según lo contextualizado.
+
+### Observación: Understanding no debe cerrar la estructura completa
+
+Understanding puede identificar conceptos, fricciones y relaciones candidatas, pero no necesita cerrar diagramas completos de continuidad, estructura o relación entre artifacts.
+
+Cuando el equipo empieza a ordenar caminos, scopes, jerarquías y relaciones documentales, probablemente ya entró en Contextualizing.
+
+La regla inicial queda así:
+
+> Understanding descubre el material.  
+> Contextualizing ordena el material.
