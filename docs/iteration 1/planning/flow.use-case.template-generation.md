@@ -52,7 +52,7 @@ Si el caso de uso se ejecuta correctamente:
 ```mermaid
 flowchart TB
   IN((Inicio)) 
-  INPUT@{ shape: manual-input, label: "vslices generate -T 'context' -L 'es' -S 'L0' -O '/'"}
+  INPUT@{ shape: manual-input, label: "vslices generate document --type 'context' --language 'es' --level 'L0' --output '/'"}
   VERIF1@{ shape: diamond, label: "¿Existe template para 'context'?"}
   PROC1@{ shape: procs, label: "Lectura del context.template.yaml" }
   
@@ -87,7 +87,8 @@ flowchart TB
 
 | Validación                                    | Razón                                                              | Error esperado                |
 | --------------------------------------------- | ------------------------------------------------------------------ | ----------------------------- |
-| El template solicitado existe.                | El sistema necesita saber qué template debe buscar.                | Tipo documento requerido      |
+| El tipo documental fue indicado. | El sistema necesita saber qué template debe buscar. | Tipo documento requerido |
+| El template solicitado existe. | No se puede generar sin template. | Template no existente |
 | El idioma solicitado existe en los segmentos. | El sistema necesita seleccionar los textos correctos del template. | Idioma requerido              |
 | El nivel solicitado existe en algún segmento. | El sistema necesita seleccionar los segmentos aplicables.          | Nivel requerido               |
 | El template no es valido en sintaxis.         | El sistema necesita tener un documento valido.                     | Error de validez del template |
@@ -95,8 +96,6 @@ flowchart TB
 | La ruta de salida permite escritura.          | El sistema necesita persistir el documento generado.               | Error de escritura en la ruta |
 
 ## Reglas de consistencia
-
-
 
 * El tooling genera esqueletos documentales, no contenido final.
 * El contenido específico del documento debe ser completado por una persona.
@@ -124,22 +123,47 @@ flowchart TB
 ## Valores de entrada
 
 * Target de generación.
-* Tipo documento.
-* Lenguaje de generación.
-* Nivel de extensión.
-* Ruta de salida actual del CLI.
+  * selección: document
+  * a futuro: path, project
+  * Inputs del target document
+    * Tipo documento.
+      * obligatorio
+      * tipo: texto, sin formato
+      * input: "--type"
+    * Lenguaje de generación.
+      * obligatorio
+      * tipo: texto, con formato: "<lang>-<country>"
+      * input: --lang
+    * Nivel de extensión.
+      * opcional, default: L0
+      * tipo: texto, sin formato
+      * input: --level
+    * Path de output
+      * opcional, default: .
+      * tipo: texto, con formato: ruta
+      * input: --to
+    * Nombre archivo
+      * opcional, default: nombre template
+      * tipo: texto, sin formato
+      * input: --name
+    * Extension
+      * opcional, default: md
+      * tipo: texto, sin formato
+      * input: --ext
 
 Ejemplo de comando:
 
+- Mínimo:
 ```bash
-vslices generate doc --Type "context" --Language "es" --Size "L0"
+vslices generate document --type context --lang es
 ```
 
-Versión corta:
-
+- Completo:
 ```bash
-vslices generate doc -T "context" -L "es" -S "L0"
+vslices generate document --type context --lang es --level L0 --to /documents --name context --ext md
 ```
+
+Los inputs son intencionalmente open-ended, excepto el target, ya que la herramienta debe generar cualquier documento que sea valido, no solo los oficiales, para dar posiblidad a extensiones del usuario
 
 ## Valores de salida
 
@@ -148,11 +172,13 @@ vslices generate doc -T "context" -L "es" -S "L0"
 * Resultado exitoso de generación.
 * Error esperado cuando no se puede generar el documento.
 
-El nombre por defecto del archivo generado será:
+El archivo, por defecto, será generado con este patrón: `{input[to]}/{input[type]}.{input[ext]}`, pero si se es especifica el nombre (input --name), sera así: `{input[to]}/{input[name]}.{input[ext]}`.
 
-```txt
-{nombre-documento}.md
-```
+Ejemplos, en par comando -> archivo generado:
+- "vslices generate document --type context --lang es" -> "./context.md"
+- "vslices generate document --type pruebas --lang en" -> "./pruebas.md"
+- "vslices generate document --type context --lang es --to ./documents" -> "./documents/context.md"
+- "vslices generate document --type context --lang es --name context.iteration" -> "./documents/context.iteration.md"
 
 Si ya existe un archivo con ese nombre, se generará otro agregando `(N)` al final.
 
@@ -165,7 +191,7 @@ Si ya existe un archivo con ese nombre, se generará otro agregando `(N)` al fin
 
 | Pregunta | Decisión |
 | --- | --- |
-| ¿Cuál será la estructura final exacta de `context-document.template.yaml`? | Será definida en base a lo que entregue el negocio. El tooling no impone una estructura documental semántica más allá de que el template sea válido. |
+| ¿Cuál será la estructura final exacta de `context.document-template.yaml`? | Será definida en base a lo que entregue el negocio. El tooling no impone una estructura documental semántica más allá de que el template sea válido. |
 | ¿El nombre base del documento vendrá desde el template, desde el tipo documental o desde un argumento futuro? | Por ahora, el nombre base viene por defecto. |
 | ¿Los errores esperados se representarán como códigos internos, mensajes humanos o ambos? | Ambos. |
 | ¿La ruta de salida podrá configurarse en esta iteración o quedará fija a la ruta actual del CLI? | El documento se genera en la misma ruta de ejecución. |

@@ -76,7 +76,7 @@ La responsabilidad de diseñar templates correctos pertenece al estándar docume
 | Pregunta | Decisión |
 | --- | --- |
 | ¿Qué estructura mínima exacta hará que un template sea válido sin imponer semántica documental excesiva? | La estructura mínima válida para templates documentales será `version`, `name`, `front-matter` y `segments`. |
-| ¿Qué códigos internos usaremos para los errores esperados? | Los códigos internos comenzarán desde `400` y crecerán secuencialmente a medida que se necesiten nuevos errores. |
+| ¿Qué códigos internos usaremos para los errores esperados? | Los códigos internos comenzarán desde 1, siendo este errores de consistencia y crecerán secuencialmente a medida que se necesiten nuevos errores. |
 | ¿Qué invariantes pertenecen al bounded context completo y cuáles pertenecen específicamente al aggregate root `DocumentTemplate`? | Las invariantes específicas del template pertenecen a `DocumentTemplate`. El bounded context conserva reglas de consistencia generales sobre generación documental. |
 | ¿Cuándo este bounded context debería ampliarse para soportar targets distintos de `doc`? | El contexto ya permite extensión futura, pero posibilidad no implica obligación. Nuevos targets solo se agregarán cuando exista una necesidad validada. |
 | ¿Cuándo la validación de templates debe pasar desde validación mínima a diagnóstico detallado mediante `vslices validate`? | `vslices generate` y `vslices validate` usan las mismas invariantes de consistencia de `DocumentTemplate`. La diferencia está en la intención del comando: `generate` valida para construir, `validate` valida para diagnosticar. |

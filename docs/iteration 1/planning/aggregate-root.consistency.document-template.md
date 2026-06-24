@@ -38,8 +38,6 @@ Su propósito no es decidir si el contenido documental está bien escrito, sino 
 Las decisiones que deben pasar por este agregado son:
 
 * aceptar o rechazar una plantilla como válida
-* determinar qué segmentos aplican a un nivel documental
-* determinar si existe contenido disponible para un idioma solicitado
 * exponer los datos necesarios para construir Markdown
 * responder con errores esperados cuando una plantilla no puede usarse
 
@@ -48,6 +46,7 @@ Las decisiones que deben pasar por este agregado son:
 * La plantilla debe tener una versión.
 * La plantilla debe tener nombre.
 * La plantilla debe tener al menos un segmento.
+* Cada fron
 * Cada segmento debe tener idioma.
 * Cada segmento debe tener tipo de encabezado.
 * Cada segmento debe tener título.
@@ -76,7 +75,7 @@ Estas responsabilidades pertenecen al caso de uso, al bounded context o a comand
 
 | Pregunta | Decisión |
 | --- | --- |
-| ¿Qué códigos internos usaremos para los errores esperados de `DocumentTemplate`? | Todo error de validación usará el código `400`, independiente del aggregate que lo origine. |
+| ¿Qué códigos internos usaremos para los errores esperados de `DocumentTemplate`? | Los errores de consistencia que hayan deben usarse el codigo 1, al ser errores de consistencia. |
 | ¿La versión `1` será la única soportada en esta iteración? | Sí. |
 | ¿`comments` debe ser obligatorio o puede ser opcional? | Puede ser opcional. |
 | ¿`front-matter` debe ser obligatorio para todos los templates documentales? | Oficialmente será requerido porque entrega metadata útil para análisis posterior de otros productos, como Surreal Atlas. Sin embargo, técnicamente será opcional en esta iteración. |
@@ -107,15 +106,30 @@ segments:
 
 ### Campos
 
-| Campo                   | Obligatorio | Formato o restricción                                   |
-| ----------------------- | ----------- | ------------------------------------------------------- |
-| `version`               | Sí          | Número de versión soportado por el generador.           |
-| `name`                  | Sí          | Texto abierto, máximo 128 caracteres.                   |
-| `front-matter.language` | Sí          | Código de idioma. Oficialmente se soportan `es` y `en`. |
-| `front-matter.text`     | Sí          | Texto abierto, máximo 128 caracteres.                   |
-| `front-matter.value`    | Sí          | Texto abierto, máximo 128 caracteres.                   |
-| `segments.language`     | Sí          | Código de idioma. Oficialmente se soportan `es` y `en`. |
-| `segments.type`         | Sí          | Valores entre `H1`, `H2`, `H3`, `H4`, `H5` y `H6`.      |
-| `segments.title`        | Sí          | Texto abierto, máximo 128 caracteres.                   |
-| `segments.comments`     | Sí          | Texto abierto, máximo 1024 caracteres.                  |
-| `segments.applies-to`   | Sí          | Lista con al menos un nivel soportado.                  |
+Esquema "Segmento de texto":
+
+| Campo        | Obligatorio | Tipo           | Formato o restricción                                |
+| ------------ | ----------- | -------------- | ---------------------------------------------------- |
+| language     | Sí          | Texto          | Código de idioma.                                    |
+| type         | Sí          | Texto          | Selección entre `H1`, `H2`, `H3`, `H4`, `H5` y `H6`. |
+| title        | Sí          | Texto          | Máximo 128 caracteres.                               |
+| comments     | No          | Texto          | Máximo 1024 caracteres.                              |
+| applies-to   | Sí          | Lista de texto | con al menos un nivel soportado.                     |
+
+
+Esquema "Segmento FrontMatter"
+
+| Campo     | Obligatorio | Tipo  | Formato o restricción  |
+| --------- | ----------- | ----- | ---------------------- |
+| language  | Sí          | Texto | Código de idioma.      |
+| text      | Sí          | Texto | Máximo 128 caracteres. |
+| value     | Sí          | Texto | Máximo 128 caracteres. |
+
+Esquema base: Template
+
+| Campo         | Obligatorio | Tipo                          | Formato o restricción                                   |
+| ------------- | ----------- | ----------------------------- | ------------------------------------------------------- |
+| version       | Sí          | Numero                        | Versión soportada por el generador.                     |
+| name          | Sí          | Texto                         | Abierto, máximo 128 caracteres.                         |
+| front-matters | No          | Lista de Segmento FrontMatter | Metadata del documento                                  |
+| segments      | Sí          | Lista de Segmento de texto    | Código de idioma. Oficialmente se soportan `es` y `en`. |
