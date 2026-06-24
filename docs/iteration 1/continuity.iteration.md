@@ -84,8 +84,9 @@ flowchart LR
     LE --> T1[[Términos generales]]
     LE --> T2[[Términos específicos]]
 
-    A --> ID>Invariantes definidas]
-    ID -- De --> TI{{Invariantes de Template}}
+    A --> ID[Posee definiciones]
+    ID --> CD1[[<b>Domain Context</b><br/>Generación de artefactos<br/><small>Consistencia</small>]]
+    CD1 --> AR1[[<b>Aggregate Root</b><br/>Plantilla de documento<br/><small>Consistencia</small>]]
 
     A --> B[Expresa comportamientos]
     
@@ -95,8 +96,8 @@ flowchart LR
     A --> OR[Origina capacidades]
     OR --> C1>Generación documental]
 
-    A --> OW[Dueño de]
-    OW --> PR1[[VSlces Tooling<br/><small>Contexto</small>]]
+    A --> OW[Posee software]
+    OW --> PR1[[VSlces Tooling<br/><small>Producto</small>]]
     
     A --> D[Delimitado por]
     D --> D1[[Introducción de<br/>VSlices Docs Standard]]
@@ -107,6 +108,9 @@ flowchart LR
     click D1 "Ir a introducción de VSlices Standard" "https://"
     click P1 "Ir a Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
     click PR1 "Ir a definición de VSlices Tooling" "https://"
+
+    click CD1 "Ir a definición de Consistencia de Generación de artefactos" ""
+    click CD1 "Ir a definición de Consistencia de Plantilla de documento" ""
 
 ```
 
@@ -138,7 +142,7 @@ flowchart TD
 | Start | Aprobado | Creación del mapa inicial | Pendiente | 
 | Understanding | Aprobado | Se identificaron conceptos y relaciones candidatas. Los diagramas detallados se moverán a Contextualizing. | Pendiente |
 | Contextualizing | Aprobado | VSlices Tooling es una línea técnica dentro de VSlices Docs Standard y de ordenaron las relaciones que en Understanding se dejaron como candidadas | Pendiente |
-| Planning | Pendiente | Pendiente | Pendiente |
+| Planning | Aprobado | Se generó el proceso nuevo, junto con las definiciónes de dominio de Document Template y Artifact Generation | Pendiente |
 | Building | Pendiente | Pendiente | Pendiente |
 | Validating | Pendiente | Pendiente | Pendiente |
 

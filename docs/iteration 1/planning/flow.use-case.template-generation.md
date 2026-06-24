@@ -94,14 +94,18 @@ flowchart TB
 | El template puede leerse.                     | El sistema necesita acceder al contenido del template.             | Error de acceso al template   |
 | La ruta de salida permite escritura.          | El sistema necesita persistir el documento generado.               | Error de escritura en la ruta |
 
-## Invariantes de dominio
+## Reglas de consistencia
+
+
 
 * El tooling genera esqueletos documentales, no contenido final.
 * El contenido específico del documento debe ser completado por una persona.
 * El template define qué se genera.
 * El tipo documental determina qué template se busca.
 * El idioma determina qué textos del template se usan.
+* Para generar un documento, el idioma solicitado debe estar disponible en todos los segmentos requeridos, si no error de formato del yaml
 * El nivel determina qué segmentos del template se incluyen.
+* Para generar un documento, el nivel solicitado debe producir al menos un segmento.
 * El documento generado debe mantenerse editable como Markdown.
 * El tooling no valida calidad editorial profunda en esta iteración.
 * Si el template es válido, el tooling debe respetar su estructura.
