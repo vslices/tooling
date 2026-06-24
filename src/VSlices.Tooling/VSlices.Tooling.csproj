@@ -12,10 +12,16 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="Kokuban" />
+    <PackageReference Include="Kurukuru" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="ConsoleAppFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VSlices.DocumentGeneration\VSlices.DocumentGeneration.csproj" />
   </ItemGroup>
 
 </Project>
