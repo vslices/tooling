@@ -199,5 +199,15 @@ La regla inicial queda así:
 
    - Actualizar y/o extender caminos de continuidad según el plan.
 
+7. Llevar a cabo Building
 
-    
+   Actividades:
+
+   - Implementar el slice.
+   - Mantener trazabilidad entre decisión, documentación y comportamiento.
+   - Documentar decisiones técnicas o desviaciones relevantes.
+   - Generar documentación necesaria para preservar continuidad entre diseño e implementación.
+
+   Cierre del stage:
+
+   - Actualizar y/o extender caminos de continuidad según lo construido.

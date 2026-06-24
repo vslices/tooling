@@ -1,5 +1,5 @@
 ---
-id: bounded-context.consistency.document-generation
+id: bounded-context.consistency.artifact-generation
 type: consistency-document
 status: active
 scope: bounded-context
@@ -57,8 +57,6 @@ Debe proteger decisiones y reglas relacionadas con:
 * El tooling genera artefactos base, no contenido final.
 * El contenido específico del artefacto debe ser completado por una persona.
 * El tooling no valida calidad editorial profunda en esta iteración.
-
-De temlpate
 
 
 ## Fuera de alcance

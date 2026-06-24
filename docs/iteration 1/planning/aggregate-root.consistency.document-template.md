@@ -53,7 +53,6 @@ Las decisiones que deben pasar por este agregado son:
 * Cada segmento debe tener título.
 * Cada segmento no debe repetir el mismo título en un idioma
 * Cada segmento debe declarar al menos un nivel aplicable.
-* Cada idioma empleado debe aparecer en todos los segmentos, en caso contrario no es utilizable y fallará al hacer uso de este
 * Cada nivel declarado debe estar dentro de los niveles soportados.
 
 ## Fuera de alcance
