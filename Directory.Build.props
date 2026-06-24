@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors>nullable</WarningsAsErrors>
     <AnalysisLevel>latest</AnalysisLevel>
     
     <ImplicitUsings>disable</ImplicitUsings>

@@ -7,8 +7,16 @@
       "request": "launch",
       "preLaunchTask": "dotnet: build",
       "program": "${workspaceFolder}/src/VSlices.Tooling/bin/Debug/net10.0/VSlices.Tooling.dll",
-      "args": [],
-      "cwd": "${workspaceFolder}/src/VSlices.Tooling",
+      "args": [
+        "generate-document",
+        "--type",
+        "context",
+        "--level",
+        "L0",
+        "--language",
+        "es"
+      ],
+      "cwd": "${workspaceFolder}",
       "stopAtEntry": false,
       "console": "integratedTerminal"
     },
