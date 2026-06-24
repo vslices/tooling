@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-dotnettools.csdevkit",
+    "ms-dotnettools.csharp",
+    "openai.chatgpt",
+    "eamodio.gitlens",
+    "editorconfig.editorconfig",
+    "yzhang.markdown-all-in-one",
+    "bierner.markdown-mermaid",
+    "redhat.vscode-yaml"
+  ]
+}
