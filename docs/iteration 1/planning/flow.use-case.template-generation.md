@@ -54,7 +54,7 @@ flowchart TB
   IN((Inicio)) 
   INPUT@{ shape: manual-input, label: "vslices generate document --type 'context' --language 'es' --level 'L0' --output '/'"}
   VERIF1@{ shape: diamond, label: "¿Existe template para 'context'?"}
-  PROC1@{ shape: procs, label: "Lectura del context.template.yaml" }
+  PROC1@{ shape: procs, label: "Lectura del context.document-template.yaml" }
   
   VERIF2@{ shape: diamond, label: "¿El template es valido en formato?"}
   VERIF3@{ shape: diamond, label: "¿Existe lenguaje 'es' y<br/> extensión 'L0' en ese template?"}
@@ -85,15 +85,15 @@ flowchart TB
 
 ## Validaciones
 
-| Validación                                    | Razón                                                              | Error esperado                |
-| --------------------------------------------- | ------------------------------------------------------------------ | ----------------------------- |
-| El tipo documental fue indicado. | El sistema necesita saber qué template debe buscar. | Tipo documento requerido |
-| El template solicitado existe. | No se puede generar sin template. | Template no existente |
-| El idioma solicitado existe en los segmentos. | El sistema necesita seleccionar los textos correctos del template. | Idioma requerido              |
-| El nivel solicitado existe en algún segmento. | El sistema necesita seleccionar los segmentos aplicables.          | Nivel requerido               |
-| El template no es valido en sintaxis.         | El sistema necesita tener un documento valido.                     | Error de validez del template |
-| El template puede leerse.                     | El sistema necesita acceder al contenido del template.             | Error de acceso al template   |
-| La ruta de salida permite escritura.          | El sistema necesita persistir el documento generado.               | Error de escritura en la ruta |
+| Validación                                                       | Razón                                                              | Error esperado                |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------ | ----------------------------- |
+| El tipo documental fue indicado.                                 | El sistema necesita saber qué template debe buscar.                | Tipo documento requerido      |
+| El template solicitado existe.                                   | No se puede generar sin template.                                  | Template no existente         |
+| El nivel solicitado filtra al menos un segmento.                 | El sistema necesita seleccionar los segmentos aplicables.          | Nivel requerido               |
+| El idioma solicitado esta disponible en los segmentos del nivel. | El sistema necesita seleccionar los textos correctos del template. | Idioma requerido              |
+| El template no es valido en sintaxis.                            | El sistema necesita tener un documento valido.                     | Error de validez del template |
+| El template puede leerse.                                        | El sistema necesita acceder al contenido del template.             | Error de acceso al template   |
+| La ruta de salida permite escritura.                             | El sistema necesita persistir el documento generado.               | Error de escritura en la ruta |
 
 ## Reglas de consistencia
 

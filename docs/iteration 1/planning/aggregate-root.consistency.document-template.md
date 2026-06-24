@@ -5,7 +5,7 @@ status: active
 scope: aggregate-root
 level: L0
 related:
-  - bounded-context.consistency.document-generation
+  - bounded-context.consistency.artifact-generation
   - flow.use-case.generate-document-from-template
 ---
 
@@ -38,21 +38,15 @@ Su propósito no es decidir si el contenido documental está bien escrito, sino 
 Las decisiones que deben pasar por este agregado son:
 
 * aceptar o rechazar una plantilla como válida
-* exponer los datos necesarios para construir Markdown
 * responder con errores esperados cuando una plantilla no puede usarse
 
 ## Consistencia
 
-* La plantilla debe tener una versión.
-* La plantilla debe tener nombre.
-* La plantilla debe tener al menos un segmento.
-* Cada fron
-* Cada segmento debe tener idioma.
-* Cada segmento debe tener tipo de encabezado.
-* Cada segmento debe tener título.
-* Cada segmento no debe repetir el mismo título en un idioma
-* Cada segmento debe declarar al menos un nivel aplicable.
-* Cada nivel declarado debe estar dentro de los niveles soportados.
+* La plantilla debe ser coherente con el esquema "Template"
+* Cada objeto en "front-matters" debe ser coherente con el esquema de FrontMatter
+* Cada objeto en "segments" debe ser coherente con el esquema de Segment.
+* Los objetos en "segments" son unicos según el par "language" y "title"
+* Los objetos en "front-matters" son unicos según el par "language" y "title"
 
 ## Fuera de alcance
 
@@ -88,12 +82,15 @@ Estas responsabilidades pertenecen al caso de uso, al bounded context o a comand
 
 ```yaml
 version: 1
+generator-version: 1
 name: <struct-name>
 
-front-matter:
+front-matters:
   - language: <lang>
     text: <column-text>
     value: <column-value>
+    defaults:
+      - <default-value>
 
 segments:
   - language: <lang>
@@ -106,30 +103,32 @@ segments:
 
 ### Campos
 
-Esquema "Segmento de texto":
+Esquema "Segmento":
 
-| Campo        | Obligatorio | Tipo           | Formato o restricción                                |
-| ------------ | ----------- | -------------- | ---------------------------------------------------- |
-| language     | Sí          | Texto          | Código de idioma.                                    |
-| type         | Sí          | Texto          | Selección entre `H1`, `H2`, `H3`, `H4`, `H5` y `H6`. |
-| title        | Sí          | Texto          | Máximo 128 caracteres.                               |
-| comments     | No          | Texto          | Máximo 1024 caracteres.                              |
-| applies-to   | Sí          | Lista de texto | con al menos un nivel soportado.                     |
+| Campo        | Obligatorio | Tipo           | Formato o restricción                                                           |
+| ------------ | ----------- | -------------- | ------------------------------------------------------------------------------- |
+| language     | Sí          | Texto          | Código de idioma.                                                               |
+| type         | Sí          | Texto          | Selección entre `H1`, `H2`, `H3`, `H4`, `H5` y `H6`.                            |
+| title        | Sí          | Texto          | Máximo 128 caracteres.                                                          |
+| comments     | No          | Texto          | Máximo 1024 caracteres.                                                         |
+| applies-to   | Sí          | Lista de texto | Maximo 4 caracteres cada elemento, al menos un nivel soportado, unicos entre sí |
 
 
-Esquema "Segmento FrontMatter"
+Esquema "FrontMatter"
 
-| Campo     | Obligatorio | Tipo  | Formato o restricción  |
-| --------- | ----------- | ----- | ---------------------- |
-| language  | Sí          | Texto | Código de idioma.      |
-| text      | Sí          | Texto | Máximo 128 caracteres. |
-| value     | Sí          | Texto | Máximo 128 caracteres. |
+| Campo     | Obligatorio | Tipo           | Formato o restricción                               |
+| --------- | ----------- | -------------- | --------------------------------------------------- |
+| language  | Sí          | Texto          | Código de idioma.                                   |
+| text      | Sí          | Texto          | Máximo 128 caracteres.                              |
+| value     | Sí          | Texto          | Máximo 128 caracteres.                              |
+| defaults  | No          | Lista de Texto | Maximo 32 caracteres cada elemento, unicos entre sí |
 
-Esquema base: Template
+Esquema "Template"
 
-| Campo         | Obligatorio | Tipo                          | Formato o restricción                                   |
-| ------------- | ----------- | ----------------------------- | ------------------------------------------------------- |
-| version       | Sí          | Numero                        | Versión soportada por el generador.                     |
-| name          | Sí          | Texto                         | Abierto, máximo 128 caracteres.                         |
-| front-matters | No          | Lista de Segmento FrontMatter | Metadata del documento                                  |
-| segments      | Sí          | Lista de Segmento de texto    | Código de idioma. Oficialmente se soportan `es` y `en`. |
+| Campo         | Obligatorio | Tipo              | Formato o restricción  |
+| ------------- | ----------- | ----------------- | ---------------------  |
+| version       | Sí          | Texto             | Formato "vX.Y.Z.W".    |
+| min-generator | Sí          | Texto             | Formato "vX.Y.Z.W".    |
+| name          | Sí          | Texto             | Máximo 128 caracteres. |
+| front-matters | No          | Lista FrontMatter | N/A                    |
+| segments      | Sí          | Lista Segmento    | Al menos un segmento.  |
