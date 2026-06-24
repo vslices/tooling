@@ -10,5 +10,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageVersion>
+    <PackageVersion Include="Kokuban" Version="0.2.0" />
+    <PackageVersion Include="Kurukuru" Version="1.5.0" />
   </ItemGroup>
 </Project>
