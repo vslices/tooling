@@ -1,5 +1,13 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/VSlices.DocumentGeneration/VSlices.DocumentGeneration.csproj" />
     <Project Path="src/VSlices.Tooling/VSlices.Tooling.csproj" />
+  </Folder>
+  <Folder Name="/src/framework/" />
+  <Folder Name="/src/framework/src/">
+    <Project Path="src/framework/src/VSlices.Application/VSlices.Application.csproj" />
+    <Project Path="src/framework/src/VSlices.Domain/VSlices.Domain.csproj" />
+    <Project Path="src/framework/src/VSlices.Infrastructure/VSlices.Infrastructure.csproj" />
+    <Project Path="src/framework/src/VSlices/VSlices.csproj" />
   </Folder>
 </Solution>
