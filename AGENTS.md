@@ -7,4 +7,3 @@
 - Preserve documentation and implementation continuity.
 - Run `dotnet build` and relevant tests after code changes.
 - For documentation, keep files focused and avoid unnecessary expansion.
-- 

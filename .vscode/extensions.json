@@ -7,6 +7,7 @@
     "editorconfig.editorconfig",
     "yzhang.markdown-all-in-one",
     "bierner.markdown-mermaid",
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "openai.chatgpt"
   ]
 }
