@@ -1,0 +1,14 @@
+---
+template:
+  scope: document
+  type: context
+  version: 0.1.0
+
+allows:
+  languages:
+    - es
+  levels:
+    - L0
+    - L1
+---
+

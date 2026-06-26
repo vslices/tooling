@@ -19,7 +19,7 @@ Level: L0, L1.
 
 -->
 
-# Proceso de generación manual de documentos
+# Estructura del Proceso de Generación Documental
 
 ## Estructura de trabajo
 
@@ -93,12 +93,3 @@ Su propósito no es solo producir archivos Markdown, sino mantener continuidad e
 | ¿Cómo representar tipo documental, idioma y nivel de detalle sin sobrediseñar? | Mediante un template YAML por tipo documental, con segmentos encargados de definir títulos y contenido. Cada segmento puede variar su escritura según pertenezca a metadata o body. |
 | ¿Cuándo una estructura documental debe nacer como L0 y cuándo como L1? | Cada nivel debe responder a una necesidad específica del documento. Para el caso de uso, L0 describe el caso de éxito y L1 agrega respuestas ante condiciones esperadas. |
 | ¿Qué reglas editoriales deberían ser verificables por tooling? | Ninguna regla editorial profunda en esta iteración. Si el template es válido, el tooling debe generar el documento correctamente. La responsabilidad de diseñar templates correctos pertenece al estándar documental. |
-
-### Ejemplo de niveles para Use Case Document
-
-| Nivel | Responsabilidad |
-| --- | --- |
-| L0 | Describe el comportamiento mínimo para el caso de éxito. |
-| L1 | Agrega lo mínimo necesario para responder apropiadamente ante condiciones esperadas. |
-| L2 | Agrega documentación de soporte sobre respuestas, alternativas o extensiones conocidas. |
-| L3 | Agrega guía explícita para expandir el caso de uso correctamente. |

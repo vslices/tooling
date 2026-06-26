@@ -31,9 +31,9 @@ Dado el dolor y el contexto, lo prioritario es preservar:
 
     Dado que el equipo y el contexto es pequeño, no es necesario generar un documento de contexto de empresa o proyecto; pero en equipos más grandes, es más probable que se deban generar un documento, para centralizar la verdad
 
-Por ejemplo, para si donde trabajas dan servicios de desarrollo a una empresa externa, seria conveniente tener un context.[organization-name] y un context.[project-name], ya que personas nevas no tienen este contexto
+Por ejemplo, para si donde trabajas dan servicios de desarrollo a una empresa externa, seria conveniente tener un context.`organization-name` y un context.`project-name`, ya que personas nevas no tienen este contexto
 
-En cambio, si eres interno de una empresa y trabajas en un proyecto de la misma, puedes solo generar un context.[project-name]
+En cambio, si eres interno de una empresa y trabajas en un proyecto de la misma, puedes solo generar un context.`project-name`
 
 ## 2. Definir continuidad inicial y modalidad
 
@@ -60,7 +60,7 @@ La modalidad de trabajo escogida es Slice-first, ya que nos permitirá sanar el 
 
 ## 3. Esbozar caminos de continuidad
 
-[Ver doucmento de continuidad del stage de understanding](./iteration%201/understanding/continuity.stage.md)
+[Ver doucmento de continuidad de iteración](./continuity.iteration.md)
 
 !!! risk "Cuidado con el alcance"
 
@@ -198,3 +198,81 @@ La regla inicial queda así:
    Cierre del stage:
 
    - Actualizar y/o extender caminos de continuidad según el plan.
+
+### Observación: documentos de actualización
+
+Durante Planning apareció la necesidad de representar cambios sobre documentos existentes sin duplicar su tipo documental ni agregar estados como `proposal`, `approved` o `denied`.
+
+Una posible dirección es usar **documentos de actualización**: artifacts que declaran qué documento actualizan, qué partes afectan y si el cambio es parcial o completo
+
+Esto puede parecer excesivo si se hace manualmente, pero gana valor cuando se considera tooling futuro o una UI documental como Surreal Atlas, donde los updates podrían aplicarse, retirarse, auditarse o revisarse con IA.
+
+La regla emergente es:
+
+> Los documentos de actualización no existen para documentar más.
+> Existen para preservar evolución, trazabilidad y reversibilidad.
+
+## Observación crítica: front-matter
+
+Esta iteración no solo está definiendo nombres de archivo o campos de front-matter.
+
+Está definiendo el modelo mínimo que VSlices Tooling necesita para entender un atlas documental sin depender únicamente de convenciones humanas.
+
+La distinción entre `type`, `scope` y `target` es crítica porque separa tres responsabilidades distintas:
+
+* `type` define la perspectiva documental aplicada
+* `scope` define el tipo de concepto observado
+* `target` define la cosa exacta documentada
+
+Esta separación permite que un documento no sea tratado simplemente como un archivo Markdown, sino como una perspectiva específica aplicada sobre un concepto explícito.
+
+También vuelve más clara la responsabilidad de cada tipo documental. Un documento de contexto no debería explicar todo sobre algo, sino responder dónde está. Un documento de estructura debería responder cómo es. Un documento de consistencia debería responder qué debe cumplir siempre. Un documento de cambios debería responder qué se hará con eso.
+
+Si esta separación no queda clara desde el tooling, existe el riesgo de que los documentos vuelvan a convertirse en archivos genéricos, ambiguos y difíciles de relacionar.
+
+La incorporación de `relates` también es central. Sin relaciones explícitas, el resultado es solo una colección de documentos. Con relaciones explícitas, el resultado empieza a comportarse como un atlas local navegable, validable y extensible.
+
+Por eso esta decisión impacta directamente en futuras capacidades como generación documental, validación, índices locales, mapas, continuity paths, story listening y revisión de continuidad.
+
+La excepción de los documentos de actualización también es importante porque introduce una regla distinta: en ellos el orden de aplicación forma parte de la semántica del documento. Por eso `{seq}.update.{target}` no debería tratarse como una variación estética del naming, sino como una convención estructural para preservar la historia de cambios aplicados sobre un target.
+
+## Observación
+
+El camino de `improvement-iteration` parece pertenecer principalmente a VSlices Method, no a VSlices Docs Standard ni a VSlices Tooling.
+
+Su propósito no es definir un tipo documental ni una capacidad técnica concreta, sino organizar cómo una iteración de mejora preserva continuidad desde el dolor inicial hasta el aprendizaje final.
+
+Este camino puede usar documentos del Docs Standard y puede ser ejecutado o asistido por VSlices Tooling, pero su responsabilidad principal es metodológica.
+
+Por eso debería tratarse como un continuity path de VSlices Method:
+
+* parte desde un dolor concreto
+* define qué continuidad debe preservarse
+* guía stages como Understanding, Contextualizing, Planning, Building y Validating
+* actualiza o extiende caminos de continuidad en cada cierre de stage
+* termina consolidando aprendizajes, decisiones, deuda y posibles siguientes slices
+
+Esta separación ayuda a evitar que Tooling absorba responsabilidades metodológicas prematuramente.
+
+VSlices Tooling debería poder generar, representar o asistir este camino, pero VSlices Method debería definir por qué existe, cuándo usarlo y cómo debería guiar una iteración de mejora.
+
+## Observación: `level` no pertenece al documento
+
+Durante la revisión del nuevo modelo documental apareció una tensión con el campo `level`.
+
+Si un documento representa una perspectiva específica aplicada sobre un scope y target, entonces `level` deja de tener sentido como propiedad del documento. Un documento de contexto, por ejemplo, responde “¿dónde está esto?”. No debería existir un “contexto L3” que empuje al documento a explicar propósito, alcance, estructura o comportamiento.
+
+La separación propuesta es:
+
+* el documento define la perspectiva
+* el template puede definir un tamaño de generación
+* el concepto puede tener un nivel de extensión dentro del atlas
+
+Esto implica que `level` no debería persistirse como identidad documental. En cambio, puede existir como opción de generación, por ejemplo para decidir cuántos segmentos iniciales produce un template.
+
+La regla emergente es:
+
+> El documento no tiene nivel.
+> El template puede tener tamaño de generación.
+> El concepto puede tener extensión.
+

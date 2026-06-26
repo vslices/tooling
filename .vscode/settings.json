@@ -14,5 +14,6 @@
   "editor.formatOnSave": true,
   "editor.rulers": [120],
 
-  "markdown.validate.enabled": true
+  "markdown.validate.enabled": true,
+  
 }
