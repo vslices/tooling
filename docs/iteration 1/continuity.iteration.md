@@ -109,8 +109,7 @@ flowchart LR
     click P1 "Ir a Contexto del Proceso de Generación Documental" "understanding/process.context.document-generation.md"
     click PR1 "Ir a definición de VSlices Tooling" "https://"
 
-    click CD1 "Ir a definición de Consistencia de Generación de artefactos" ""
-    click CD1 "Ir a definición de Consistencia de Plantilla de documento" ""
+    click CD1 "Ir a definición de Consistencia de Generación de artefactos" "https://"
 
 ```
 
