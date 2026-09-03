@@ -43,6 +43,23 @@ jobs:
           test -f lower-context/StreetName.vsir.cs
           grep -q "sealed class StreetName" lower-context/StreetName.vsir.cs
 
+      - name: Smoke test artifact discovery ignores
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p discovery-context/many/folders discovery-context/{.git,.vslices,bin,obj,legacy}
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/many/folders/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/.git/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/.vslices/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/bin/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/obj/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/legacy/StreetName.vsir
+          cp -R .vslices/ruleset discovery-context/.vslices/ruleset
+          printf '# Project-specific ignore\nlegacy/\n' > discovery-context/.vslices/.ignore
+          cd discovery-context
+          $VSLICES lower StreetName --namespace Identities.Domain.ValueObjects
+          test -f many/folders/StreetName.vsir.cs
+          grep -q "sealed class StreetName" many/folders/StreetName.vsir.cs
+
       - name: Smoke test .NET target context delegation
         run: |
           mkdir -p target-context/ValueObjects
@@ -76,6 +93,7 @@ jobs:
           cd native-aot-context
 
           "$VSLICES" init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/.ignore
           test -f .vslices/ruleset/manifest.yaml
           test -d .vslices/ruleset/csharp
 
