@@ -21,6 +21,9 @@ internal static class RulesetCommands
         bool force = false,
         CancellationToken cancellationToken = default)
     {
+        var explicitSource = !string.IsNullOrWhiteSpace(from) ||
+                             !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE"));
+
         var source = string.IsNullOrWhiteSpace(from)
             ? Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE")
             : from;
@@ -86,6 +89,23 @@ internal static class RulesetCommands
             var ignorePath = Path.Combine(vslicesRoot, ".ignore");
             if (!File.Exists(ignorePath))
                 await File.WriteAllTextAsync(ignorePath, DefaultIgnoreContent, cancellationToken);
+
+            var existingConfiguration = ProjectConfiguration.LoadFromProjectRoot(projectRoot);
+            var official = source.Equals(OfficialRulesetArchive, StringComparison.OrdinalIgnoreCase);
+            var configuration = new ProjectConfiguration(
+                ProjectConfiguration.CurrentVersion,
+                selectedTarget,
+                official
+                    ? ProjectConfiguration.OfficialRulesetSource
+                    : explicitSource
+                        ? source
+                        : existingConfiguration?.RulesetSource ?? source,
+                official
+                    ? ProjectConfiguration.OfficialRulesetRef
+                    : existingConfiguration?.RulesetRef,
+                existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel);
+
+            await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
 
             Console.WriteLine(
                 $"Initialized VSlices ruleset at '{rulesetTarget}' with target {CommandInfrastructure.DisplayTarget(selectedTarget)}.");
