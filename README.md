@@ -140,6 +140,51 @@ Only the selected target directory is materialized into the project-local rulese
 
 Once initialized, lowering operates from local state without requiring network access.
 
+## Windows installation
+
+The current Windows distribution model follows the same general approach as the Aspire CLI: a small PowerShell bootstrap installs the standalone native executable into a user-local bin directory and adds that directory to the user `PATH`.
+
+The intended installation command after this work reaches `main` is:
+
+```powershell
+irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
+```
+
+The current default installation directory is:
+
+```text
+%USERPROFILE%\.vslices\bin
+```
+
+The script:
+
+- resolves the selected GitHub release;
+- downloads `vslices-win-x64.zip` and its published SHA-256 checksum;
+- verifies the archive before installation;
+- installs only `vslices.exe`;
+- adds the installation directory to the user `PATH` unless `-SkipPath` is supplied;
+- requires no administrator privileges.
+
+The initial script supports:
+
+```powershell
+# Current preview channel (default while Tooling is experimental)
+irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
+
+# A specific version
+iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -Version 0.1.0-preview.1"
+
+# A custom installation directory
+iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -InstallPath 'C:\Tools\VSlices'"
+
+# Install without changing PATH
+iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -SkipPath"
+```
+
+The same bootstrap can be launched from `cmd.exe` through PowerShell if needed; PowerShell remains the actual installer surface on Windows.
+
+There is intentionally no MSI/Inno Setup installer in the current distribution model. Installation establishes the executable only; project initialization remains the responsibility of `vslices init`.
+
 ## Distribution and self update
 
 The CLI is intended to remain lightweight and is configured for Native AOT publication under the executable name `vslices`.
@@ -199,7 +244,7 @@ Important properties to preserve include:
 - recursive artifact discovery that respects built-in and project-specific exclusions;
 - project configuration whose command-line overrides have clear precedence;
 - offline lowering after initialization;
-- verified update downloads before executable replacement;
+- verified installation and update downloads before executable replacement;
 - technical validation through build/test and target-specific tooling;
 - execution of the actual Native AOT binary in CI;
 - semantic verification as a distinct concern from compilation.
@@ -214,4 +259,4 @@ The tooling can then serve simultaneously as a dogfooding target, conformance co
 
 ## Status
 
-VSIR lowering, ruleset support, project configuration, and self-update are experimental. The repository should prefer small, evidence-driven extensions over speculative generalization.
+VSIR lowering, ruleset support, project configuration, installation, and self-update are experimental. The repository should prefer small, evidence-driven extensions over speculative generalization.
