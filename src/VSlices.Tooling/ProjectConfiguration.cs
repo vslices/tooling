@@ -82,7 +82,7 @@ internal sealed record ProjectConfiguration(
             });
 
         var stream = new YamlStream(new YamlDocument(root));
-        await using var writer = new StringWriter();
+        using var writer = new StringWriter();
         stream.Save(writer, assignAnchors: false);
 
         await CommandInfrastructure.AtomicWrite(
