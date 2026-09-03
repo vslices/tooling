@@ -107,7 +107,16 @@ jobs:
           test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
 
       - name: Publish Native AOT CLI
-        run: dotnet publish src/VSlices.Tooling --configuration Release --runtime linux-x64
+        shell: bash
+        run: |
+          VERSION_ARGS=()
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            VERSION_ARGS=(-p:Version="0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}")
+          fi
+          dotnet publish src/VSlices.Tooling \
+            --configuration Release \
+            --runtime linux-x64 \
+            "${VERSION_ARGS[@]}"
 
       - name: Smoke test Native AOT executable, init, and config
         run: |
@@ -137,6 +146,22 @@ jobs:
             > native-transpiled.cs
           grep -q "sealed class StreetName" native-transpiled.cs
 
+      - name: Package linux-x64 PR build
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p pr-build/linux-x64
+          zip -j pr-build/linux-x64/vslices-linux-x64.zip src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices
+          sha256sum pr-build/linux-x64/vslices-linux-x64.zip | awk '{print $1}' > pr-build/linux-x64/vslices-linux-x64.zip.sha256
+
+      - name: Upload linux-x64 PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-linux-x64
+          path: pr-build/linux-x64/*
+          if-no-files-found: error
+
   windows-native-aot:
     strategy:
       matrix:
@@ -151,4 +176,34 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Publish ${{ matrix.rid }} Native AOT CLI
         shell: pwsh
-        run: dotnet publish src/VSlices.Tooling --configuration Release --runtime ${{ matrix.rid }}
+        run: |
+          $versionArgs = @()
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $versionArgs = @('-p:Version=0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}')
+          }
+          dotnet publish src/VSlices.Tooling `
+            --configuration Release `
+            --runtime ${{ matrix.rid }} `
+            @versionArgs
+
+      - name: Package ${{ matrix.rid }} PR build
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          $rid = '${{ matrix.rid }}'
+          $directory = "pr-build/$rid"
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $archive = "$directory/vslices-$rid.zip"
+          Compress-Archive `
+            -Path "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish/vslices.exe" `
+            -DestinationPath $archive
+          (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() |
+            Set-Content -NoNewline "$archive.sha256"
+
+      - name: Upload ${{ matrix.rid }} PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-${{ matrix.rid }}
+          path: pr-build/${{ matrix.rid }}/*
+          if-no-files-found: error
