@@ -22,6 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VSlices.DocumentGeneration\VSlices.DocumentGeneration.csproj" />
+    <ProjectReference Include="..\VSlices.Targets.DotNet\VSlices.Targets.DotNet.csproj" />
+    <ProjectReference Include="..\VSlices.Vsir\VSlices.Vsir.csproj" />
+    <ProjectReference Include="..\VSlices.Vsir.CSharp\VSlices.Vsir.CSharp.csproj" />
   </ItemGroup>
 
 </Project>
