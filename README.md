@@ -4,23 +4,11 @@ VSlices Tooling is the executable tooling surface of the VSlices suite.
 
 Its purpose is to provide repeatable mechanisms around VSlices artifacts while keeping revisable semantic and lowering knowledge outside the executable whenever possible.
 
-The current CLI is named `vslices`.
+The CLI is named `vslices`.
 
-## Current responsibilities
+## v0.1.0-preview scope
 
-The repository currently contains tooling for:
-
-- structured document generation for VSlices documentation;
-- parsing and validating the experimental VSIR surface used by current benchmarks;
-- deterministic VSIR-to-C# transpilation for supported structures;
-- conservative semantic rebase experiments over human-edited materializations;
-- orchestration of the least-powerful available lowering mechanism through `lower`;
-- shared project-aware VSIR artifact discovery;
-- .NET target-context discovery;
-- project-local ruleset discovery and initialization;
-- Native AOT self-update discovery and verified replacement.
-
-The commands currently being explored include:
+The intended first preview exposes:
 
 ```text
 vslices init
@@ -30,81 +18,118 @@ vslices rebase
 vslices update --self
 ```
 
-`interpretate` and `update --ruleset` remain design directions rather than stable commands.
+`interpretate` is deliberately not part of `v0.1.0-preview`. The concept is defined as interpretive lowering for cases where deterministic mechanisms are insufficient but enough semantic authority and contextual evidence exist. A first executable `vslices interpretate` surface is a candidate for `v0.2.0-preview`.
 
-## Tooling vs. lowering knowledge
+The complete release boundary and acceptance criteria are recorded in [`docs/releases/v0.1.0-preview.md`](docs/releases/v0.1.0-preview.md).
 
-A central architectural boundary is:
+## Current responsibilities
+
+The repository currently contains mechanisms for:
+
+- structured VSlices document generation;
+- parsing and conservatively validating the current experimental VSIR benchmark surface;
+- deterministic VSIR-to-C# transpilation for supported structures;
+- conservative semantic rebase over human-edited materializations;
+- orchestration of the least-powerful available lowering mechanism through `lower`;
+- shared project-aware VSIR artifact discovery;
+- .NET target-context delegation and explicit namespace override;
+- project-local configuration and ruleset initialization;
+- Native AOT distribution;
+- verified Windows bootstrap installation;
+- verified standalone CLI self-update.
+
+## Authority boundaries
+
+The core architectural separation is:
 
 ```text
-vslices executable
-  = execution and orchestration mechanisms
-
-project/.vslices/config.yaml
-  = project operating preferences
-
-vslices/ruleset
-  = official, revisable lowering knowledge
-
-project/.vslices/ruleset
-  = local ruleset snapshot used by a project
-
 .vsir
   = semantic source
 
 .vsir.cs
-  = editable materialization
+  = editable materialization constrained by VSIR
+
+project/.vslices/config.yaml
+  = project operating policy
+
+project/.vslices/.ignore
+  = project-specific discovery exclusions
+
+vslices/ruleset
+  = official revisable lowering knowledge
+
+project/.vslices/ruleset
+  = local ruleset snapshot
+
+vslices executable
+  = mechanisms, orchestration, safety guarantees, and target adapters
 ```
 
-Concrete target lowering mappings should not be embedded in the CLI when they can be expressed as external rules. The executable may know how to execute supported classes of rules, but the rules themselves belong in the ruleset.
+Concrete target lowering mappings should not be embedded in the CLI when they can be expressed as external rules. A missing rule is not permission to guess or silently fall back.
 
-A missing rule is not permission to guess. Unsupported lowering remains explicit.
+A useful shorthand for the current design is:
 
-Project configuration controls operating preferences such as the default target, ruleset provenance, CLI update source, and update channel. It must not redefine VSIR semantics or disable correctness guarantees. Explicit command arguments override project configuration, which overrides built-in defaults.
+> Lowering may complete implementation detail. Lowering must not complete missing semantics.
 
-See `docs/configuration.md` for the project configuration contract and `docs/rulesets.md` for the current experimental ruleset contract.
+For an implementation `I` and VSIR document `V`, the intended relation is that `I` satisfies `V`; the transpiler constructs one valid witness rather than defining the only acceptable source form.
+
+See [`docs/rulesets.md`](docs/rulesets.md), [`docs/configuration.md`](docs/configuration.md), and [`docs/context.vslices-tooling.md`](docs/context.vslices-tooling.md) for the focused contracts.
 
 ## Shared command conventions
 
-Developer-experience shortcuts are intentionally implemented as shared command infrastructure so future commands can reuse them rather than inventing command-specific behavior.
+Developer-experience shortcuts are implemented as shared command infrastructure so commands do not invent independent resolution behavior.
 
 Current conventions include:
 
-- VSIR symbols and paths share the same artifact resolution rules;
+- VSIR symbols and paths share artifact resolution;
 - recursive symbol discovery ignores `.git/`, `.vslices/`, `bin/`, and `obj/` as built-in exclusions;
-- project-specific discovery exclusions are declared in `.vslices/.ignore`;
-- `-to` may be omitted when a project default target is configured or when exactly one supported target is installed locally;
+- project-specific discovery exclusions live in `.vslices/.ignore`;
+- explicit paths remain authoritative even for artifacts excluded from recursive discovery;
+- `-to` may be omitted when a project default target is configured or exactly one supported target is installed;
 - a C# materialization conventionally lives beside its VSIR as `Name.vsir.cs`;
 - `-o <path>` overrides the conventional output path;
-- `--stdout` writes the result to standard output and is equivalent to `-o -`;
-- file writes use a temporary sibling and atomic replacement;
-- commands emit the same diagnostic representation for expected failures.
+- `--stdout` is equivalent to `-o -`;
+- file writes use temporary siblings and atomic replacement;
+- expected failures use explicit diagnostics.
 
-The current `.vslices/.ignore` contract intentionally supports a small familiar subset: blank lines, `#` comments, directory paths, `*`, and `**`. Negation with `!` is not yet part of the contract. Ignore patterns are project policy for VSlices artifact discovery in general rather than behavior owned by a particular command.
+The current `.vslices/.ignore` contract intentionally supports a small subset: blank lines, `#` comments, directory paths, `*`, and `**`. Negation with `!` is not yet part of the contract.
 
-`transpile` writes a new sibling materialization by default and refuses to overwrite an existing file unless `--force` is explicit. This preserves the distinction between initial deterministic projection and an already human-editable materialization.
+## Lowering commands
 
-`rebase` infers the sibling materialization as its human source when `--source` is omitted and updates that materialization by default. The previous VSIR baseline still has to be supplied through `--from` until provenance is represented explicitly.
+### `transpile`
 
-`lower` is the normal orchestration surface. In the current iteration it chooses deterministic transpilation when no materialization exists and rebase when an existing materialization and previous baseline are available. It must stop rather than inventing ancestry when a rebase baseline cannot be established.
+`transpile` creates a deterministic projection when the ruleset and target context are sufficient.
 
-## VSIR lowering model
+By default it writes the sibling materialization and refuses to overwrite an existing file unless `--force` is explicit. Existing `.vsir.cs` files are treated as human-editable materializations, not disposable generated output.
 
-VSIR does not define one privileged source-code rendering. It constrains the space of acceptable materializations.
+### `rebase`
 
-For an implementation `I` and VSIR document `V`, the intended relation is:
+`rebase` reconstructs the previous deterministic projection, compares it with the human-edited materialization, and applies a compatible deterministic VSIR change conservatively.
+
+The previous VSIR baseline is still explicit through `--from`; automatic provenance reconstruction is outside `v0.1.0-preview`.
+
+### `lower`
+
+`lower` is the normal orchestration surface.
+
+In the first preview:
 
 ```text
-I satisfies V
+no materialization
+  -> transpile
+
+existing materialization + explicit previous baseline
+  -> rebase
+
+existing materialization + unknown ancestry
+  -> stop
 ```
 
-A deterministic transpiler constructs one valid materialization when the lowering knowledge is complete enough. Human edits remain legitimate as long as the resulting source continues to satisfy the VSIR contract.
+It must not invent ancestry merely to keep the command moving.
 
-Semantic rebase is being explored for the case where VSIR evolves after a generated materialization has already been edited by a human.
+## Project initialization and configuration
 
-## Project initialization
-
-`vslices init` establishes the project-local VSlices operating surface:
+`vslices init` establishes:
 
 ```text
 .vslices/
@@ -113,9 +138,7 @@ Semantic rebase is being explored for the case where VSIR evolves after a genera
   ruleset/
 ```
 
-`config.yaml` records operational project choices such as the default target, ruleset source/ref, CLI update source, and update channel. `.ignore` contains project-specific discovery exclusions. `ruleset/` contains the selected local lowering knowledge.
-
-The initial configuration shape is:
+The initial configuration is intentionally small:
 
 ```yaml
 version: 0.1
@@ -132,81 +155,48 @@ updates:
   channel: preview
 ```
 
-On an interactive terminal, initialization offers the official `vslices/ruleset` source and target selection. Custom local directories or HTTP(S) ZIP sources remain available through `--from`, and non-interactive use can select a target explicitly.
-
-Only the selected target directory is materialized into the project-local ruleset. The current ZIP bootstrap still downloads the source archive before selecting files; remote per-target retrieval is a later optimization rather than a requirement for the current architecture.
-
-`init --force` replaces the ruleset snapshot while preserving project-owned `.ignore` and CLI update preferences unless a future explicit reset surface says otherwise.
-
-Once initialized, lowering operates from local state without requiring network access.
-
-## Windows installation
-
-The current Windows distribution model follows the same general approach as the Aspire CLI: a small PowerShell bootstrap installs the standalone native executable into a user-local bin directory and adds that directory to the user `PATH`.
-
-The intended installation command after this work reaches `main` is:
-
-```powershell
-irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
-```
-
-The current default installation directory is:
+Operational precedence is:
 
 ```text
-%USERPROFILE%\.vslices\bin
-```
-
-The script:
-
-- resolves the selected GitHub release;
-- downloads `vslices-win-x64.zip` and its published SHA-256 checksum;
-- verifies the archive before installation;
-- installs only `vslices.exe`;
-- adds the installation directory to the user `PATH` unless `-SkipPath` is supplied;
-- requires no administrator privileges.
-
-The initial script supports:
-
-```powershell
-# Current preview channel (default while Tooling is experimental)
-irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
-
-# A specific version
-iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -Version 0.1.0-preview.1"
-
-# A custom installation directory
-iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -InstallPath 'C:\Tools\VSlices'"
-
-# Install without changing PATH
-iex "& { $(irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1) } -SkipPath"
-```
-
-The same bootstrap can be launched from `cmd.exe` through PowerShell if needed; PowerShell remains the actual installer surface on Windows.
-
-There is intentionally no MSI/Inno Setup installer in the current distribution model. Installation establishes the executable only; project initialization remains the responsibility of `vslices init`.
-
-## Distribution and self update
-
-The CLI is intended to remain lightweight and is configured for Native AOT publication under the executable name `vslices`.
-
-Configuration and lowering knowledge remain external so changes to rules do not require republishing the executable. Native AOT is a deployment direction rather than a semantic constraint on the tooling design.
-
-The current self-update surface is:
-
-```text
-vslices update --self
-vslices update --self --check
-```
-
-`--self` resolves the update source and channel using the same precedence as the rest of the CLI:
-
-```text
-command argument
+explicit CLI argument
   > .vslices/config.yaml
   > built-in default
 ```
 
-A supported release publishes one archive and checksum per RID:
+Configuration cannot redefine VSIR semantics or disable correctness guarantees such as missing-rule failure or atomic writes.
+
+Only the selected target rules are materialized locally. Once initialized, lowering operates from project-local state without requiring network access.
+
+## Windows installation
+
+The first Windows distribution model is a PowerShell bootstrap for the standalone Native AOT executable.
+
+After the release reaches `main`, installation is intended to be:
+
+```powershell
+irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
+```
+
+The default install location is:
+
+```text
+%USERPROFILE%\.vslices\bin\vslices.exe
+```
+
+The script resolves a release, downloads `vslices-win-x64.zip` plus its SHA-256 file, verifies the archive, installs `vslices.exe`, and adds the directory to the user PATH unless `-SkipPath` is supplied. It does not require administrator privileges and does not initialize any project.
+
+The bootstrap can also select a specific version, custom installation directory, or skip PATH modification.
+
+## Distribution and self-update
+
+Release automation currently targets the proven Native AOT RIDs:
+
+```text
+win-x64
+linux-x64
+```
+
+Each published artifact has a separate SHA-256 file:
 
 ```text
 vslices-win-x64.zip
@@ -216,47 +206,41 @@ vslices-linux-x64.zip
 vslices-linux-x64.zip.sha256
 ```
 
-The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the executable directly. Self-update is only intended for the standalone native executable.
-
-Tag-triggered release automation currently publishes the proven `win-x64` and `linux-x64` Native AOT artifacts and injects the tag version into the binary so it can recognize when it is already on the selected release.
-
-The update split remains deliberate:
+The current self-update surface is:
 
 ```text
 vslices update --self
-  = executable update
-
-vslices update --ruleset
-  = future project lowering-knowledge update
+vslices update --self --check
 ```
 
-CLI version and ruleset version are independent.
+The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
+
+CLI version and ruleset version remain independent. `vslices update --ruleset` is future scope.
 
 ## Validation strategy
 
-The current benchmarks begin with `StreetName.vsir` and progressively introduce new VSIR structures only when concrete examples require them.
+The current benchmark begins with `StreetName.vsir` and expands only when concrete examples require additional semantic or lowering structures.
 
-Important properties to preserve include:
+CI is expected to cover:
 
-- deterministic output for the same VSIR, ruleset, and target context;
-- no hidden fallback when a rule is absent;
-- the ability to change lowering behavior through the external ruleset without recompiling the CLI;
-- recursive artifact discovery that respects built-in and project-specific exclusions;
-- project configuration whose command-line overrides have clear precedence;
-- offline lowering after initialization;
-- verified installation and update downloads before executable replacement;
-- technical validation through build/test and target-specific tooling;
-- execution of the actual Native AOT binary in CI;
-- semantic verification as a distinct concern from compilation.
+- Release build;
+- automated lowering/rebase tests;
+- explicit namespace override without a `.csproj`;
+- real CLI `transpile`, `lower`, and `rebase` flows;
+- recursive discovery ignores;
+- .NET target-context delegation;
+- PowerShell bootstrap syntax;
+- Native AOT publication and execution;
+- project initialization and configuration creation.
+
+The first real GitHub Release supplies the final end-to-end evidence for remote bootstrap installation and self-update against published assets.
 
 ## Long-term dogfooding objective
 
-A long-term objective is incremental semantic self-hosting: whenever VSlices claims it can represent a kind of software concept, the tooling itself should become a candidate for expressing its own instances of that concept through `.vsir` artifacts.
+Whenever VSlices claims it can represent a kind of software concept, VSlices Tooling itself should become a candidate for expressing instances of that concept through `.vsir` artifacts.
 
-This does not mean every line of VSlices Tooling must be generated. The stronger goal is that representable semantics inside the tooling are described and maintained using the same VSIR and lowering mechanisms provided to other projects.
-
-The tooling can then serve simultaneously as a dogfooding target, conformance corpus, and source of evidence about gaps in VSIR.
+This does not imply generating every line of Tooling. The goal is semantic self-hosting where representable semantics are maintained through the same contracts and mechanisms offered to other projects.
 
 ## Status
 
-VSIR lowering, ruleset support, project configuration, installation, and self-update are experimental. The repository should prefer small, evidence-driven extensions over speculative generalization.
+VSIR lowering, rulesets, configuration, installation, rebase, and self-update remain preview-quality and experimental. The repository prefers small evidence-driven extensions over speculative generalization.
