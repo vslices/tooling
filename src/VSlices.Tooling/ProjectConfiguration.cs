@@ -9,7 +9,7 @@ internal sealed record ProjectConfiguration(
     string? RulesetRef,
     string? UpdateSource,
     string? UpdateChannel,
-    int? UpdatePullRequest)
+    int? UpdatePullRequest = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
