@@ -13,6 +13,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/VSlices.Targets.DotNet/VSlices.Targets.DotNet.csproj" />
     <ProjectReference Include="../../src/VSlices.Vsir/VSlices.Vsir.csproj" />
     <ProjectReference Include="../../src/VSlices.Vsir.CSharp/VSlices.Vsir.CSharp.csproj" />
   </ItemGroup>
