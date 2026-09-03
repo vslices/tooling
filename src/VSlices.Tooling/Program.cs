@@ -1,5 +1,10 @@
 ﻿using VSlices.Tooling;
 
+ConsoleApp.Version = CliVersion.Display;
+
+if (args is ["-v"])
+    args = ["--version"];
+
 var app = ConsoleApp.Create();
 
 app.Add("init", RulesetCommands.Init);
