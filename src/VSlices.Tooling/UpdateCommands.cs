@@ -6,11 +6,13 @@ internal static class UpdateCommands
     /// <param name="self">Update the standalone VSlices CLI executable.</param>
     /// <param name="channel">Override the configured update channel for this invocation.</param>
     /// <param name="source">Override the configured CLI update source for this invocation.</param>
+    /// <param name="pullRequest">Override the configured pull request used by the build update channel.</param>
     /// <param name="check">Check whether an update is available without replacing the executable.</param>
     public static Task<int> Update(
         bool self = false,
         string? channel = null,
         string? source = null,
+        int? pullRequest = null,
         bool check = false,
         CancellationToken cancellationToken = default)
     {
@@ -28,10 +30,13 @@ internal static class UpdateCommands
         var resolvedChannel = channel
             ?? configuration?.UpdateChannel
             ?? ProjectConfiguration.DefaultUpdateChannel;
+        var resolvedPullRequest = pullRequest
+            ?? configuration?.UpdatePullRequest;
 
         return SelfUpdater.Update(
             resolvedSource,
             resolvedChannel,
+            resolvedPullRequest,
             check,
             cancellationToken);
     }
