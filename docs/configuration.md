@@ -47,6 +47,7 @@ ruleset:
   ref: main
 
 updates:
+  source: https://github.com/vslices/tooling
   channel: preview
 ```
 
@@ -78,18 +79,32 @@ Declares the source revision or channel-like reference used for ruleset acquisit
 
 The initial official default is `main` while the ruleset remains experimental.
 
+### `updates.source`
+
+Declares where the CLI looks for self-update releases. The initial supported source shape is a GitHub repository URL.
+
+The official default is:
+
+```text
+https://github.com/vslices/tooling
+```
+
+An explicit `vslices update --self --source ...` invocation overrides this value for one run.
+
 ### `updates.channel`
 
 Declares the preferred CLI update channel.
 
-The initial channels anticipated by the tooling are:
+The initial supported channels are:
 
 ```text
 stable
 preview
 ```
 
-The project may normally use `preview` while VSIR lowering remains experimental. A future `vslices update --self --channel ...` argument may override the project preference for one invocation.
+`stable` accepts only non-prerelease releases. `preview` may accept prereleases as well as stable releases, preferring the newest release returned by the configured source.
+
+An explicit `vslices update --self --channel ...` invocation overrides this value for one run.
 
 ## Artifact discovery configuration
 
@@ -100,8 +115,6 @@ Project-specific discovery exclusions remain in:
 ```
 
 rather than being embedded as a list inside `config.yaml`.
-
-The location is currently conventional. Future configuration may allow additional ignore sources if concrete use cases justify it.
 
 The tooling always ignores these directories during recursive artifact discovery:
 
@@ -129,8 +142,6 @@ Name.vsir.cs
 
 This is intentionally not exposed as arbitrary configuration yet. The sibling relationship carries useful continuity between semantic source and editable materialization, and no concrete requirement currently justifies alternate layouts.
 
-The configuration model may later gain a materialization layout policy without changing the command model.
-
 ## What does not belong in `config.yaml`
 
 Concrete lowering knowledge does not belong in project configuration. Examples include:
@@ -149,13 +160,13 @@ Correctness and safety guarantees also remain executable behavior rather than pr
 - stopping when a required lowering rule is absent;
 - refusing to invent semantic ancestry for rebase;
 - built-in artifact discovery exclusions;
-- validation of downloaded update artifacts before replacement.
+- SHA-256 validation of downloaded update artifacts before replacement.
 
 A project must not be able to turn these guarantees off through configuration.
 
 ## Initialization
 
-`vslices init` is responsible for establishing the project-local VSlices operating surface:
+`vslices init` establishes the project-local VSlices operating surface:
 
 ```text
 .vslices/
@@ -169,23 +180,55 @@ Initialization should:
 1. resolve the selected ruleset source and target;
 2. materialize only the selected target rules currently required by the project;
 3. write `config.yaml` with the selected default target and ruleset provenance;
-4. create `.ignore` if absent;
-5. preserve project-owned configuration files during ruleset replacement unless the user explicitly requests a configuration reset in a future command surface.
+4. preserve existing CLI update source/channel preferences when replacing a ruleset;
+5. create `.ignore` if absent.
 
-`init --force` replaces the ruleset snapshot, not the project's unrelated local policy.
+`init --force` replaces the ruleset snapshot, not unrelated local project policy.
+
+## Self update
+
+The first self-update surface is:
+
+```text
+vslices update --self
+vslices update --self --check
+```
+
+`--check` resolves the configured source, channel, current RID, and available release without replacing the executable.
+
+The initial release asset contract is deliberately explicit. A release that supports a RID must publish:
+
+```text
+vslices-<rid>.zip
+vslices-<rid>.zip.sha256
+```
+
+For example:
+
+```text
+vslices-win-x64.zip
+vslices-win-x64.zip.sha256
+
+vslices-linux-x64.zip
+vslices-linux-x64.zip.sha256
+```
+
+The ZIP must contain exactly one platform executable named `vslices.exe` on Windows or `vslices` elsewhere. The checksum file contains the SHA-256 of the ZIP.
+
+Self-update must verify the checksum before replacement. On Unix-like systems the executable can be replaced directly after verification. On Windows replacement is deferred to a temporary helper process after the running `vslices.exe` exits.
+
+Self-update is only supported for the standalone native executable. Installations controlled by another package manager should be updated through that installation mechanism rather than silently replacing package-managed state.
 
 ## Update direction
 
-Project configuration is intended to support two distinct update paths:
+CLI version and ruleset version are deliberately independent:
 
 ```text
 vslices update --self
   = update the CLI executable
 
 vslices update --ruleset
-  = update the project-local lowering knowledge
+  = future update of project-local lowering knowledge
 ```
 
-CLI version and ruleset version are deliberately independent.
-
-The first self-update implementation should consume `updates.channel` and use the same configuration loading and override conventions as other commands rather than introducing update-specific settings machinery.
+The current implementation only materializes the `--self` path. Ruleset update remains a separate subsequent capability.
