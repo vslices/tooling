@@ -33,8 +33,6 @@ internal static class UpdateCommands
         var resolvedPullRequest = pullRequest
             ?? configuration?.UpdatePullRequest;
 
-        TerminalOutput.Heading("VSlices update");
-        TerminalOutput.BlankLine();
         TerminalOutput.Detail("Channel", resolvedChannel);
         if (resolvedChannel.Equals("build", StringComparison.OrdinalIgnoreCase) && resolvedPullRequest is not null)
             TerminalOutput.Detail("Pull request", $"#{resolvedPullRequest}");
