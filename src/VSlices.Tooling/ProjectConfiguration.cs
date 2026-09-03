@@ -112,7 +112,7 @@ internal sealed record ProjectConfiguration(
             return null;
 
         var pullRequestText = NestedScalar(root, "updates", "pull-request");
-        var pullRequest = int.TryParse(pullRequestText, out var parsedPullRequest)
+        int? pullRequest = int.TryParse(pullRequestText, out var parsedPullRequest)
             ? parsedPullRequest
             : null;
 
