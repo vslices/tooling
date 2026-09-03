@@ -41,6 +41,7 @@ jobs:
           </Project>
           EOF
           cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir target-context/ValueObjects/StreetName.vsir
+          dotnet restore target-context/Demo.Identity.csproj
           dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
             transpile target-context/ValueObjects/StreetName.vsir \
             -to C# \
