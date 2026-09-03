@@ -119,7 +119,9 @@ internal static class SelfUpdater
         var releaseVersion = NormalizeVersion(release.TagName);
         if (NormalizeVersion(currentVersion) == releaseVersion)
         {
-            Console.WriteLine($"VSlices CLI is already up to date ({release.TagName}).");
+            ShowResolvedUpdate(currentVersion, release.TagName, rid);
+            TerminalOutput.BlankLine();
+            TerminalOutput.Success("✓ VSlices is up to date");
             return 0;
         }
 
@@ -135,11 +137,14 @@ internal static class SelfUpdater
             return 1;
         }
 
-        Console.WriteLine(
-            $"VSlices CLI update available: {currentVersion} -> {release.TagName} ({channel}, {rid}).");
+        ShowResolvedUpdate(currentVersion, release.TagName, rid);
+        TerminalOutput.BlankLine();
 
         if (checkOnly)
+        {
+            TerminalOutput.Info($"→ {release.TagName} is available");
             return 0;
+        }
 
         return await InstallArchivePair(
             http,
@@ -174,9 +179,12 @@ internal static class SelfUpdater
         }
 
         var buildIdentity = $"build{pullRequest}.{run.RunNumber}";
+        var currentIdentity = CurrentBuildIdentity() ?? CurrentVersion();
         if (CurrentBuildIdentity() == buildIdentity)
         {
-            Console.WriteLine($"VSlices CLI is already up to date ({buildIdentity}).");
+            ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
+            TerminalOutput.BlankLine();
+            TerminalOutput.Success("✓ VSlices is up to date");
             return 0;
         }
 
@@ -196,11 +204,14 @@ internal static class SelfUpdater
             return 1;
         }
 
-        Console.WriteLine(
-            $"VSlices CLI build available: {CurrentBuildIdentity() ?? CurrentVersion()} -> {buildIdentity} ({rid}).");
+        ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
+        TerminalOutput.BlankLine();
 
         if (checkOnly)
+        {
+            TerminalOutput.Info($"→ {buildIdentity} is available");
             return 0;
+        }
 
         var staging = Path.Combine(Path.GetTempPath(), "vslices-build-update-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -208,7 +219,9 @@ internal static class SelfUpdater
         try
         {
             var artifactArchive = Path.Combine(staging, artifactName + ".zip");
-            await Download(http, artifact.DownloadUrl, artifactArchive, cancellationToken);
+            await TerminalOutput.ProgressAsync(
+                $"Downloading {buildIdentity}...",
+                () => Download(http, artifact.DownloadUrl, artifactArchive, cancellationToken));
 
             var artifactContents = Path.Combine(staging, "artifact");
             ZipFile.ExtractToDirectory(artifactArchive, artifactContents);
@@ -229,11 +242,18 @@ internal static class SelfUpdater
                 return 1;
             }
 
-            if (!await VerifyChecksum(archivePath, checksumPath, cancellationToken))
+            var checksumValid = false;
+            await TerminalOutput.ProgressAsync(
+                "Verifying SHA-256 checksum...",
+                async () => checksumValid = await VerifyChecksum(archivePath, checksumPath, cancellationToken));
+
+            if (!checksumValid)
             {
                 Console.Error.WriteLine("UPD007: Downloaded CLI archive failed SHA-256 verification.");
                 return 1;
             }
+
+            TerminalOutput.Success("✓ Checksum verified");
 
             return await InstallVerifiedArchive(
                 archivePath,
@@ -263,14 +283,27 @@ internal static class SelfUpdater
         {
             var archivePath = Path.Combine(staging, assetName);
             var checksumPath = Path.Combine(staging, assetName + ".sha256");
-            await Download(http, archiveUrl, archivePath, cancellationToken);
-            await Download(http, checksumUrl, checksumPath, cancellationToken);
 
-            if (!await VerifyChecksum(archivePath, checksumPath, cancellationToken))
+            await TerminalOutput.ProgressAsync(
+                $"Downloading {version}...",
+                async () =>
+                {
+                    await Download(http, archiveUrl, archivePath, cancellationToken);
+                    await Download(http, checksumUrl, checksumPath, cancellationToken);
+                });
+
+            var checksumValid = false;
+            await TerminalOutput.ProgressAsync(
+                "Verifying SHA-256 checksum...",
+                async () => checksumValid = await VerifyChecksum(archivePath, checksumPath, cancellationToken));
+
+            if (!checksumValid)
             {
                 Console.Error.WriteLine("UPD007: Downloaded CLI archive failed SHA-256 verification.");
                 return 1;
             }
+
+            TerminalOutput.Success("✓ Checksum verified");
 
             return await InstallVerifiedArchive(
                 archivePath,
@@ -335,6 +368,13 @@ internal static class SelfUpdater
             replacement,
             version,
             cancellationToken);
+    }
+
+    private static void ShowResolvedUpdate(string current, string latest, string rid)
+    {
+        TerminalOutput.Detail("Current", current);
+        TerminalOutput.Detail("Latest", latest);
+        TerminalOutput.Detail("Runtime", rid);
     }
 
     private static async Task<GitHubRelease?> ResolveRelease(
@@ -520,7 +560,7 @@ internal static class SelfUpdater
         if (!OperatingSystem.IsWindows())
         {
             File.Move(replacement, current, overwrite: true);
-            Console.WriteLine($"Updated VSlices CLI to {version}.");
+            TerminalOutput.Success($"✓ Updated VSlices to {version}");
             return 0;
         }
 
@@ -548,7 +588,9 @@ internal static class SelfUpdater
             CreateNoWindow = true
         });
 
-        Console.WriteLine($"VSlices CLI {version} is ready and will replace the current executable after this process exits.");
+        TerminalOutput.Success("✓ Update prepared");
+        TerminalOutput.BlankLine();
+        TerminalOutput.Muted($"{version} will replace the current executable when this process exits.");
         return 0;
     }
 
