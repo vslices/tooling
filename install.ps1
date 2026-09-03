@@ -137,7 +137,7 @@ try {
     if (-not $SkipPath) {
         Write-Host 'VSlices Tooling was added to your user PATH.'
     }
-    Write-Host 'Run: vslices --version'
+    Write-Host 'Run: vslices --help'
 }
 finally {
     if (Test-Path $temp) {
