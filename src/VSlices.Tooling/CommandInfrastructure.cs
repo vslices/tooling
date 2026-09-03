@@ -1,0 +1,147 @@
+using VSlices.Vsir;
+
+namespace VSlices.Tooling;
+
+internal static class CommandInfrastructure
+{
+    public static (string? Path, VsirDiagnostic? Diagnostic) ResolveVsir(string value, string cwd)
+    {
+        var direct = Path.GetFullPath(value, cwd);
+        if (File.Exists(direct))
+            return (direct, null);
+
+        if (!Path.HasExtension(value))
+        {
+            var withExtension = Path.GetFullPath(value + ".vsir", cwd);
+            if (File.Exists(withExtension))
+                return (withExtension, null);
+        }
+
+        var symbol = Path.GetFileNameWithoutExtension(value);
+        var matches = Directory
+            .EnumerateFiles(cwd, symbol + ".vsir", SearchOption.AllDirectories)
+            .Where(path => !HasBuildDirectory(path))
+            .Take(3)
+            .ToArray();
+
+        return matches.Length switch
+        {
+            1 => (matches[0], null),
+            0 => (null, new("CLI001", $"Could not resolve VSIR symbol or path '{value}'.")),
+            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+        };
+    }
+
+    public static string ConventionalMaterializationPath(string vsirPath, string target) =>
+        NormalizeTarget(target) switch
+        {
+            "csharp" => vsirPath + ".cs",
+            var normalized => vsirPath + "." + normalized
+        };
+
+    public static (string? Target, VsirDiagnostic? Diagnostic) ResolveTarget(
+        string? requested,
+        string rulesetRoot)
+    {
+        if (!string.IsNullOrWhiteSpace(requested))
+        {
+            var normalized = NormalizeTarget(requested);
+            if (normalized == "csharp")
+                return (normalized, null);
+
+            return (null, new("CLI020", $"Target '{requested}' is not supported. Current experimental target: C#."));
+        }
+
+        var installed = new List<string>();
+        if (Directory.Exists(Path.Combine(rulesetRoot, "csharp")))
+            installed.Add("csharp");
+
+        return installed.Count switch
+        {
+            1 => (installed[0], null),
+            0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices init' or specify -to after installing a target.")),
+            _ => (null, new("CLI022", "More than one supported target is installed. Specify -to explicitly."))
+        };
+    }
+
+    public static string DisplayTarget(string target) =>
+        NormalizeTarget(target) == "csharp" ? "C#" : target;
+
+    public static string NormalizeTarget(string target) =>
+        target.Equals("C#", StringComparison.OrdinalIgnoreCase) ||
+        target.Equals("csharp", StringComparison.OrdinalIgnoreCase)
+            ? "csharp"
+            : target.Trim().ToLowerInvariant();
+
+    public static async Task<int> WriteResult(
+        string content,
+        string defaultPath,
+        string? output,
+        bool stdout,
+        bool overwrite,
+        CancellationToken cancellationToken)
+    {
+        if (stdout && !string.IsNullOrWhiteSpace(output) && output != "-")
+        {
+            Console.Error.WriteLine("CLI030: --stdout cannot be combined with an explicit output path.");
+            return 2;
+        }
+
+        if (stdout || output == "-")
+        {
+            Console.Write(content);
+            return 0;
+        }
+
+        var resolved = string.IsNullOrWhiteSpace(output)
+            ? defaultPath
+            : Path.GetFullPath(output, Environment.CurrentDirectory);
+
+        if (File.Exists(resolved) && !overwrite)
+        {
+            Console.Error.WriteLine(
+                $"CLI031: Output '{resolved}' already exists. Use 'vslices lower', 'vslices rebase', or --force to replace it explicitly.");
+            return 1;
+        }
+
+        await AtomicWrite(resolved, content, cancellationToken);
+        Console.WriteLine($"Wrote '{resolved}'.");
+        return 0;
+    }
+
+    public static async Task AtomicWrite(
+        string path,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path)!;
+        Directory.CreateDirectory(directory);
+
+        var temporary = Path.Combine(
+            directory,
+            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+
+        try
+        {
+            await File.WriteAllTextAsync(temporary, content, cancellationToken);
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+                File.Delete(temporary);
+        }
+    }
+
+    public static void WriteDiagnostics(IEnumerable<VsirDiagnostic> diagnostics)
+    {
+        foreach (var diagnostic in diagnostics)
+            Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+    }
+
+    private static bool HasBuildDirectory(string path)
+    {
+        var segments = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return segments.Any(x => x is "bin" or "obj");
+    }
+}
