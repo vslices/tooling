@@ -7,6 +7,10 @@ internal static class RulesetCommands
     private const string OfficialRulesetArchive =
         "https://github.com/vslices/ruleset/archive/refs/heads/main.zip";
 
+    private const string DefaultIgnoreContent =
+        "# Project-specific paths ignored by VSlices artifact discovery.\n" +
+        "# Built-in exclusions: .git/, .vslices/, bin/, obj/.\n";
+
     /// <summary>Initializes a project-local .vslices ruleset from the official ruleset or a custom source.</summary>
     /// <param name="from">Custom ruleset directory or ZIP URL. If omitted, interactive terminals offer the official ruleset.</param>
     /// <param name="target">-t, Target rules to install. Current experimental target: C#.</param>
@@ -39,7 +43,8 @@ internal static class RulesetCommands
             return 2;
 
         var projectRoot = Environment.CurrentDirectory;
-        var rulesetTarget = Path.Combine(projectRoot, ".vslices", "ruleset");
+        var vslicesRoot = Path.Combine(projectRoot, ".vslices");
+        var rulesetTarget = Path.Combine(vslicesRoot, "ruleset");
         if (Directory.Exists(rulesetTarget) && !force)
         {
             Console.Error.WriteLine(
@@ -77,6 +82,10 @@ internal static class RulesetCommands
             Directory.CreateDirectory(rulesetTarget);
             CopyRootFiles(sourceRoot, rulesetTarget);
             CopyDirectory(sourceTarget, Path.Combine(rulesetTarget, selectedTarget));
+
+            var ignorePath = Path.Combine(vslicesRoot, ".ignore");
+            if (!File.Exists(ignorePath))
+                await File.WriteAllTextAsync(ignorePath, DefaultIgnoreContent, cancellationToken);
 
             Console.WriteLine(
                 $"Initialized VSlices ruleset at '{rulesetTarget}' with target {CommandInfrastructure.DisplayTarget(selectedTarget)}.");
