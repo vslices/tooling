@@ -44,6 +44,8 @@ The executable may know how to execute supported classes of rule, but concrete t
 
 No rule means unsupported or unresolved lowering. It does not authorize fallback knowledge embedded in the CLI and it does not authorize an interpreter to invent semantics.
 
+For cross-repository analysis and the decision procedure used to choose between consumer-project, ruleset, and tooling changes, see [`ai-development-orientation.md`](ai-development-orientation.md).
+
 ## Manifest and discovery
 
 The current bootstrap contract is intentionally small: tooling discovers `.vslices/ruleset/manifest.yaml`, and a target lowerer loads the rule files declared for that target.
@@ -67,18 +69,20 @@ Both `manifest.yaml` and `manifest.schema.json` live outside the executable so t
 
 `vslices init` initializes `.vslices/ruleset` from external state.
 
-The implementation currently accepts either a local ruleset directory or an HTTP(S) ZIP archive:
+Plain `vslices init` uses the official `vslices/ruleset` archive as the normal bootstrap source. In an interactive terminal it may prompt for the official or a custom source; redirected/non-interactive initialization defaults to the official source.
+
+The implementation also accepts an explicit local ruleset directory or HTTP(S) ZIP archive:
 
 ```text
 vslices init --from ../my-ruleset
 vslices init --from https://example.invalid/vslices-ruleset.zip
 ```
 
-The source can also be supplied through `VSLICES_RULESET_SOURCE`.
+The source can additionally be supplied through `VSLICES_RULESET_SOURCE`.
 
-The official repository `vslices/ruleset` is the intended normal bootstrap source. Integrating that repository as the default source for plain `vslices init` is part of the current iteration; until that wiring is complete, the explicit source mechanisms remain the executable contract.
+`--force` replaces an existing project-local ruleset while preserving the project's existing update policy, including a configured build channel and pull-request number.
 
-Once initialized, lowering should operate from project-local state and should not require network access.
+Once initialized, lowering operates from project-local state and does not require network access.
 
 ## Current rule execution surface
 
@@ -94,12 +98,7 @@ rules:
 
 The C# lowerer resolves the semantic node and supplies its named bindings. The target expression comes from the local ruleset.
 
-The first official C# rules currently cover the deterministic intrinsics exercised by `StreetName.vsir`:
-
-```text
-intrinsic.non-empty
-intrinsic.length-at-most
-```
+The initial official C# rules were introduced from `StreetName.vsir`; the ruleset is expected to expand only as concrete VSIR examples require additional deterministic lowering knowledge.
 
 If a required deterministic rule is absent, lowering stops with a diagnostic instead of falling back to an embedded implementation.
 
