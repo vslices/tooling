@@ -22,7 +22,7 @@ vslices update --self
 
 The complete release boundary and acceptance criteria are recorded in [`docs/releases/v0.1.0-preview.md`](docs/releases/v0.1.0-preview.md).
 
-`v0.1.1-preview` is a distribution-only patch that adds Windows ARM64 bootstrap and release assets without expanding the lowering surface. See [`docs/releases/v0.1.1-preview.md`](docs/releases/v0.1.1-preview.md).
+`v0.1.1-preview` is a distribution and release-pipeline patch that adds Windows ARM64 support, removes duplicated PR CI work, and introduces installable PR builds without expanding the lowering surface. See [`docs/releases/v0.1.1-preview.md`](docs/releases/v0.1.1-preview.md).
 
 ## Current responsibilities
 
@@ -38,7 +38,8 @@ The repository currently contains mechanisms for:
 - project-local configuration and ruleset initialization;
 - Native AOT distribution;
 - verified Windows bootstrap installation;
-- verified standalone CLI self-update.
+- verified standalone CLI self-update;
+- installable pull-request builds through GitHub Actions artifacts.
 
 ## Authority boundaries
 
@@ -140,7 +141,7 @@ It must not invent ancestry merely to keep the command moving.
   ruleset/
 ```
 
-The initial configuration is intentionally small:
+The default configuration remains release-oriented:
 
 ```yaml
 version: 0.1
@@ -198,7 +199,7 @@ The bootstrap can also select a specific version, custom installation directory,
 
 ## Distribution and self-update
 
-Release automation currently targets the Native AOT RIDs:
+Release automation targets the Native AOT RIDs:
 
 ```text
 win-x64
@@ -206,7 +207,7 @@ win-arm64
 linux-x64
 ```
 
-Each published artifact has a separate SHA-256 file:
+Each published release artifact has a separate SHA-256 file:
 
 ```text
 vslices-win-x64.zip
@@ -219,14 +220,33 @@ vslices-linux-x64.zip
 vslices-linux-x64.zip.sha256
 ```
 
-The current self-update surface is:
+The self-update surface is:
 
 ```text
 vslices update --self
 vslices update --self --check
 ```
 
-The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
+Release-oriented projects normally use `preview` or `stable`. Developers may instead follow the newest successful build of a pull request:
+
+```yaml
+updates:
+  source: https://github.com/vslices/tooling
+  channel: build
+  pull-request: 2
+```
+
+PR builds are identified as:
+
+```text
+build<pr-number>.<run-number>
+```
+
+For example, `build2.154`. The run number is resolved automatically; it is not copied into configuration. Each successful PR CI run publishes RID-specific artifacts such as `build2.154-win-arm64`.
+
+GitHub Actions artifact downloads require authentication. The updater uses `GH_TOKEN`, `GITHUB_TOKEN`, or an authenticated `gh` CLI session. Release and preview downloads remain based on public GitHub Releases.
+
+The archive checksum is verified before replacement for both release and build channels. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
 
 CLI version and ruleset version remain independent. `vslices update --ruleset` is future scope.
 
@@ -245,7 +265,10 @@ CI is expected to cover:
 - PowerShell bootstrap syntax;
 - Native AOT publication and execution for the host RID;
 - Native AOT publication for both Windows x64 and Windows ARM64;
+- RID-specific installable artifacts for successful PR runs;
 - project initialization and configuration creation.
+
+The same CI operation set runs for pull requests, scheduled nightly validation, `main`, manual dispatch, and `v*` tags. Release tags additionally trigger the release workflow that packages and publishes official assets.
 
 Published releases provide the final end-to-end evidence for remote bootstrap installation and self-update against release assets. ARM64 execution is additionally validated on a real Windows ARM64 environment because the hosted Windows release runner is x64.
 
