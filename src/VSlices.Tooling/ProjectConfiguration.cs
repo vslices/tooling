@@ -8,7 +8,8 @@ internal sealed record ProjectConfiguration(
     string? RulesetSource,
     string? RulesetRef,
     string? UpdateSource,
-    string? UpdateChannel)
+    string? UpdateChannel,
+    int? UpdatePullRequest = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
@@ -23,7 +24,8 @@ internal sealed record ProjectConfiguration(
             OfficialRulesetSource,
             OfficialRulesetRef,
             OfficialToolingSource,
-            DefaultUpdateChannel);
+            DefaultUpdateChannel,
+            null);
 
     public static ProjectConfiguration? LoadFromRulesetRoot(string rulesetRoot) =>
         LoadFromVslicesDirectory(Directory.GetParent(rulesetRoot)?.FullName);
@@ -73,13 +75,14 @@ internal sealed record ProjectConfiguration(
             ruleset.Add("ref", configuration.RulesetRef);
         root.Add("ruleset", ruleset);
 
-        root.Add(
-            "updates",
-            new YamlMappingNode
-            {
-                { "source", configuration.UpdateSource ?? OfficialToolingSource },
-                { "channel", configuration.UpdateChannel ?? DefaultUpdateChannel }
-            });
+        var updates = new YamlMappingNode
+        {
+            { "source", configuration.UpdateSource ?? OfficialToolingSource },
+            { "channel", configuration.UpdateChannel ?? DefaultUpdateChannel }
+        };
+        if (configuration.UpdatePullRequest is not null)
+            updates.Add("pull-request", configuration.UpdatePullRequest.Value.ToString());
+        root.Add("updates", updates);
 
         var stream = new YamlStream(new YamlDocument(root));
         using var writer = new StringWriter();
@@ -108,13 +111,19 @@ internal sealed record ProjectConfiguration(
             yaml.Documents[0].RootNode is not YamlMappingNode root)
             return null;
 
+        var pullRequestText = NestedScalar(root, "updates", "pull-request");
+        int? pullRequest = int.TryParse(pullRequestText, out var parsedPullRequest)
+            ? parsedPullRequest
+            : null;
+
         return new ProjectConfiguration(
             Scalar(root, "version") ?? CurrentVersion,
             NestedScalar(root, "targets", "default"),
             NestedScalar(root, "ruleset", "source"),
             NestedScalar(root, "ruleset", "ref"),
             NestedScalar(root, "updates", "source"),
-            NestedScalar(root, "updates", "channel"));
+            NestedScalar(root, "updates", "channel"),
+            pullRequest);
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)

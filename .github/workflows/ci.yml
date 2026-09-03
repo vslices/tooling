@@ -2,10 +2,17 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
+    tags:
+      - 'v*'
   pull_request:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: tests-${{ github.ref }}
+  group: ci-${{ github.event.pull_request.number && format('pr-{0}', github.event.pull_request.number) || format('{0}-{1}', github.event_name, github.ref) }}
   cancel-in-progress: true
 
 jobs:
@@ -100,7 +107,16 @@ jobs:
           test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
 
       - name: Publish Native AOT CLI
-        run: dotnet publish src/VSlices.Tooling --configuration Release --runtime linux-x64
+        shell: bash
+        run: |
+          VERSION_ARGS=()
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            VERSION_ARGS=(-p:Version="0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}")
+          fi
+          dotnet publish src/VSlices.Tooling \
+            --configuration Release \
+            --runtime linux-x64 \
+            "${VERSION_ARGS[@]}"
 
       - name: Smoke test Native AOT executable, init, and config
         run: |
@@ -129,3 +145,99 @@ jobs:
             --stdout \
             > native-transpiled.cs
           grep -q "sealed class StreetName" native-transpiled.cs
+
+      - name: Package linux-x64 PR build
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p pr-build/linux-x64
+          zip -j pr-build/linux-x64/vslices-linux-x64.zip src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices
+          sha256sum pr-build/linux-x64/vslices-linux-x64.zip | awk '{print $1}' > pr-build/linux-x64/vslices-linux-x64.zip.sha256
+
+      - name: Upload linux-x64 PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-linux-x64
+          path: pr-build/linux-x64/*
+          if-no-files-found: error
+
+  windows-native-aot:
+    strategy:
+      matrix:
+        rid: [win-x64, win-arm64]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish ${{ matrix.rid }} Native AOT CLI
+        shell: pwsh
+        run: |
+          $versionArgs = @()
+          if ('${{ github.event_name }}' -eq 'pull_request') {
+            $versionArgs = @('-p:Version=0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}')
+          }
+          dotnet publish src/VSlices.Tooling `
+            --configuration Release `
+            --runtime ${{ matrix.rid }} `
+            @versionArgs
+
+      - name: Package ${{ matrix.rid }} PR build
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        run: |
+          $rid = '${{ matrix.rid }}'
+          $directory = "pr-build/$rid"
+          New-Item -ItemType Directory -Force $directory | Out-Null
+          $archive = "$directory/vslices-$rid.zip"
+          Compress-Archive `
+            -Path "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish/vslices.exe" `
+            -DestinationPath $archive
+          (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() |
+            Set-Content -NoNewline "$archive.sha256"
+
+      - name: Upload ${{ matrix.rid }} PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-${{ matrix.rid }}
+          path: pr-build/${{ matrix.rid }}/*
+          if-no-files-found: error
+
+  pr-build-summary:
+    if: github.event_name == 'pull_request'
+    needs: [test, windows-native-aot]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Add PR build links to workflow summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          BUILD="build${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          ARTIFACTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" --paginate --jq '.artifacts[] | select(.name | startswith("'"$BUILD"'")) | [.name, (.id | tostring)] | @tsv')"
+
+          {
+            echo "## ${BUILD}"
+            echo
+            echo "Installable Native AOT artifacts for PR #${{ github.event.pull_request.number }}."
+            echo
+            echo "| Runtime | Artifact |"
+            echo "| --- | --- |"
+
+            while IFS=$'\t' read -r name id; do
+              [[ -z "$name" || -z "$id" ]] && continue
+              rid="${name#${BUILD}-}"
+              url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts/${id}"
+              echo "| \`${rid}\` | [\`${name}\`](${url}) |"
+            done <<< "$ARTIFACTS"
+
+            echo
+            echo "After bootstrapping one PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -9,9 +9,16 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repository = 'vslices/tooling'
-$rid = 'win-x64'
-$assetName = "vslices-$rid.zip"
-$checksumName = "$assetName.sha256"
+
+function Resolve-RuntimeIdentifier {
+    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+
+    switch ($architecture) {
+        ([System.Runtime.InteropServices.Architecture]::X64) { return 'win-x64' }
+        ([System.Runtime.InteropServices.Architecture]::Arm64) { return 'win-arm64' }
+        default { throw "This installer does not currently support Windows architecture '$architecture'." }
+    }
+}
 
 function Get-Releases {
     $headers = @{
@@ -78,11 +85,12 @@ if (-not $IsWindows -and $PSVersionTable.PSEdition -eq 'Core') {
     throw 'This installer currently supports Windows only.'
 }
 
-if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) {
-    throw 'This installer currently supports Windows x64 only.'
-}
+$rid = Resolve-RuntimeIdentifier
+$assetName = "vslices-$rid.zip"
+$checksumName = "$assetName.sha256"
 
 Write-Host 'Installing VSlices Tooling...'
+Write-Host "Runtime: $rid"
 Write-Host "Channel: $Channel"
 Write-Host "Install path: $InstallPath"
 
@@ -133,7 +141,7 @@ try {
         Add-ToUserPath -Entry $InstallPath
     }
 
-    Write-Host "Installed VSlices Tooling $($release.tag_name) to '$destination'."
+    Write-Host "Installed VSlices Tooling $($release.tag_name) ($rid) to '$destination'."
     if (-not $SkipPath) {
         Write-Host 'VSlices Tooling was added to your user PATH.'
     }

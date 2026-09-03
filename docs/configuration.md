@@ -81,7 +81,7 @@ The initial official default is `main` while the ruleset remains experimental.
 
 ### `updates.source`
 
-Declares where the CLI looks for self-update releases. The initial supported source shape is a GitHub repository URL.
+Declares where the CLI looks for self-update releases or CI build artifacts. The initial supported source shape is a GitHub repository URL.
 
 The official default is:
 
@@ -95,16 +95,48 @@ An explicit `vslices update --self --source ...` invocation overrides this value
 
 Declares the preferred CLI update channel.
 
-The initial supported channels are:
+The supported channels are:
 
 ```text
 stable
 preview
+build
 ```
 
-`stable` accepts only non-prerelease releases. `preview` may accept prereleases as well as stable releases, preferring the newest release returned by the configured source.
+`stable` accepts only non-prerelease GitHub releases. `preview` may accept prereleases as well as stable releases, preferring the newest release returned by the configured source.
+
+`build` is a developer channel backed by GitHub Actions artifacts rather than Git tags or GitHub Releases. It resolves the newest successful CI run for the configured pull request and installs the artifact matching the current runtime identifier.
 
 An explicit `vslices update --self --channel ...` invocation overrides this value for one run.
+
+### `updates.pull-request`
+
+Selects the pull request followed by the `build` channel.
+
+Example:
+
+```yaml
+updates:
+  source: https://github.com/vslices/tooling
+  channel: build
+  pull-request: 2
+```
+
+With this configuration, every successful CI run for PR #2 may publish build identities such as:
+
+```text
+build2.153
+build2.154
+build2.155
+```
+
+`vslices update --self` resolves the newest successful one automatically. The run number is therefore not stored in project configuration and does not require a manual edit after every push.
+
+The build identity is deliberately independent of a future product version. A PR build does not claim that it will become `v0.1.1-preview`, `v0.1.2-preview`, or any other release. Published versions remain decisions represented by tags.
+
+Build artifacts require GitHub authentication for download. The updater resolves credentials from `GH_TOKEN`, then `GITHUB_TOKEN`, then an authenticated GitHub CLI session via `gh auth token`. If none are available, the updater stops with an explicit diagnostic.
+
+An explicit `vslices update --self --pull-request ...` invocation overrides this value for one run.
 
 ## Artifact discovery configuration
 
@@ -187,31 +219,39 @@ Initialization should:
 
 ## Self update
 
-The first self-update surface is:
+The self-update surface is:
 
 ```text
 vslices update --self
 vslices update --self --check
 ```
 
-`--check` resolves the configured source, channel, current RID, and available release without replacing the executable.
+For `stable` and `preview`, `--check` resolves the configured source, channel, current RID, and available GitHub Release without replacing the executable.
 
-The initial release asset contract is deliberately explicit. A release that supports a RID must publish:
+For `build`, `--check` resolves the latest successful CI run for the configured PR and reports its `build<pr>.<run>` identity without replacing the executable.
+
+Published release assets use this contract:
 
 ```text
 vslices-<rid>.zip
 vslices-<rid>.zip.sha256
 ```
 
+PR build artifacts use the same inner archive/checksum pair, wrapped in an Actions artifact named:
+
+```text
+build<pr>.<run>-<rid>
+```
+
 For example:
 
 ```text
-vslices-win-x64.zip
-vslices-win-x64.zip.sha256
-
-vslices-linux-x64.zip
-vslices-linux-x64.zip.sha256
+build2.154-win-x64
+build2.154-win-arm64
+build2.154-linux-x64
 ```
+
+The CI build embeds a SemVer-compatible assembly representation such as `0.0.0-build.2.154`, while the user-facing build identity remains `build2.154`.
 
 The ZIP must contain exactly one platform executable named `vslices.exe` on Windows or `vslices` elsewhere. The checksum file contains the SHA-256 of the ZIP.
 
