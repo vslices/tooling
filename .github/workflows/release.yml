@@ -88,3 +88,30 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --generate-notes \
             $PRERELEASE
+
+  verify-windows-bootstrap:
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install from the published GitHub Release
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart('v')
+          $installPath = Join-Path $env:RUNNER_TEMP 'vslices-bin'
+          ./install.ps1 -Version $version -InstallPath $installPath -SkipPath
+
+          $vslices = Join-Path $installPath 'vslices.exe'
+          if (-not (Test-Path $vslices)) {
+            throw "Bootstrap did not install '$vslices'."
+          }
+
+          & $vslices --help | Out-String | Write-Host
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Installed VSlices executable did not run successfully.'
+          }
+
+          & $vslices update --self --check --channel preview
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Installed VSlices executable could not validate its published release through update --self --check.'
+          }
