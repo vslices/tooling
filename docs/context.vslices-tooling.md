@@ -8,105 +8,122 @@ related:
  - continuity.iteration
 ---
 
-<!--
-Status: draft, active, resolved, superseded, or archived.
-Scope: stage, iteration, service, product, bounded-context, project, organization.
-Level: L0, L1.
--->
-
 # Contexto de VSlices Tooling
 
 ## Escenario
 
-VSlices Tooling es un proyecto de software que apoya las tareas repetibles dentro de la suite VSlices.
+VSlices Tooling es la superficie ejecutable de tooling de la suite VSlices.
 
-En esta iteración, el foco inicial está facilitar la generacion documental para VSlices Docs Standard, teniendolo desde una base de templates minimos, que den cabida al multilenguaje y sean escalables a la evolución del producto.
+Nació desde una fricción concreta de generación documental, pero su alcance actual ya incluye mecanismos para trabajar con VSIR: parsing y validación experimental, lowering determinista hacia C#, rebase semántico conservador, descubrimiento de contexto de target y carga de reglas externas.
+
+El CLI actual se expone como `vslices`.
 
 ## Por qué importa
 
-VSlices Docs Standard está empezando a definir tipos documentales, niveles de detalle, convenciones editoriales y relaciones entre documentos.
+VSlices necesita convertir conocimiento semántico explícito en acciones repetibles sin confundir el mecanismo de ejecución con el conocimiento revisable que utiliza.
 
-Mantener todo esto manualmente puede generar duplicación, divergencia y pérdida de continuidad entre la intención documental y los documentos reales.
+El tooling importa porque permite automatizar tareas repetibles, producir evidencia de determinismo y conformance, y reducir divergencia entre intención, representación intermedia y materializaciones concretas.
 
-El tooling importa porque puede ayudar a preservar consistencia sin reemplazar el criterio de diseño.
+Al mismo tiempo, debe evitar convertirse en una autoridad semántica accidental. El ejecutable no debería contener reglas de lowering concretas cuando esas reglas pueden evolucionar independientemente.
 
-## Alcance
-
-Este contexto abarca el inicio de VSlices Tooling como proyecto de software.
-
-En esta iteración, el alcance se limita a entender cómo apoyar la generación documental de forma progresiva.
+## Alcance actual
 
 Incluye:
 
-* tooling documental
-* documentos Markdown
-* tipos documentales
-* niveles de detalle
-* convenciones editoriales
-* relación con VSlices Docs Standard
-* relación futura con VSlices Framework
+* generación documental estructurada
+* CLI oficial `vslices`
+* parsing y validación de la superficie VSIR actualmente soportada
+* transpiling determinista para estructuras soportadas
+* experimentos de semantic rebase sobre materializaciones editadas por humanos
+* resolución de contexto de targets
+* descubrimiento e inicialización de `.vslices/ruleset`
+* integración progresiva con tooling autoritativo del target, como .NET/MSBuild
+* pruebas de determinismo, build y comportamiento del lowering
 
-No incluye todavía:
+Todavía no incluye como capacidad estable:
 
-* generación completa de todos los documentos
-* soporte multilenguaje completo
-* validación profunda de relaciones
-* integración completa con MkDocs
-* generación de código de aplicación
+* cobertura completa de VSIR
+* `interpretate` como comando productivo
+* orquestación estable de `lower`
+* verificación semántica completa de una materialización arbitraria
+* package manager o sistema de plugins remotos para rulesets
+* self-hosting completo del tooling
 
-## Líneas de trabajo
+## Frontera arquitectónica principal
 
-Las líneas de trabajo iniciales son:
+La separación actualmente reconocida es:
 
-* generación de documentos [en proceso]
-* tooling oficial para VSlices [excluido]
+```text
+.vsir
+  = fuente semántica
 
-## Áreas y actores
+vslices/ruleset
+  = conocimiento oficial y revisable de lowering
 
-Las áreas involucradas son:
+project/.vslices/ruleset
+  = snapshot local, editable y versionable
 
-* VSlices Docs Standard
+vslices executable
+  = mecanismos de ejecución y orquestación
 
-## Situación actual
+.vsir.cs
+  = materialización editable
+```
 
-Las plantillas y documentos de VSlices Docs Standard se mantienen principalmente como Markdown escrito manualmente.
+El CLI puede conocer primitivas de ejecución de reglas, pero las decisiones concretas de mapping pertenecen al ruleset cuando puedan expresarse externamente.
 
-Ya existen patrones repetidos entre documentos, como tipos documentales, niveles L0 y L1, secciones comunes, preguntas guía y front matter.
+La ausencia de una regla no autoriza guessing ni fallback oculto.
 
-El tooling todavía no existe como proyecto estable. Esta iteración busca iniciar su primer slice desde una fricción real observada.
+## Modelo de lowering
 
-## Puntos de dolor u oportunidades
+VSIR no se interpreta como una plantilla que define una única representación textual.
 
-El dolor principal es que mantener plantillas documentales consistentes de forma manual puede generar duplicación, errores editoriales y pérdida de continuidad.
+La relación buscada es de conformidad: una materialización es válida cuando satisface el contrato semántico representado por VSIR.
 
-Oportunidades iniciales:
+El transpiler determinista construye un witness válido cuando las reglas disponibles permiten resolver el lowering sin interpretación adicional.
 
-* reducir divergencia entre plantillas similares
-* preservar estructura documental común
-* hacer explícitos idioma, tipo documental y nivel de detalle
-* preparar una base pequeña para generación futura
-* validar tooling desde un caso real antes de formalizarlo como producto
+Semantic Rebase se explora para preservar cambios humanos compatibles cuando el VSIR evoluciona después de una materialización inicial.
+
+## Rulesets externos
+
+El conocimiento de lowering se está moviendo a `vslices/ruleset`.
+
+`vslices init` materializa ese conocimiento bajo `.vslices/ruleset/`. Una vez inicializado, los comandos de lowering deberían poder operar contra estado local sin depender de la red.
+
+El manifest, su schema y las reglas concretas permanecen externos al ejecutable.
+
+## Distribución
+
+Se busca mantener el CLI liviano y relativamente estable. Native AOT es la dirección preferida de distribución para disponer de un ejecutable autocontenido mientras la mayor parte del conocimiento evolutivo permanezca en configuración externa.
+
+El binario debería cambiar principalmente al aparecer nuevas capacidades operacionales o primitivas de ejecución que no puedan expresarse con los mecanismos actuales.
+
+## Validación actual
+
+El benchmark inicial es `StreetName.vsir`.
+
+Las propiedades que se busca demostrar incluyen:
+
+* mismo VSIR + mismo ruleset + mismo target context => mismo resultado determinista
+* una regla ausente produce diagnóstico en lugar de fallback embebido
+* cambiar una regla externa puede cambiar el lowering sin recompilar el CLI
+* el tooling puede trabajar offline después de inicializar el ruleset
+* build/test del target y conformance semántica son preocupaciones relacionadas pero distintas
+
+Los VSIR siguientes deben introducirse progresivamente para descubrir necesidades reales de parser, modelo, reglas y ejecución antes de generalizar.
+
+## Objetivo de dogfooding y self-hosting semántico
+
+Como objetivo de largo plazo, VSlices Tooling debería usar VSIR para describir sus propias partes cuando esas partes pertenezcan a categorías que VSIR afirma poder representar.
+
+Esto no exige generar todo el programa ni convertir cada línea en output del transpiler.
+
+La intención es más estricta y útil: si VSlices puede representar un Domain Type, Feature, Invariant u otro concepto, sus instancias dentro del propio tooling deberían ser candidatas a expresarse mediante `.vsir` y mantenerse usando los mismos mecanismos ofrecidos a otros proyectos.
+
+De esa forma, el tooling puede actuar como dogfooding target, corpus de conformance y fuente continua de evidencia sobre límites reales de VSIR.
 
 ## Límites
 
-Este contexto empieza en la necesidad de apoyar documentación estructurada dentro de VSlices.
+VSlices Tooling entrega mecanismos. No debe absorber por comodidad conocimiento que corresponde a VSIR, al ruleset, al proyecto consumidor o al tooling autoritativo del target.
 
-Termina antes de definir una arquitectura completa de CLI, validación, generación multilenguaje o integración con código.
-
-Los límites todavía no están completamente claros entre:
-
-* VSlices Tooling como proyecto propio
-* VSlices Framework como lugar futuro para CLI o tooling
-* VSlices Docs Standard como fuente de estructuras documentales
-* VSlices Method como guía para decidir cuándo documentar
-
-## Decisiones iniciales
-
-| Pregunta | Decisión |
-| --- | --- |
-| ¿VSlices Tooling vivirá como proyecto propio o como parte de VSlices Framework? | VSlices Tooling vivirá como proyecto propio, pero evolucionará de la mano de VSlices Framework y VSlices Docs Standard. |
-| ¿El primer slice debe generar documentos desde YAML u otra fuente estructurada? | Por ahora, solo YAML. Otras fuentes estructuradas pueden considerarse en iteraciones futuras. |
-| ¿Qué parte pertenece a Docs Standard y qué parte pertenece al tooling? | VSlices Docs Standard define documentos, diagramas y caminos de continuidad. VSlices Tooling entrega herramientas para generarlos y conectarlos con otros proyectos. |
-| ¿Cuánto debe validar el tooling en esta primera iteración? | Debe validar que puede generar un documento L0 en español. |
-| ¿Qué documento debe ser el primer caso generado? | El Documento de contexto. |
-| ¿Cómo se representarán idioma, tipo documental y nivel de detalle sin sobrediseñar? | Cada tipo documental tendrá su propio template YAML. |
+Las nuevas abstracciones deberían emerger de casos concretos y no de anticipar todos los futuros targets o formas de lowering.
