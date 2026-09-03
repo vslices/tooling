@@ -172,30 +172,15 @@ Only the selected target rules are materialized locally. Once initialized, lower
 
 ## Windows installation
 
-The Windows distribution model is a PowerShell bootstrap for the standalone Native AOT executable.
-
-Installation is:
+Install the latest preview with PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
 ```
 
-The default install location is:
+The bootstrap supports Windows x64 and ARM64, verifies the downloaded archive, and installs the standalone Native AOT executable without requiring administrator privileges.
 
-```text
-%USERPROFILE%\.vslices\bin\vslices.exe
-```
-
-The bootstrap detects the Windows architecture and selects the matching published runtime:
-
-```text
-win-x64
-win-arm64
-```
-
-It downloads the matching archive plus its SHA-256 file, verifies the archive, installs `vslices.exe`, and adds the directory to the user PATH unless `-SkipPath` is supplied. It does not require administrator privileges and does not initialize any project.
-
-The bootstrap can also select a specific version, custom installation directory, or skip PATH modification.
+For specific versions, custom install paths, PATH behavior, self-update, and installable pull-request builds, see [`docs/how-to-install-on-windows.md`](docs/how-to-install-on-windows.md).
 
 ## Distribution and self-update
 
