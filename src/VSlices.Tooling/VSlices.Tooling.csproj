@@ -6,6 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
+    <AssemblyName>vslices</AssemblyName>
+    <PublishAot>true</PublishAot>
+
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>vslices</ToolCommandName>
     <PackageId>VSlices.Tooling</PackageId>
