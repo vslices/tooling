@@ -38,6 +38,9 @@ A central architectural boundary is:
 vslices executable
   = execution and orchestration mechanisms
 
+project/.vslices/config.yaml
+  = project operating preferences
+
 vslices/ruleset
   = official, revisable lowering knowledge
 
@@ -55,7 +58,9 @@ Concrete target lowering mappings should not be embedded in the CLI when they ca
 
 A missing rule is not permission to guess. Unsupported lowering remains explicit.
 
-See `docs/rulesets.md` for the current experimental contract.
+Project configuration controls operating preferences such as the default target, ruleset provenance, and update channel. It must not redefine VSIR semantics or disable correctness guarantees. Explicit command arguments override project configuration, which overrides built-in defaults.
+
+See `docs/configuration.md` for the project configuration contract and `docs/rulesets.md` for the current experimental ruleset contract.
 
 ## Shared command conventions
 
@@ -66,7 +71,7 @@ Current conventions include:
 - VSIR symbols and paths share the same artifact resolution rules;
 - recursive symbol discovery ignores `.git/`, `.vslices/`, `bin/`, and `obj/` as built-in exclusions;
 - project-specific discovery exclusions are declared in `.vslices/.ignore`;
-- `-to` may be omitted when exactly one supported target is installed locally;
+- `-to` may be omitted when a project default target is configured or when exactly one supported target is installed locally;
 - a C# materialization conventionally lives beside its VSIR as `Name.vsir.cs`;
 - `-o <path>` overrides the conventional output path;
 - `--stdout` writes the result to standard output and is equivalent to `-o -`;
@@ -95,21 +100,40 @@ A deterministic transpiler constructs one valid materialization when the lowerin
 
 Semantic rebase is being explored for the case where VSIR evolves after a generated materialization has already been edited by a human.
 
-## Ruleset initialization
+## Project initialization
 
-`vslices init` materializes project configuration under:
+`vslices init` establishes the project-local VSlices operating surface:
 
 ```text
 .vslices/
+  config.yaml
   .ignore
   ruleset/
 ```
 
-The generated `.ignore` starts with comments documenting the built-in exclusions and is left intact by later `init --force` operations so project-specific discovery policy is not accidentally erased when replacing a ruleset.
+`config.yaml` records operational project choices such as the default target, ruleset source/ref, and CLI update channel. `.ignore` contains project-specific discovery exclusions. `ruleset/` contains the selected local lowering knowledge.
+
+The initial configuration shape is:
+
+```yaml
+version: 0.1
+
+targets:
+  default: csharp
+
+ruleset:
+  source: https://github.com/vslices/ruleset
+  ref: main
+
+updates:
+  channel: preview
+```
 
 On an interactive terminal, initialization offers the official `vslices/ruleset` source and target selection. Custom local directories or HTTP(S) ZIP sources remain available through `--from`, and non-interactive use can select a target explicitly.
 
 Only the selected target directory is materialized into the project-local ruleset. The current ZIP bootstrap still downloads the source archive before selecting files; remote per-target retrieval is a later optimization rather than a requirement for the current architecture.
+
+`init --force` replaces the ruleset snapshot while preserving project-owned `.ignore` and configuration policy unless a future explicit reset surface says otherwise.
 
 Once initialized, lowering operates from local state without requiring network access.
 
@@ -118,6 +142,18 @@ Once initialized, lowering operates from local state without requiring network a
 The CLI is intended to remain lightweight and is configured for Native AOT publication under the executable name `vslices`.
 
 Configuration and lowering knowledge remain external so changes to rules do not require republishing the executable. Native AOT is a deployment direction rather than a semantic constraint on the tooling design.
+
+The planned update split is deliberate:
+
+```text
+vslices update --self
+  = executable update
+
+vslices update --ruleset
+  = project lowering-knowledge update
+```
+
+CLI version and ruleset version are independent.
 
 ## Validation strategy
 
@@ -129,6 +165,7 @@ Important properties to preserve include:
 - no hidden fallback when a rule is absent;
 - the ability to change lowering behavior through the external ruleset without recompiling the CLI;
 - recursive artifact discovery that respects built-in and project-specific exclusions;
+- project configuration whose command-line overrides have clear precedence;
 - offline operation after initialization;
 - technical validation through build/test and target-specific tooling;
 - execution of the actual Native AOT binary in CI;
