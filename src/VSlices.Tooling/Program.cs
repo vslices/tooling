@@ -22,7 +22,7 @@ if (!Console.IsOutputRedirected && args.Length > 0)
     if (args[0].Equals("init", StringComparison.OrdinalIgnoreCase))
         TerminalOutput.Brand("init");
     else if (args[0].Equals("update", StringComparison.OrdinalIgnoreCase))
-        TerminalOutput.Brand("update");
+        TerminalOutput.Brand("update", trailingBlankLine: false);
 }
 
 var app = ConsoleApp.Create();
