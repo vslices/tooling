@@ -3,7 +3,9 @@ using VSlices.Vsir;
 
 namespace VSlices.Vsir.CSharp;
 
-public sealed record CSharpLoweringContext(string Namespace);
+public sealed record CSharpLoweringContext(
+    string Namespace,
+    CSharpLoweringRuleSet Rules);
 
 public sealed record CSharpLoweringResult(
     string? Source,
@@ -28,6 +30,14 @@ public static class CSharpLowerer
                 diagnostics.Add(new(
                     "CSL001",
                     "Placeholder '{length}' is currently only defined for length-at-most failures."));
+            }
+
+            var (node, bindings) = DescribeCondition(ensure.Condition);
+            if (!context.Rules.TryRenderDeterministicExpression(node, bindings, out _))
+            {
+                diagnostics.Add(new(
+                    "CSL010",
+                    $"No deterministic C# lowering rule is available for '{node}'."));
             }
         }
 
@@ -64,7 +74,7 @@ public static class CSharpLowerer
         for (var i = 0; i < ensures.Length; i++)
         {
             var prefix = i == 0 ? "        " : "        >> ";
-            source.AppendLine(prefix + RenderEnsure(typeName, ensures[i]));
+            source.AppendLine(prefix + RenderEnsure(typeName, ensures[i], context.Rules));
         }
 
         source.AppendLine("        * Instance;");
@@ -79,19 +89,37 @@ public static class CSharpLowerer
         return new(source.ToString(), []);
     }
 
-    private static string RenderEnsure(string typeName, EnsureStep ensure)
+    private static string RenderEnsure(
+        string typeName,
+        EnsureStep ensure,
+        CSharpLoweringRuleSet rules)
     {
-        var predicate = ensure.Condition switch
-        {
-            NonEmptyCondition x =>
-                $"VSlices.Arrows.Req<Input, {typeName}>.Ensure((Input input) => !string.IsNullOrEmpty({Reference(x.Value)})",
-            LengthAtMostCondition x =>
-                $"VSlices.Arrows.Req<Input, {typeName}>.Ensure((Input input) => {Reference(x.Value)}.Length <= {x.Max}",
-            _ => throw new InvalidOperationException("Unsupported condition reached C# lowering.")
-        };
+        var (node, bindings) = DescribeCondition(ensure.Condition);
+        if (!rules.TryRenderDeterministicExpression(node, bindings, out var expression))
+            throw new InvalidOperationException($"Validated lowering rule '{node}' became unavailable.");
+
+        var predicate =
+            $"VSlices.Arrows.Req<Input, {typeName}>.Ensure((Input input) => {expression}";
 
         return $"{predicate}, Fail: {RenderFailure(ensure)})";
     }
+
+    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeCondition(Condition condition) =>
+        condition switch
+        {
+            NonEmptyCondition x =>
+                ("intrinsic.non-empty", new Dictionary<string, string>
+                {
+                    ["value"] = Reference(x.Value)
+                }),
+            LengthAtMostCondition x =>
+                ("intrinsic.length-at-most", new Dictionary<string, string>
+                {
+                    ["value"] = Reference(x.Value),
+                    ["max"] = x.Max.ToString()
+                }),
+            _ => throw new InvalidOperationException("Unsupported condition reached C# lowering.")
+        };
 
     private static string RenderFailure(EnsureStep ensure)
     {

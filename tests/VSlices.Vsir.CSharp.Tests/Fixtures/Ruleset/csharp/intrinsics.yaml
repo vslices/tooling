@@ -1,0 +1,9 @@
+rules:
+  - node: intrinsic.non-empty
+    mode: deterministic
+    renderer: expression
+    template: "!string.IsNullOrEmpty({value})"
+  - node: intrinsic.length-at-most
+    mode: deterministic
+    renderer: expression
+    template: "{value}.Length <= {max}"

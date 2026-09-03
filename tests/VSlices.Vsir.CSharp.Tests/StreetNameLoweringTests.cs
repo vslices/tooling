@@ -8,6 +8,9 @@ public sealed class StreetNameLoweringTests
     private static string FixturePath =>
         Path.Combine(AppContext.BaseDirectory, "Fixtures", "StreetName.vsir");
 
+    private static string RulesetPath =>
+        Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset");
+
     [Fact]
     public async Task StreetName_can_be_parsed()
     {
@@ -27,7 +30,8 @@ public sealed class StreetNameLoweringTests
     public async Task StreetName_lowering_is_deterministic()
     {
         var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
-        var context = new CSharpLoweringContext("Identities.Domain.ValueObjects");
+        var rules = LoadRules();
+        var context = new CSharpLoweringContext("Identities.Domain.ValueObjects", rules);
 
         var first = CSharpLowerer.Lower(parsed.Document!, context);
         var second = CSharpLowerer.Lower(parsed.Document!, context);
@@ -40,7 +44,9 @@ public sealed class StreetNameLoweringTests
     public async Task StreetName_lowering_preserves_the_current_semantic_contract()
     {
         var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
-        var result = CSharpLowerer.Lower(parsed.Document!, new("Identities.Domain.ValueObjects"));
+        var result = CSharpLowerer.Lower(
+            parsed.Document!,
+            new("Identities.Domain.ValueObjects", LoadRules()));
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
         Assert.Contains("sealed class StreetName", result.Source);
@@ -51,6 +57,38 @@ public sealed class StreetNameLoweringTests
         Assert.Contains("{length}", result.Source);
         Assert.Contains("new(input.Value)", result.Source);
         Assert.Contains("new(_value)", result.Source);
+    }
+
+    [Fact]
+    public async Task Missing_lowering_rule_is_rejected_instead_of_guessed()
+    {
+        var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
+        var emptyRulesRoot = Path.Combine(Path.GetTempPath(), "vslices-rules-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(emptyRulesRoot, "csharp"));
+
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(emptyRulesRoot, "manifest.yaml"),
+                "targets:\n  csharp:\n    rules:\n      - csharp/empty.yaml\n");
+            await File.WriteAllTextAsync(
+                Path.Combine(emptyRulesRoot, "csharp", "empty.yaml"),
+                "rules: []\n");
+
+            var loaded = CSharpLoweringRuleSet.Load(emptyRulesRoot);
+            Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
+
+            var lowered = CSharpLowerer.Lower(
+                parsed.Document!,
+                new("Identities.Domain.ValueObjects", loaded.RuleSet!));
+
+            Assert.False(lowered.IsSuccess);
+            Assert.Contains(lowered.Diagnostics, x => x.Code == "CSL010");
+        }
+        finally
+        {
+            Directory.Delete(emptyRulesRoot, recursive: true);
+        }
     }
 
     [Fact]
@@ -109,5 +147,12 @@ public sealed class StreetNameLoweringTests
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, x => x.Code == "VSIR209");
+    }
+
+    private static CSharpLoweringRuleSet LoadRules()
+    {
+        var loaded = CSharpLoweringRuleSet.Load(RulesetPath);
+        Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
+        return loaded.RuleSet!;
     }
 }

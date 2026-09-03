@@ -97,6 +97,18 @@ internal static class VsirCommands
         if (resolution.Diagnostic is not null)
             return new(null, [resolution.Diagnostic]);
 
+        var rulesetRoot = RulesetLocator.FindFrom(resolution.Path!);
+        if (rulesetRoot is null)
+        {
+            return new(null, [new(
+                "CLI010",
+                "No project-local VSlices ruleset was found. Expected .vslices/ruleset/manifest.yaml in the VSIR path ancestry. Run 'vslices init'.")]);
+        }
+
+        var rules = CSharpLoweringRuleSet.Load(rulesetRoot);
+        if (!rules.IsSuccess)
+            return new(null, rules.Diagnostics);
+
         var targetContext = await DotNetTargetContextResolver.Resolve(
             resolution.Path!,
             namespaceOverride,
@@ -112,7 +124,9 @@ internal static class VsirCommands
 
         return CSharpLowerer.Lower(
             parsed.Document!,
-            new CSharpLoweringContext(targetContext.Context!.Namespace));
+            new CSharpLoweringContext(
+                targetContext.Context!.Namespace,
+                rules.RuleSet!));
     }
 
     private static (string? Path, VsirDiagnostic? Diagnostic) ResolveVsir(string value, string cwd)

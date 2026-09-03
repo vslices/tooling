@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../VSlices.Vsir/VSlices.Vsir.csproj" />
   </ItemGroup>
 </Project>
