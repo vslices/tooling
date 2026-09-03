@@ -3,7 +3,7 @@ using VSlices.Vsir;
 
 namespace VSlices.Targets.DotNet;
 
-public sealed record DotNetTargetContext(string ProjectPath, string Namespace);
+public sealed record DotNetTargetContext(string? ProjectPath, string Namespace);
 
 public static class DotNetTargetContextResolver
 {
@@ -12,6 +12,9 @@ public static class DotNetTargetContextResolver
         string? namespaceOverride,
         CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrWhiteSpace(namespaceOverride))
+            return (new(null, namespaceOverride), null);
+
         var directory = Path.GetDirectoryName(vsirPath)!;
         var project = FindProject(directory);
         if (project is null)
@@ -20,9 +23,6 @@ public static class DotNetTargetContextResolver
                 "DOTNET001",
                 $"Could not find a unique .csproj for '{vsirPath}'. Pass --namespace to override target context explicitly."));
         }
-
-        if (!string.IsNullOrWhiteSpace(namespaceOverride))
-            return (new(project, namespaceOverride), null);
 
         var probeName = "__VSlicesNamespaceProbe_" + Guid.NewGuid().ToString("N");
         var probePath = Path.Combine(directory, probeName + ".cs");
