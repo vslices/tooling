@@ -12,5 +12,9 @@
     </PackageVersion>
     <PackageVersion Include="Kokuban" Version="0.2.0" />
     <PackageVersion Include="Kurukuru" Version="1.5.0" />
+    <PackageVersion Include="YamlDotNet" Version="16.3.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 </Project>
