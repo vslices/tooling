@@ -8,12 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ConsoleAppFramework">
+    <PackageReference Include="ConsoleAppFramework" Version="5.7.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Kokuban" />
-    <PackageReference Include="Kurukuru" />
+    <PackageReference Include="Kokuban" Version="0.2.0" />
+    <PackageReference Include="Kurukuru" Version="1.5.0" />
   </ItemGroup>
 
   <ItemGroup>
