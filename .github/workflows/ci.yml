@@ -22,6 +22,10 @@ jobs:
       - run: dotnet build tooling.slnx --configuration Release
       - run: dotnet test tooling.slnx --configuration Release --no-build
 
+      - name: Validate Windows bootstrap script syntax
+        shell: pwsh
+        run: '[scriptblock]::Create((Get-Content ./install.ps1 -Raw)) | Out-Null'
+
       - name: Smoke test explicit stdout
         run: |
           dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
@@ -42,6 +46,21 @@ jobs:
             --namespace Identities.Domain.ValueObjects
           test -f lower-context/StreetName.vsir.cs
           grep -q "sealed class StreetName" lower-context/StreetName.vsir.cs
+
+      - name: Smoke test rebase preserves human materialization when VSIR is unchanged
+        run: |
+          mkdir -p rebase-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir rebase-context/Previous.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir rebase-context/StreetName.vsir
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            transpile rebase-context/StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects
+          printf '\n// human detail\n' >> rebase-context/StreetName.vsir.cs
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            rebase rebase-context/StreetName.vsir \
+            --from rebase-context/Previous.vsir \
+            --namespace Identities.Domain.ValueObjects
+          grep -q "human detail" rebase-context/StreetName.vsir.cs
 
       - name: Smoke test artifact discovery ignores
         run: |
@@ -86,7 +105,10 @@ jobs:
       - name: Smoke test Native AOT executable, init, and config
         run: |
           VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
+          "$VSLICES" --help | grep -q "init"
           "$VSLICES" --help | grep -q "lower"
+          "$VSLICES" --help | grep -q "transpile"
+          "$VSLICES" --help | grep -q "rebase"
           "$VSLICES" --help | grep -q "update"
 
           mkdir -p native-aot-context
