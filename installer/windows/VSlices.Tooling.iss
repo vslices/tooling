@@ -37,10 +37,10 @@ ChangesEnvironment=yes
 Source: "{#SourceDir}\{#AppExeName}"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\VSlices Tooling"; Filename: "{cmd}"; Parameters: "/K vslices --help"; WorkingDir: "{userdocs}"
+Name: "{group}\VSlices Tooling Command Prompt"; Filename: "{cmd}"; Parameters: "/K \"{app}\vslices.exe\" --help"; WorkingDir: "{userdocs}"
 
 [Run]
-Filename: "{cmd}"; Parameters: "/C vslices --help"; Description: "Verify VSlices Tooling installation"; Flags: postinstall nowait skipifsilent unchecked
+Filename: "{app}\vslices.exe"; Parameters: "--help"; Description: "Verify VSlices Tooling installation"; Flags: postinstall nowait skipifsilent unchecked
 
 [Code]
 const
