@@ -113,17 +113,19 @@ internal static class SelfUpdater
                 ZipFile.ExtractToDirectory(archivePath, extracted);
 
                 var binaryName = OperatingSystem.IsWindows() ? "vslices.exe" : "vslices";
-                var replacement = Directory
+                var replacements = Directory
                     .EnumerateFiles(extracted, binaryName, SearchOption.AllDirectories)
-                    .SingleOrDefault();
+                    .Take(2)
+                    .ToArray();
 
-                if (replacement is null)
+                if (replacements.Length != 1)
                 {
                     Console.Error.WriteLine(
-                        $"UPD008: Release archive '{assetName}' does not contain exactly one '{binaryName}'.");
+                        $"UPD008: Release archive '{assetName}' must contain exactly one '{binaryName}'.");
                     return 1;
                 }
 
+                var replacement = replacements[0];
                 if (!OperatingSystem.IsWindows())
                 {
                     File.SetUnixFileMode(
@@ -145,7 +147,7 @@ internal static class SelfUpdater
             }
             finally
             {
-                if (!OperatingSystem.IsWindows() && Directory.Exists(staging))
+                if (Directory.Exists(staging))
                     Directory.Delete(staging, recursive: true);
             }
         }
@@ -165,24 +167,42 @@ internal static class SelfUpdater
     {
         var url = $"https://api.github.com/repos/{owner}/{repository}/releases?per_page=20";
         await using var stream = await http.GetStreamAsync(url, cancellationToken);
-        var releases = await JsonSerializer.DeserializeAsync<GitHubReleaseDto[]>(
-            stream,
-            new JsonSerializerOptions { PropertyNameCaseInsensitive = true },
-            cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
-        var candidate = releases?
-            .Where(x => !x.Draft)
-            .Where(x => channel == "preview" || !x.Prerelease)
-            .FirstOrDefault();
+        foreach (var releaseElement in document.RootElement.EnumerateArray())
+        {
+            var draft = releaseElement.TryGetProperty("draft", out var draftValue) && draftValue.GetBoolean();
+            var prerelease = releaseElement.TryGetProperty("prerelease", out var prereleaseValue) && prereleaseValue.GetBoolean();
+            if (draft || (channel == "stable" && prerelease))
+                continue;
 
-        return candidate is null
-            ? null
-            : new GitHubRelease(
-                candidate.TagName ?? "unknown",
-                candidate.Assets?
-                    .Where(x => x.Name is not null && x.BrowserDownloadUrl is not null)
-                    .Select(x => new ReleaseAsset(x.Name!, x.BrowserDownloadUrl!))
-                    .ToArray() ?? []);
+            var tagName = releaseElement.TryGetProperty("tag_name", out var tagValue)
+                ? tagValue.GetString()
+                : null;
+            if (string.IsNullOrWhiteSpace(tagName))
+                continue;
+
+            var assets = new List<ReleaseAsset>();
+            if (releaseElement.TryGetProperty("assets", out var assetsElement))
+            {
+                foreach (var assetElement in assetsElement.EnumerateArray())
+                {
+                    var name = assetElement.TryGetProperty("name", out var nameValue)
+                        ? nameValue.GetString()
+                        : null;
+                    var downloadUrl = assetElement.TryGetProperty("browser_download_url", out var urlValue)
+                        ? urlValue.GetString()
+                        : null;
+
+                    if (!string.IsNullOrWhiteSpace(name) && !string.IsNullOrWhiteSpace(downloadUrl))
+                        assets.Add(new ReleaseAsset(name, downloadUrl));
+                }
+            }
+
+            return new GitHubRelease(tagName, assets);
+        }
+
+        return null;
     }
 
     private static async Task Download(
@@ -317,18 +337,4 @@ internal static class SelfUpdater
 
     private sealed record GitHubRelease(string TagName, IReadOnlyList<ReleaseAsset> Assets);
     private sealed record ReleaseAsset(string Name, string DownloadUrl);
-
-    private sealed class GitHubReleaseDto
-    {
-        public string? TagName { get; set; }
-        public bool Draft { get; set; }
-        public bool Prerelease { get; set; }
-        public GitHubAssetDto[]? Assets { get; set; }
-    }
-
-    private sealed class GitHubAssetDto
-    {
-        public string? Name { get; set; }
-        public string? BrowserDownloadUrl { get; set; }
-    }
 }
