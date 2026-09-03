@@ -22,6 +22,8 @@ vslices update --self
 
 The complete release boundary and acceptance criteria are recorded in [`docs/releases/v0.1.0-preview.md`](docs/releases/v0.1.0-preview.md).
 
+`v0.1.1-preview` is a distribution-only patch that adds Windows ARM64 bootstrap and release assets without expanding the lowering surface. See [`docs/releases/v0.1.1-preview.md`](docs/releases/v0.1.1-preview.md).
+
 ## Current responsibilities
 
 The repository currently contains mechanisms for:
@@ -169,9 +171,9 @@ Only the selected target rules are materialized locally. Once initialized, lower
 
 ## Windows installation
 
-The first Windows distribution model is a PowerShell bootstrap for the standalone Native AOT executable.
+The Windows distribution model is a PowerShell bootstrap for the standalone Native AOT executable.
 
-After the release reaches `main`, installation is intended to be:
+Installation is:
 
 ```powershell
 irm https://raw.githubusercontent.com/vslices/tooling/main/install.ps1 | iex
@@ -183,16 +185,24 @@ The default install location is:
 %USERPROFILE%\.vslices\bin\vslices.exe
 ```
 
-The script resolves a release, downloads `vslices-win-x64.zip` plus its SHA-256 file, verifies the archive, installs `vslices.exe`, and adds the directory to the user PATH unless `-SkipPath` is supplied. It does not require administrator privileges and does not initialize any project.
+The bootstrap detects the Windows architecture and selects the matching published runtime:
+
+```text
+win-x64
+win-arm64
+```
+
+It downloads the matching archive plus its SHA-256 file, verifies the archive, installs `vslices.exe`, and adds the directory to the user PATH unless `-SkipPath` is supplied. It does not require administrator privileges and does not initialize any project.
 
 The bootstrap can also select a specific version, custom installation directory, or skip PATH modification.
 
 ## Distribution and self-update
 
-Release automation currently targets the proven Native AOT RIDs:
+Release automation currently targets the Native AOT RIDs:
 
 ```text
 win-x64
+win-arm64
 linux-x64
 ```
 
@@ -201,6 +211,9 @@ Each published artifact has a separate SHA-256 file:
 ```text
 vslices-win-x64.zip
 vslices-win-x64.zip.sha256
+
+vslices-win-arm64.zip
+vslices-win-arm64.zip.sha256
 
 vslices-linux-x64.zip
 vslices-linux-x64.zip.sha256
@@ -230,10 +243,11 @@ CI is expected to cover:
 - recursive discovery ignores;
 - .NET target-context delegation;
 - PowerShell bootstrap syntax;
-- Native AOT publication and execution;
+- Native AOT publication and execution for the host RID;
+- Native AOT publication for both Windows x64 and Windows ARM64;
 - project initialization and configuration creation.
 
-The first real GitHub Release supplies the final end-to-end evidence for remote bootstrap installation and self-update against published assets.
+Published releases provide the final end-to-end evidence for remote bootstrap installation and self-update against release assets. ARM64 execution is additionally validated on a real Windows ARM64 environment because the hosted Windows release runner is x64.
 
 ## Long-term dogfooding objective
 
