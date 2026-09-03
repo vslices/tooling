@@ -30,13 +30,8 @@ internal static class VsirCommands
             return 1;
         }
 
-        var defaultPath = CommandInfrastructure.ConventionalMaterializationPath(
-            lowered.VsirPath!,
-            lowered.Target!);
-
-        return await CommandInfrastructure.WriteResult(
-            lowered.Source!,
-            defaultPath,
+        return await WriteLoweredResult(
+            lowered,
             output,
             stdout,
             overwrite: force,
@@ -68,41 +63,14 @@ internal static class VsirCommands
             return 2;
         }
 
-        var next = await TranspileCore(subject, to, @namespace, cancellationToken);
-        if (!next.IsSuccess)
-        {
-            CommandInfrastructure.WriteDiagnostics(next.Diagnostics);
-            return 1;
-        }
-
-        var previous = await TranspileCore(
+        var rebased = await RebaseCore(
+            subject,
+            to,
             from,
-            CommandInfrastructure.DisplayTarget(next.Target!),
+            source,
             @namespace,
             cancellationToken);
 
-        if (!previous.IsSuccess)
-        {
-            CommandInfrastructure.WriteDiagnostics(previous.Diagnostics);
-            return 1;
-        }
-
-        var conventionalSource = CommandInfrastructure.ConventionalMaterializationPath(
-            next.VsirPath!,
-            next.Target!);
-
-        var resolvedHuman = string.IsNullOrWhiteSpace(source)
-            ? conventionalSource
-            : Path.GetFullPath(source, Environment.CurrentDirectory);
-
-        if (!File.Exists(resolvedHuman))
-        {
-            Console.Error.WriteLine($"CLI003: Could not resolve human projection '{resolvedHuman}'.");
-            return 1;
-        }
-
-        var human = await File.ReadAllTextAsync(resolvedHuman, cancellationToken);
-        var rebased = CSharpRebaser.Rebase(previous.Source!, human, next.Source!);
         if (!rebased.IsSuccess)
         {
             CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics);
@@ -111,7 +79,7 @@ internal static class VsirCommands
 
         return await CommandInfrastructure.WriteResult(
             rebased.Source!,
-            resolvedHuman,
+            rebased.SourcePath!,
             output,
             stdout,
             overwrite: true,
@@ -169,13 +137,23 @@ internal static class VsirCommands
 
         if (!File.Exists(existing))
         {
-            return await Transpile(
+            var lowered = await TranspileCore(
                 subject,
                 CommandInfrastructure.DisplayTarget(target.Target!),
+                @namespace,
+                cancellationToken);
+
+            if (!lowered.IsSuccess)
+            {
+                CommandInfrastructure.WriteDiagnostics(lowered.Diagnostics);
+                return 1;
+            }
+
+            return await WriteLoweredResult(
+                lowered,
                 output,
                 stdout,
-                force: false,
-                @namespace,
+                overwrite: false,
                 cancellationToken);
         }
 
@@ -186,15 +164,91 @@ internal static class VsirCommands
             return 1;
         }
 
-        return await Rebase(
+        var rebased = await RebaseCore(
             subject,
             CommandInfrastructure.DisplayTarget(target.Target!),
             from,
             existing,
-            output,
-            stdout,
             @namespace,
             cancellationToken);
+
+        if (!rebased.IsSuccess)
+        {
+            CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics);
+            return 1;
+        }
+
+        return await CommandInfrastructure.WriteResult(
+            rebased.Source!,
+            rebased.SourcePath!,
+            output,
+            stdout,
+            overwrite: true,
+            cancellationToken);
+    }
+
+    private static async Task<int> WriteLoweredResult(
+        LoweringCommandResult lowered,
+        string? output,
+        bool stdout,
+        bool overwrite,
+        CancellationToken cancellationToken)
+    {
+        var defaultPath = CommandInfrastructure.ConventionalMaterializationPath(
+            lowered.VsirPath!,
+            lowered.Target!);
+
+        return await CommandInfrastructure.WriteResult(
+            lowered.Source!,
+            defaultPath,
+            output,
+            stdout,
+            overwrite,
+            cancellationToken);
+    }
+
+    private static async Task<RebaseCommandResult> RebaseCore(
+        string subject,
+        string? to,
+        string from,
+        string? source,
+        string? namespaceOverride,
+        CancellationToken cancellationToken)
+    {
+        var next = await TranspileCore(subject, to, namespaceOverride, cancellationToken);
+        if (!next.IsSuccess)
+            return RebaseCommandResult.Failure(next.Diagnostics);
+
+        var previous = await TranspileCore(
+            from,
+            CommandInfrastructure.DisplayTarget(next.Target!),
+            namespaceOverride,
+            cancellationToken);
+
+        if (!previous.IsSuccess)
+            return RebaseCommandResult.Failure(previous.Diagnostics);
+
+        var conventionalSource = CommandInfrastructure.ConventionalMaterializationPath(
+            next.VsirPath!,
+            next.Target!);
+
+        var resolvedHuman = string.IsNullOrWhiteSpace(source)
+            ? conventionalSource
+            : Path.GetFullPath(source, Environment.CurrentDirectory);
+
+        if (!File.Exists(resolvedHuman))
+        {
+            return RebaseCommandResult.Failure([new(
+                "CLI003",
+                $"Could not resolve human projection '{resolvedHuman}'.")]);
+        }
+
+        var human = await File.ReadAllTextAsync(resolvedHuman, cancellationToken);
+        var rebased = CSharpRebaser.Rebase(previous.Source!, human, next.Source!);
+
+        return rebased.IsSuccess
+            ? RebaseCommandResult.Success(rebased.Source!, resolvedHuman)
+            : RebaseCommandResult.Failure(rebased.Diagnostics);
     }
 
     private static async Task<LoweringCommandResult> TranspileCore(
@@ -267,5 +321,19 @@ internal static class VsirCommands
 
         public static LoweringCommandResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
             new(null, null, null, diagnostics.ToArray());
+    }
+
+    private sealed record RebaseCommandResult(
+        string? Source,
+        string? SourcePath,
+        IReadOnlyList<VsirDiagnostic> Diagnostics)
+    {
+        public bool IsSuccess => Source is not null && SourcePath is not null && Diagnostics.Count == 0;
+
+        public static RebaseCommandResult Success(string source, string sourcePath) =>
+            new(source, sourcePath, []);
+
+        public static RebaseCommandResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
+            new(null, null, diagnostics.ToArray());
     }
 }
