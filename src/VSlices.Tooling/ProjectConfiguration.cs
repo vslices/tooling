@@ -51,23 +51,39 @@ internal sealed record ProjectConfiguration(
         var vslicesDirectory = Path.Combine(projectRoot, ".vslices");
         Directory.CreateDirectory(vslicesDirectory);
 
-        var yaml = $"""
-                   version: {configuration.Version}
+        var root = new YamlMappingNode
+        {
+            { "version", configuration.Version },
+            {
+                "targets",
+                new YamlMappingNode
+                {
+                    { "default", configuration.DefaultTarget ?? "csharp" }
+                }
+            }
+        };
 
-                   targets:
-                     default: {configuration.DefaultTarget ?? "csharp"}
+        var ruleset = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.RulesetSource))
+            ruleset.Add("source", configuration.RulesetSource);
+        if (!string.IsNullOrWhiteSpace(configuration.RulesetRef))
+            ruleset.Add("ref", configuration.RulesetRef);
+        root.Add("ruleset", ruleset);
 
-                   ruleset:
-                     source: {configuration.RulesetSource ?? OfficialRulesetSource}
-                     ref: {configuration.RulesetRef ?? OfficialRulesetRef}
+        root.Add(
+            "updates",
+            new YamlMappingNode
+            {
+                { "channel", configuration.UpdateChannel ?? DefaultUpdateChannel }
+            });
 
-                   updates:
-                     channel: {configuration.UpdateChannel ?? DefaultUpdateChannel}
-                   """;
+        var stream = new YamlStream(new YamlDocument(root));
+        await using var writer = new StringWriter();
+        stream.Save(writer, assignAnchors: false);
 
         await CommandInfrastructure.AtomicWrite(
             Path.Combine(vslicesDirectory, "config.yaml"),
-            yaml + Environment.NewLine,
+            writer.ToString(),
             cancellationToken);
     }
 
