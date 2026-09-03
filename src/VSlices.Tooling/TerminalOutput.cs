@@ -8,7 +8,7 @@ internal static class TerminalOutput
 {
     private static readonly AnsiStyle BrandStyle = Chalk.Rgb(156, 47, 160);
 
-    public static void Brand(string? context = null)
+    public static void Brand(string? context = null, bool trailingBlankLine = true)
     {
         if (Console.IsOutputRedirected)
             return;
@@ -36,7 +36,8 @@ internal static class TerminalOutput
             Console.WriteLine(BrandStyle[logo[index]] + suffix);
         }
 
-        BlankLine();
+        if (trailingBlankLine)
+            BlankLine();
     }
 
     public static void Heading(string text) =>
