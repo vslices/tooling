@@ -207,3 +207,37 @@ jobs:
           name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-${{ matrix.rid }}
           path: pr-build/${{ matrix.rid }}/*
           if-no-files-found: error
+
+  pr-build-summary:
+    if: github.event_name == 'pull_request'
+    needs: [test, windows-native-aot]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Add PR build links to workflow summary
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          BUILD="build${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          ARTIFACTS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts" --paginate --jq '.artifacts[] | select(.name | startswith("'"$BUILD"'")) | [.name, (.id | tostring)] | @tsv')"
+
+          {
+            echo "## ${BUILD}"
+            echo
+            echo "Installable Native AOT artifacts for PR #${{ github.event.pull_request.number }}."
+            echo
+            echo "| Runtime | Artifact |"
+            echo "| --- | --- |"
+
+            while IFS=$'\t' read -r name id; do
+              [[ -z "$name" || -z "$id" ]] && continue
+              rid="${name#${BUILD}-}"
+              url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts/${id}"
+              echo "| \`${rid}\` | [\`${name}\`](${url}) |"
+            done <<< "$ARTIFACTS"
+
+            echo
+            echo "After bootstrapping one PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
+          } >> "$GITHUB_STEP_SUMMARY"
