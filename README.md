@@ -17,7 +17,8 @@ The repository currently contains tooling for:
 - orchestration of the least-powerful available lowering mechanism through `lower`;
 - shared project-aware VSIR artifact discovery;
 - .NET target-context discovery;
-- project-local ruleset discovery and initialization.
+- project-local ruleset discovery and initialization;
+- Native AOT self-update discovery and verified replacement.
 
 The commands currently being explored include:
 
@@ -26,9 +27,10 @@ vslices init
 vslices lower
 vslices transpile
 vslices rebase
+vslices update --self
 ```
 
-`interpretate` remains a design direction rather than a stable command.
+`interpretate` and `update --ruleset` remain design directions rather than stable commands.
 
 ## Tooling vs. lowering knowledge
 
@@ -58,7 +60,7 @@ Concrete target lowering mappings should not be embedded in the CLI when they ca
 
 A missing rule is not permission to guess. Unsupported lowering remains explicit.
 
-Project configuration controls operating preferences such as the default target, ruleset provenance, and update channel. It must not redefine VSIR semantics or disable correctness guarantees. Explicit command arguments override project configuration, which overrides built-in defaults.
+Project configuration controls operating preferences such as the default target, ruleset provenance, CLI update source, and update channel. It must not redefine VSIR semantics or disable correctness guarantees. Explicit command arguments override project configuration, which overrides built-in defaults.
 
 See `docs/configuration.md` for the project configuration contract and `docs/rulesets.md` for the current experimental ruleset contract.
 
@@ -111,7 +113,7 @@ Semantic rebase is being explored for the case where VSIR evolves after a genera
   ruleset/
 ```
 
-`config.yaml` records operational project choices such as the default target, ruleset source/ref, and CLI update channel. `.ignore` contains project-specific discovery exclusions. `ruleset/` contains the selected local lowering knowledge.
+`config.yaml` records operational project choices such as the default target, ruleset source/ref, CLI update source, and update channel. `.ignore` contains project-specific discovery exclusions. `ruleset/` contains the selected local lowering knowledge.
 
 The initial configuration shape is:
 
@@ -126,6 +128,7 @@ ruleset:
   ref: main
 
 updates:
+  source: https://github.com/vslices/tooling
   channel: preview
 ```
 
@@ -133,24 +136,53 @@ On an interactive terminal, initialization offers the official `vslices/ruleset`
 
 Only the selected target directory is materialized into the project-local ruleset. The current ZIP bootstrap still downloads the source archive before selecting files; remote per-target retrieval is a later optimization rather than a requirement for the current architecture.
 
-`init --force` replaces the ruleset snapshot while preserving project-owned `.ignore` and configuration policy unless a future explicit reset surface says otherwise.
+`init --force` replaces the ruleset snapshot while preserving project-owned `.ignore` and CLI update preferences unless a future explicit reset surface says otherwise.
 
 Once initialized, lowering operates from local state without requiring network access.
 
-## Distribution direction
+## Distribution and self update
 
 The CLI is intended to remain lightweight and is configured for Native AOT publication under the executable name `vslices`.
 
 Configuration and lowering knowledge remain external so changes to rules do not require republishing the executable. Native AOT is a deployment direction rather than a semantic constraint on the tooling design.
 
-The planned update split is deliberate:
+The current self-update surface is:
+
+```text
+vslices update --self
+vslices update --self --check
+```
+
+`--self` resolves the update source and channel using the same precedence as the rest of the CLI:
+
+```text
+command argument
+  > .vslices/config.yaml
+  > built-in default
+```
+
+A supported release publishes one archive and checksum per RID:
+
+```text
+vslices-win-x64.zip
+vslices-win-x64.zip.sha256
+
+vslices-linux-x64.zip
+vslices-linux-x64.zip.sha256
+```
+
+The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the executable directly. Self-update is only intended for the standalone native executable.
+
+Tag-triggered release automation currently publishes the proven `win-x64` and `linux-x64` Native AOT artifacts and injects the tag version into the binary so it can recognize when it is already on the selected release.
+
+The update split remains deliberate:
 
 ```text
 vslices update --self
   = executable update
 
 vslices update --ruleset
-  = project lowering-knowledge update
+  = future project lowering-knowledge update
 ```
 
 CLI version and ruleset version are independent.
@@ -166,7 +198,8 @@ Important properties to preserve include:
 - the ability to change lowering behavior through the external ruleset without recompiling the CLI;
 - recursive artifact discovery that respects built-in and project-specific exclusions;
 - project configuration whose command-line overrides have clear precedence;
-- offline operation after initialization;
+- offline lowering after initialization;
+- verified update downloads before executable replacement;
 - technical validation through build/test and target-specific tooling;
 - execution of the actual Native AOT binary in CI;
 - semantic verification as a distinct concern from compilation.
@@ -181,4 +214,4 @@ The tooling can then serve simultaneously as a dogfooding target, conformance co
 
 ## Status
 
-VSIR lowering and ruleset support are experimental. The repository should prefer small, evidence-driven extensions over speculative generalization.
+VSIR lowering, ruleset support, project configuration, and self-update are experimental. The repository should prefer small, evidence-driven extensions over speculative generalization.
