@@ -4,11 +4,16 @@ namespace VSlices.Tooling;
 
 internal static class RulesetCommands
 {
-    /// <summary>Initializes a project-local .vslices ruleset from a local directory or ZIP URL.</summary>
-    /// <param name="from">Source ruleset directory or ZIP URL. If omitted, VSLICES_RULESET_SOURCE is used.</param>
+    private const string OfficialRulesetArchive =
+        "https://github.com/vslices/ruleset/archive/refs/heads/main.zip";
+
+    /// <summary>Initializes a project-local .vslices ruleset from the official ruleset or a custom source.</summary>
+    /// <param name="from">Custom ruleset directory or ZIP URL. If omitted, interactive terminals offer the official ruleset.</param>
+    /// <param name="target">-t, Target rules to install. Current experimental target: C#.</param>
     /// <param name="force">Replace an existing project-local ruleset.</param>
     public static async Task<int> Init(
         string? from = null,
+        string? target = null,
         bool force = false,
         CancellationToken cancellationToken = default)
     {
@@ -18,16 +23,27 @@ internal static class RulesetCommands
 
         if (string.IsNullOrWhiteSpace(source))
         {
-            Console.Error.WriteLine(
-                "CLI010: No ruleset source was provided. Use --from <directory-or-zip-url> or set VSLICES_RULESET_SOURCE.");
+            source = Console.IsInputRedirected
+                ? OfficialRulesetArchive
+                : PromptRulesetSource();
+        }
+
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            Console.Error.WriteLine("CLI010: Ruleset initialization was cancelled.");
             return 2;
         }
 
-        var target = Path.Combine(Environment.CurrentDirectory, ".vslices", "ruleset");
-        if (Directory.Exists(target) && !force)
+        var selectedTarget = ResolveTarget(target);
+        if (selectedTarget is null)
+            return 2;
+
+        var projectRoot = Environment.CurrentDirectory;
+        var rulesetTarget = Path.Combine(projectRoot, ".vslices", "ruleset");
+        if (Directory.Exists(rulesetTarget) && !force)
         {
             Console.Error.WriteLine(
-                $"CLI011: Ruleset already exists at '{target}'. Use --force to replace it.");
+                $"CLI011: Ruleset already exists at '{rulesetTarget}'. Use --force to replace it.");
             return 1;
         }
 
@@ -47,13 +63,23 @@ internal static class RulesetCommands
                 return 1;
             }
 
-            if (Directory.Exists(target))
-                Directory.Delete(target, recursive: true);
+            var sourceTarget = Path.Combine(sourceRoot, selectedTarget);
+            if (!Directory.Exists(sourceTarget))
+            {
+                Console.Error.WriteLine(
+                    $"CLI016: Ruleset source does not contain target '{selectedTarget}'.");
+                return 1;
+            }
 
-            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            CopyDirectory(sourceRoot, target);
+            if (Directory.Exists(rulesetTarget))
+                Directory.Delete(rulesetTarget, recursive: true);
 
-            Console.WriteLine($"Initialized VSlices ruleset at '{target}'.");
+            Directory.CreateDirectory(rulesetTarget);
+            CopyRootFiles(sourceRoot, rulesetTarget);
+            CopyDirectory(sourceTarget, Path.Combine(rulesetTarget, selectedTarget));
+
+            Console.WriteLine(
+                $"Initialized VSlices ruleset at '{rulesetTarget}' with target {CommandInfrastructure.DisplayTarget(selectedTarget)}.");
             return 0;
         }
         finally
@@ -61,6 +87,55 @@ internal static class RulesetCommands
             if (Directory.Exists(staging))
                 Directory.Delete(staging, recursive: true);
         }
+    }
+
+    private static string? PromptRulesetSource()
+    {
+        Console.WriteLine("Select a ruleset source:");
+        Console.WriteLine("  1. VSlices official ruleset");
+        Console.WriteLine("  2. Custom source");
+        Console.Write("Choice [1]: ");
+
+        var choice = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(choice) || choice == "1")
+            return OfficialRulesetArchive;
+
+        if (choice != "2")
+        {
+            Console.Error.WriteLine("CLI017: Invalid ruleset source selection.");
+            return null;
+        }
+
+        Console.Write("Ruleset directory or ZIP URL: ");
+        return Console.ReadLine()?.Trim();
+    }
+
+    private static string? ResolveTarget(string? target)
+    {
+        if (!string.IsNullOrWhiteSpace(target))
+        {
+            var normalized = CommandInfrastructure.NormalizeTarget(target);
+            if (normalized == "csharp")
+                return normalized;
+
+            Console.Error.WriteLine(
+                $"CLI020: Target '{target}' is not supported. Current experimental target: C#.");
+            return null;
+        }
+
+        if (Console.IsInputRedirected)
+            return "csharp";
+
+        Console.WriteLine("Select a target:");
+        Console.WriteLine("  1. C#");
+        Console.Write("Choice [1]: ");
+
+        var choice = Console.ReadLine()?.Trim();
+        if (string.IsNullOrEmpty(choice) || choice == "1")
+            return "csharp";
+
+        Console.Error.WriteLine("CLI018: Invalid target selection.");
+        return null;
     }
 
     private static async Task<string?> MaterializeSource(
@@ -106,6 +181,12 @@ internal static class RulesetCommands
             Console.Error.WriteLine($"CLI015: Could not download ruleset source: {ex.Message}");
             return null;
         }
+    }
+
+    private static void CopyRootFiles(string source, string target)
+    {
+        foreach (var file in Directory.EnumerateFiles(source))
+            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
     }
 
     private static void CopyDirectory(string source, string target)
