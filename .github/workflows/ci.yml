@@ -118,7 +118,8 @@ jobs:
             --runtime linux-x64 \
             "${VERSION_ARGS[@]}"
 
-      - name: Smoke test Native AOT executable, init, and config
+      - name: Smoke test Native AOT executable, version, init, and config
+        shell: bash
         run: |
           VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
           "$VSLICES" --help | grep -q "init"
@@ -126,6 +127,14 @@ jobs:
           "$VSLICES" --help | grep -q "transpile"
           "$VSLICES" --help | grep -q "rebase"
           "$VSLICES" --help | grep -q "update"
+
+          LONG_VERSION="$("$VSLICES" --version)"
+          SHORT_VERSION="$("$VSLICES" -v)"
+          test -n "$LONG_VERSION"
+          test "$LONG_VERSION" = "$SHORT_VERSION"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            test "$LONG_VERSION" = "build${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          fi
 
           mkdir -p native-aot-context
           cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir native-aot-context/StreetName.vsir
