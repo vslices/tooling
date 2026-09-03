@@ -7,11 +7,13 @@ internal sealed record ProjectConfiguration(
     string? DefaultTarget,
     string? RulesetSource,
     string? RulesetRef,
+    string? UpdateSource,
     string? UpdateChannel)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
     public const string OfficialRulesetRef = "main";
+    public const string OfficialToolingSource = "https://github.com/vslices/tooling";
     public const string DefaultUpdateChannel = "preview";
 
     public static ProjectConfiguration Default(string? target = "csharp") =>
@@ -20,6 +22,7 @@ internal sealed record ProjectConfiguration(
             target,
             OfficialRulesetSource,
             OfficialRulesetRef,
+            OfficialToolingSource,
             DefaultUpdateChannel);
 
     public static ProjectConfiguration? LoadFromRulesetRoot(string rulesetRoot) =>
@@ -74,6 +77,7 @@ internal sealed record ProjectConfiguration(
             "updates",
             new YamlMappingNode
             {
+                { "source", configuration.UpdateSource ?? OfficialToolingSource },
                 { "channel", configuration.UpdateChannel ?? DefaultUpdateChannel }
             });
 
@@ -109,6 +113,7 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "targets", "default"),
             NestedScalar(root, "ruleset", "source"),
             NestedScalar(root, "ruleset", "ref"),
+            NestedScalar(root, "updates", "source"),
             NestedScalar(root, "updates", "channel"));
     }
 
