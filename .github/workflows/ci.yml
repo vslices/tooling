@@ -18,17 +18,31 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
       - run: dotnet build tooling.slnx --configuration Release
       - run: dotnet test tooling.slnx --configuration Release --no-build
-      - name: Smoke test transpile with namespace override
+
+      - name: Smoke test explicit stdout
         run: |
           dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
             transpile tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir \
             -to C# \
             --namespace Identities.Domain.ValueObjects \
+            --stdout \
             > transpiled.cs
           grep -q "sealed class StreetName" transpiled.cs
           grep -q "namespace Identities.Domain.ValueObjects" transpiled.cs
+
+      - name: Smoke test lower writes conventional materialization
+        run: |
+          mkdir -p lower-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir lower-context/StreetName.vsir
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            lower lower-context/StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects
+          test -f lower-context/StreetName.vsir.cs
+          grep -q "sealed class StreetName" lower-context/StreetName.vsir.cs
+
       - name: Smoke test .NET target context delegation
         run: |
           mkdir -p target-context/ValueObjects
@@ -44,7 +58,29 @@ jobs:
           dotnet restore target-context/Demo.Identity.csproj
           dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
             transpile target-context/ValueObjects/StreetName.vsir \
-            -to C# \
+            --stdout \
             > delegated.cs
           grep -q "namespace Demo.Identity" delegated.cs
           test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
+
+      - name: Publish Native AOT CLI
+        run: dotnet publish src/VSlices.Tooling --configuration Release --runtime linux-x64
+
+      - name: Smoke test Native AOT executable and local init
+        run: |
+          VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
+          "$VSLICES" --help | grep -q "lower"
+
+          mkdir -p native-aot-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir native-aot-context/StreetName.vsir
+          cd native-aot-context
+
+          "$VSLICES" init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/ruleset/manifest.yaml
+          test -d .vslices/ruleset/csharp
+
+          "$VSLICES" transpile StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects \
+            --stdout \
+            > native-transpiled.cs
+          grep -q "sealed class StreetName" native-transpiled.cs
