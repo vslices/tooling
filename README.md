@@ -15,6 +15,7 @@ The repository currently contains tooling for:
 - deterministic VSIR-to-C# transpilation for supported structures;
 - conservative semantic rebase experiments over human-edited materializations;
 - orchestration of the least-powerful available lowering mechanism through `lower`;
+- shared project-aware VSIR artifact discovery;
 - .NET target-context discovery;
 - project-local ruleset discovery and initialization.
 
@@ -63,12 +64,16 @@ Developer-experience shortcuts are intentionally implemented as shared command i
 Current conventions include:
 
 - VSIR symbols and paths share the same artifact resolution rules;
+- recursive symbol discovery ignores `.git/`, `.vslices/`, `bin/`, and `obj/` as built-in exclusions;
+- project-specific discovery exclusions are declared in `.vslices/.ignore`;
 - `-to` may be omitted when exactly one supported target is installed locally;
 - a C# materialization conventionally lives beside its VSIR as `Name.vsir.cs`;
 - `-o <path>` overrides the conventional output path;
 - `--stdout` writes the result to standard output and is equivalent to `-o -`;
 - file writes use a temporary sibling and atomic replacement;
 - commands emit the same diagnostic representation for expected failures.
+
+The current `.vslices/.ignore` contract intentionally supports a small familiar subset: blank lines, `#` comments, directory paths, `*`, and `**`. Negation with `!` is not yet part of the contract. Ignore patterns are project policy for VSlices artifact discovery in general rather than behavior owned by a particular command.
 
 `transpile` writes a new sibling materialization by default and refuses to overwrite an existing file unless `--force` is explicit. This preserves the distinction between initial deterministic projection and an already human-editable materialization.
 
@@ -92,11 +97,15 @@ Semantic rebase is being explored for the case where VSIR evolves after a genera
 
 ## Ruleset initialization
 
-`vslices init` materializes a ruleset under:
+`vslices init` materializes project configuration under:
 
 ```text
-.vslices/ruleset/
+.vslices/
+  .ignore
+  ruleset/
 ```
+
+The generated `.ignore` starts with comments documenting the built-in exclusions and is left intact by later `init --force` operations so project-specific discovery policy is not accidentally erased when replacing a ruleset.
 
 On an interactive terminal, initialization offers the official `vslices/ruleset` source and target selection. Custom local directories or HTTP(S) ZIP sources remain available through `--from`, and non-interactive use can select a target explicitly.
 
@@ -119,6 +128,7 @@ Important properties to preserve include:
 - deterministic output for the same VSIR, ruleset, and target context;
 - no hidden fallback when a rule is absent;
 - the ability to change lowering behavior through the external ruleset without recompiling the CLI;
+- recursive artifact discovery that respects built-in and project-specific exclusions;
 - offline operation after initialization;
 - technical validation through build/test and target-specific tooling;
 - execution of the actual Native AOT binary in CI;
