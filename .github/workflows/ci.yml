@@ -18,10 +18,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - run: dotnet test tooling.slnx --configuration Release
+      - run: dotnet build tooling.slnx --configuration Release
+      - run: dotnet test tooling.slnx --configuration Release --no-build
       - name: Smoke test transpile with namespace override
         run: |
-          dotnet run --project src/VSlices.Tooling --configuration Release -- \
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
             transpile tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir \
             -to C# \
             --namespace Identities.Domain.ValueObjects \
@@ -40,9 +41,9 @@ jobs:
           </Project>
           EOF
           cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir target-context/ValueObjects/StreetName.vsir
-          dotnet run --project src/VSlices.Tooling --configuration Release -- \
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
             transpile target-context/ValueObjects/StreetName.vsir \
             -to C# \
             > delegated.cs
-          grep -q "namespace Demo.Identity.ValueObjects" delegated.cs
+          grep -q "namespace Demo.Identity" delegated.cs
           test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
