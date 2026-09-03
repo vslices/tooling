@@ -6,9 +6,24 @@ Its purpose is to provide repeatable mechanisms around VSlices artifacts while k
 
 The CLI is named `vslices`.
 
-## v0.1.0-preview scope
+## Start here
 
-The intended first preview exposes:
+The current development line is `v0.2.0-preview`.
+
+It advances on two complementary tracks:
+
+```text
+CLI experience
+  -> identity, presentation, progress and operability
+
+semantic capability
+  -> broader real-world VSIR coverage
+     -> classify the resulting lowering needs
+     -> extend deterministic mechanisms where evidence supports them
+     -> discover interpretive work only when a concrete case requires it
+```
+
+The currently implemented command surface remains:
 
 ```text
 vslices init
@@ -16,26 +31,53 @@ vslices lower
 vslices transpile
 vslices rebase
 vslices update --self
+vslices --version
+vslices -v
 ```
 
-`interpretate` is deliberately not part of `v0.1.0-preview`. The concept is defined as interpretive lowering for cases where deterministic mechanisms are insufficient but enough semantic authority and contextual evidence exist. A first executable `vslices interpretate` surface is a candidate for `v0.2.0-preview`.
+`interpretate` is a defined hypothesis for interpretive lowering, not a mandatory roadmap checkbox. A `vslices interpretate` command should emerge only if a real case remains genuinely underdetermined but sufficiently constrained after VSIR semantics, ruleset knowledge, project evidence and target-native authority have all been considered.
 
-The complete release boundary and acceptance criteria are recorded in [`docs/releases/v0.1.0-preview.md`](docs/releases/v0.1.0-preview.md).
+The current version direction is documented in [`docs/releases/v0.2.0-preview.md`](docs/releases/v0.2.0-preview.md).
 
-`v0.1.1-preview` is a distribution and release-pipeline patch that adds Windows ARM64 support, removes duplicated PR CI work, and introduces installable PR builds without expanding the lowering surface. See [`docs/releases/v0.1.1-preview.md`](docs/releases/v0.1.1-preview.md).
+## Orientation for AI-assisted development
+
+A future development session should be able to reconstruct the accepted model from repository artifacts without depending on chat history.
+
+Before changing semantic behavior, read [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md). It defines the cross-repository reading order and the decision procedure for deciding whether evidence from a VSlices-enabled project belongs in:
+
+```text
+consumer project
+vslices/tooling
+vslices/ruleset
+target-native tooling
+```
+
+When work begins from a consumer repository such as `atom-dev-serviu/account-management-product`, inspect its concrete `.vsir`, `.vsir.cs`, `.vslices/config.yaml`, local `.vslices/ruleset`, surrounding source/tests and target context before deciding that Tooling or the official ruleset must change.
+
+The intended causal chain is:
+
+```text
+consumer evidence
+  -> semantic requirement
+  -> VSIR / ruleset / tooling change
+  -> validation evidence
+```
+
+Do not use a missing rule as permission to guess and do not use remembered conversation state as authority when repository evidence can be inspected.
 
 ## Current responsibilities
 
 The repository currently contains mechanisms for:
 
 - structured VSlices document generation;
-- parsing and conservatively validating the current experimental VSIR benchmark surface;
+- parsing and conservatively validating the current experimental VSIR surface;
 - deterministic VSIR-to-C# transpilation for supported structures;
 - conservative semantic rebase over human-edited materializations;
 - orchestration of the least-powerful available lowering mechanism through `lower`;
 - shared project-aware VSIR artifact discovery;
 - .NET target-context delegation and explicit namespace override;
 - project-local configuration and ruleset initialization;
+- a centralized static terminal presentation boundary for interactive CLI output;
 - Native AOT distribution;
 - verified Windows bootstrap installation;
 - verified standalone CLI self-update;
@@ -50,7 +92,7 @@ The core architectural separation is:
   = semantic source
 
 .vsir.cs
-  = editable materialization constrained by VSIR
+  = human-editable materialization constrained by VSIR
 
 project/.vslices/config.yaml
   = project operating policy
@@ -62,10 +104,13 @@ vslices/ruleset
   = official revisable lowering knowledge
 
 project/.vslices/ruleset
-  = local ruleset snapshot
+  = local ruleset snapshot actually used by lowering
 
 vslices executable
-  = mechanisms, orchestration, safety guarantees, and target adapters
+  = mechanisms, orchestration, safety guarantees, CLI behavior and target adapters
+
+target-native tooling
+  = target facts already owned by the target ecosystem
 ```
 
 Concrete target lowering mappings should not be embedded in the CLI when they can be expressed as external rules. A missing rule is not permission to guess or silently fall back.
@@ -74,9 +119,45 @@ A useful shorthand for the current design is:
 
 > Lowering may complete implementation detail. Lowering must not complete missing semantics.
 
-For an implementation `I` and VSIR document `V`, the intended relation is that `I` satisfies `V`; the transpiler constructs one valid witness rather than defining the only acceptable source form.
+For future interpretive work:
 
-See [`docs/rulesets.md`](docs/rulesets.md), [`docs/configuration.md`](docs/configuration.md), and [`docs/context.vslices-tooling.md`](docs/context.vslices-tooling.md) for the focused contracts.
+> Interpretation may resolve underdetermined materialization. Interpretation must not manufacture missing authority.
+
+For an implementation `I` and VSIR document `V`, the intended relation is:
+
+```text
+I |= V
+```
+
+The transpiler constructs one valid witness rather than defining the only acceptable source form.
+
+See [`docs/rulesets.md`](docs/rulesets.md), [`docs/configuration.md`](docs/configuration.md), [`docs/context.vslices-tooling.md`](docs/context.vslices-tooling.md), and [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md) for focused contracts.
+
+## Repository ownership
+
+The current project split is:
+
+```text
+src/VSlices.Tooling
+  = CLI execution adapter, orchestration-facing behavior and presentation
+
+src/VSlices.Vsir
+  = experimental VSIR semantic model, parsing and conservative validation
+
+src/VSlices.Vsir.CSharp
+  = deterministic C# lowering and current deterministic rebase behavior
+
+src/VSlices.Targets.DotNet
+  = .NET target context and delegation to target-native tooling
+
+src/VSlices.DocumentGeneration
+  = structured document generation behavior
+
+vslices/ruleset
+  = official external lowering knowledge
+```
+
+Reusable behavior projects must not depend on the CLI project. Target-specific tooling may resolve target context, but it should not redefine VSIR semantics.
 
 ## Shared command conventions
 
@@ -101,21 +182,21 @@ The current `.vslices/.ignore` contract intentionally supports a small subset: b
 
 ### `transpile`
 
-`transpile` creates a deterministic projection when the ruleset and target context are sufficient.
+`transpile` creates a deterministic projection when the VSIR, ruleset and target context are sufficient.
 
-By default it writes the sibling materialization and refuses to overwrite an existing file unless `--force` is explicit. Existing `.vsir.cs` files are treated as human-editable materializations, not disposable generated output.
+By default it writes the sibling materialization and refuses to overwrite an existing file unless `--force` is explicit. Existing `.vsir.cs` files are human-editable materializations, not disposable generated output.
 
 ### `rebase`
 
 `rebase` reconstructs the previous deterministic projection, compares it with the human-edited materialization, and applies a compatible deterministic VSIR change conservatively.
 
-The previous VSIR baseline is still explicit through `--from`; automatic provenance reconstruction is outside `v0.1.0-preview`.
+The previous VSIR baseline is currently explicit through `--from`; automatic provenance reconstruction remains future work.
 
 ### `lower`
 
-`lower` is the normal orchestration surface.
+`lower` is the normal orchestration surface and selects the least-powerful sufficient mechanism.
 
-In the first preview:
+The current conservative behavior is:
 
 ```text
 no materialization
@@ -130,6 +211,8 @@ existing materialization + unknown ancestry
 
 It must not invent ancestry merely to keep the command moving.
 
+If an interpretive mechanism is eventually adopted, `lower` should continue to choose the least interpretive mechanism that is actually authorized.
+
 ## Project initialization and configuration
 
 `vslices init` establishes:
@@ -141,7 +224,9 @@ It must not invent ancestry merely to keep the command moving.
   ruleset/
 ```
 
-The default configuration remains release-oriented:
+Plain `vslices init` uses the official `vslices/ruleset` as the normal bootstrap source, while explicit local directories or HTTP(S) ZIP sources remain supported.
+
+The default configuration is release-oriented:
 
 ```yaml
 version: 0.1
@@ -166,9 +251,32 @@ explicit CLI argument
   > built-in default
 ```
 
-Configuration cannot redefine VSIR semantics or disable correctness guarantees such as missing-rule failure or atomic writes.
+Configuration expresses operating policy, not VSIR semantics. It cannot disable correctness guarantees such as missing-rule failure or atomic writes.
 
 Only the selected target rules are materialized locally. Once initialized, lowering operates from project-local state without requiring network access.
+
+## CLI identity and presentation
+
+The CLI exposes equivalent version forms:
+
+```text
+vslices --version
+vslices -v
+```
+
+Published versions expose the product version. Pull-request builds expose a human-facing build identity:
+
+```text
+build<pr-number>.<run-number>
+```
+
+The internal .NET assembly representation is an implementation detail and should not leak into normal CLI output.
+
+Interactive `--version`, `init`, and `update --self` use the shared terminal presentation boundary and VSlices branding. Redirected/machine-consumable output remains plain and safe to script against.
+
+Presentation may decorate output. It must not change command semantics.
+
+The current styling layer is deliberately static. User-configurable themes are possible future work after the project has evidence for which presentation roles deserve to become stable configuration.
 
 ## Windows installation
 
@@ -184,7 +292,7 @@ For specific versions, custom install paths, PATH behavior, self-update, and ins
 
 ## Distribution and self-update
 
-Release automation targets the Native AOT RIDs:
+Release automation targets:
 
 ```text
 win-x64
@@ -192,18 +300,7 @@ win-arm64
 linux-x64
 ```
 
-Each published release artifact has a separate SHA-256 file:
-
-```text
-vslices-win-x64.zip
-vslices-win-x64.zip.sha256
-
-vslices-win-arm64.zip
-vslices-win-arm64.zip.sha256
-
-vslices-linux-x64.zip
-vslices-linux-x64.zip.sha256
-```
+Each published release artifact has a separate SHA-256 file.
 
 The self-update surface is:
 
@@ -212,50 +309,74 @@ vslices update --self
 vslices update --self --check
 ```
 
-Release-oriented projects normally use `preview` or `stable`. Developers may instead follow the newest successful build of a pull request:
+Normal usage keeps update policy in `.vslices/config.yaml` and invokes `vslices update --self` without repeating that policy on every command.
+
+Developers may follow the newest successful build of a pull request:
 
 ```yaml
 updates:
   source: https://github.com/vslices/tooling
   channel: build
-  pull-request: 2
+  pull-request: 3
 ```
 
-PR builds are identified as:
+The updater resolves the newest successful run automatically. CLI flags for channel or pull request are overrides for diagnostics, CI, experiments or recovery rather than the preferred daily workflow.
 
-```text
-build<pr-number>.<run-number>
-```
+GitHub Actions build artifact downloads use `GH_TOKEN`, `GITHUB_TOKEN`, or an authenticated `gh` CLI session. Release and preview downloads remain based on public GitHub Releases.
 
-For example, `build2.154`. The run number is resolved automatically; it is not copied into configuration. Each successful PR CI run publishes RID-specific artifacts such as `build2.154-win-arm64`.
-
-GitHub Actions artifact downloads require authentication. The updater uses `GH_TOKEN`, `GITHUB_TOKEN`, or an authenticated `gh` CLI session. Release and preview downloads remain based on public GitHub Releases.
-
-The archive checksum is verified before replacement for both release and build channels. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
+The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
 
 CLI version and ruleset version remain independent. `vslices update --ruleset` is future scope.
 
-## Validation strategy
+## Evidence-driven VSIR development
 
-The current benchmark begins with `StreetName.vsir` and expands only when concrete examples require additional semantic or lowering structures.
+The initial benchmark was `StreetName.vsir`, but `v0.2.0-preview` deliberately expands through additional real examples rather than treating that benchmark as the model's boundary.
+
+For each new `.vsir`, ask:
+
+```text
+Can the semantics be represented faithfully?
+Can the current ruleset lower them deterministically?
+Can target tooling authoritatively resolve remaining target detail?
+Can rebase preserve compatible human choices?
+What, if anything, remains underdetermined?
+```
+
+Classify discovered gaps before changing repositories:
+
+```text
+semantic representation gap
+validation/parsing gap
+ruleset knowledge gap
+target-context gap
+lowering mechanism gap
+rebase/provenance gap
+presentation-only gap
+no gap
+```
+
+This classification is especially important when analyzing a consumer repository and coordinating changes between that repository, `vslices/tooling`, and `vslices/ruleset`.
+
+## Validation strategy
 
 CI is expected to cover:
 
-- Release build;
-- automated lowering/rebase tests;
+- Release build and automated tests;
+- deterministic lowering/rebase behavior;
+- real CLI `transpile`, `lower`, `rebase`, `init`, version and update flows where practical;
 - explicit namespace override without a `.csproj`;
-- real CLI `transpile`, `lower`, and `rebase` flows;
 - recursive discovery ignores;
 - .NET target-context delegation;
 - PowerShell bootstrap syntax;
 - Native AOT publication and execution for the host RID;
-- Native AOT publication for both Windows x64 and Windows ARM64;
+- Native AOT publication for Windows x64 and Windows ARM64;
 - RID-specific installable artifacts for successful PR runs;
-- project initialization and configuration creation.
+- project initialization and configuration creation;
+- machine-safe redirected output for CLI surfaces that also have interactive presentation.
 
 The same CI operation set runs for pull requests, scheduled nightly validation, `main`, manual dispatch, and `v*` tags. Release tags additionally trigger the release workflow that packages and publishes official assets.
 
-Published releases provide the final end-to-end evidence for remote bootstrap installation and self-update against release assets. ARM64 execution is additionally validated on a real Windows ARM64 environment because the hosted Windows release runner is x64.
+Published releases provide final end-to-end evidence for remote bootstrap installation and self-update against release assets. ARM64 execution may additionally require a real Windows ARM64 environment because the hosted Windows release runner is x64.
 
 ## Long-term dogfooding objective
 
@@ -265,4 +386,6 @@ This does not imply generating every line of Tooling. The goal is semantic self-
 
 ## Status
 
-VSIR lowering, rulesets, configuration, installation, rebase, and self-update remain preview-quality and experimental. The repository prefers small evidence-driven extensions over speculative generalization.
+VSIR lowering, rulesets, configuration, installation, rebase, presentation and self-update remain preview-quality and experimental.
+
+The repository prefers small evidence-driven extensions over speculative generalization. Material decisions should be made reconstructible in repository artifacts so future human or AI-assisted sessions can continue from current evidence instead of recreating the design from conversation history.
