@@ -60,29 +60,6 @@ jobs:
           (Get-FileHash release/vslices-win-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant() |
             Set-Content -NoNewline release/vslices-win-x64.zip.sha256
 
-      - name: Install Inno Setup
-        shell: pwsh
-        run: choco install innosetup --no-progress -y
-
-      - name: Build Windows installer
-        shell: pwsh
-        run: |
-          $version = $env:GITHUB_REF_NAME.TrimStart('v')
-          $sourceDir = (Resolve-Path publish/win-x64).Path
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-
-          & $iscc `
-            "/DAppVersion=$version" `
-            "/DSourceDir=$sourceDir" `
-            installer/windows/VSlices.Tooling.iss
-
-          Copy-Item `
-            installer/windows/output/VSlices-Tooling-Setup-win-x64.exe `
-            release/VSlices-Tooling-Setup-win-x64.exe
-
-          (Get-FileHash release/VSlices-Tooling-Setup-win-x64.exe -Algorithm SHA256).Hash.ToLowerInvariant() |
-            Set-Content -NoNewline release/VSlices-Tooling-Setup-win-x64.exe.sha256
-
       - uses: actions/upload-artifact@v4
         with:
           name: cli-win-x64
