@@ -18,9 +18,8 @@ internal static class CommandInfrastructure
         }
 
         var symbol = Path.GetFileNameWithoutExtension(value);
-        var matches = Directory
-            .EnumerateFiles(cwd, symbol + ".vsir", SearchOption.AllDirectories)
-            .Where(path => !HasBuildDirectory(path))
+        var policy = ArtifactDiscoveryPolicy.Load(cwd);
+        var matches = EnumerateVsirFiles(cwd, symbol + ".vsir", policy)
             .Take(3)
             .ToArray();
 
@@ -139,9 +138,29 @@ internal static class CommandInfrastructure
             Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
     }
 
-    private static bool HasBuildDirectory(string path)
+    private static IEnumerable<string> EnumerateVsirFiles(
+        string root,
+        string searchPattern,
+        ArtifactDiscoveryPolicy policy)
     {
-        var segments = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return segments.Any(x => x is "bin" or "obj");
+        var pending = new Stack<string>();
+        pending.Push(Path.GetFullPath(root));
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+
+            foreach (var file in Directory.EnumerateFiles(current, searchPattern, SearchOption.TopDirectoryOnly))
+            {
+                if (!policy.IgnoreFile(file))
+                    yield return file;
+            }
+
+            foreach (var directory in Directory.EnumerateDirectories(current))
+            {
+                if (!policy.IgnoreDirectory(directory))
+                    pending.Push(directory);
+            }
+        }
     }
 }
