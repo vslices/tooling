@@ -257,15 +257,12 @@ internal static class SelfUpdater
         var escapedCurrent = current.Replace("'", "''");
         var escapedPending = pending.Replace("'", "''");
         var escapedScript = script.Replace("'", "''");
+        var scriptContent =
+            $"while (Get-Process -Id {processId} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 100 }}{Environment.NewLine}" +
+            $"Move-Item -LiteralPath '{escapedPending}' -Destination '{escapedCurrent}' -Force{Environment.NewLine}" +
+            $"Remove-Item -LiteralPath '{escapedScript}' -Force{Environment.NewLine}";
 
-        await File.WriteAllTextAsync(
-            script,
-            $"""
-            while (Get-Process -Id {processId} -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 100 }}
-            Move-Item -LiteralPath '{escapedPending}' -Destination '{escapedCurrent}' -Force
-            Remove-Item -LiteralPath '{escapedScript}' -Force
-            """,
-            cancellationToken);
+        await File.WriteAllTextAsync(script, scriptContent, cancellationToken);
 
         Process.Start(new ProcessStartInfo
         {
