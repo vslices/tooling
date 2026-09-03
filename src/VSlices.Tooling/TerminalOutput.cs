@@ -23,6 +23,12 @@ internal static class TerminalOutput
     public static void Error(string text) =>
         Console.Error.WriteLine(Chalk.Red[text]);
 
+    public static void Detail(string label, string value) =>
+        Console.WriteLine($"  {Chalk.Gray[label.PadRight(13)]}{Chalk.Bold[value]}");
+
+    public static void BlankLine() =>
+        Console.WriteLine();
+
     public static void Progress(string text, Action action) =>
         Spinner.Start(text, action);
 
