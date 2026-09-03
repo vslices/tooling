@@ -1,4 +1,6 @@
-﻿var app = ConsoleApp.Create();
+﻿using VSlices.Tooling;
+
+var app = ConsoleApp.Create();
 
 app.Add("generate-document", (
     string type,
@@ -7,5 +9,8 @@ app.Add("generate-document", (
 {
     Console.WriteLine($"Generating {language} {level} {type} document.");
 });
+
+app.Add("transpile", VsirCommands.Transpile);
+app.Add("rebase", VsirCommands.Rebase);
 
 app.Run(args);
