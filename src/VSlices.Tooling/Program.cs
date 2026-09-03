@@ -1,11 +1,11 @@
-﻿var app = ConsoleApp.Create();
+﻿using VSlices.Tooling;
 
-app.Add("generate-document", (
-    string type,
-    string level = "L0",
-    string language = "en") =>
-{
-    Console.WriteLine($"Generating {language} {level} {type} document.");
-});
+var app = ConsoleApp.Create();
+
+app.Add("init", RulesetCommands.Init);
+app.Add("lower", VsirCommands.Lower);
+app.Add("transpile", VsirCommands.Transpile);
+app.Add("rebase", VsirCommands.Rebase);
+app.Add("update", UpdateCommands.Update);
 
 app.Run(args);

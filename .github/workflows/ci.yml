@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - run: dotnet build tooling.slnx --configuration Release
+      - run: dotnet test tooling.slnx --configuration Release --no-build
+
+      - name: Validate Windows bootstrap script syntax
+        shell: pwsh
+        run: '[scriptblock]::Create((Get-Content ./install.ps1 -Raw)) | Out-Null'
+
+      - name: Smoke test explicit stdout
+        run: |
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            transpile tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir \
+            -to C# \
+            --namespace Identities.Domain.ValueObjects \
+            --stdout \
+            > transpiled.cs
+          grep -q "sealed class StreetName" transpiled.cs
+          grep -q "namespace Identities.Domain.ValueObjects" transpiled.cs
+
+      - name: Smoke test lower writes conventional materialization
+        run: |
+          mkdir -p lower-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir lower-context/StreetName.vsir
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            lower lower-context/StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects
+          test -f lower-context/StreetName.vsir.cs
+          grep -q "sealed class StreetName" lower-context/StreetName.vsir.cs
+
+      - name: Smoke test rebase preserves human materialization when VSIR is unchanged
+        run: |
+          mkdir -p rebase-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir rebase-context/Previous.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir rebase-context/StreetName.vsir
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            transpile rebase-context/StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects
+          printf '\n// human detail\n' >> rebase-context/StreetName.vsir.cs
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            rebase rebase-context/StreetName.vsir \
+            --from rebase-context/Previous.vsir \
+            --namespace Identities.Domain.ValueObjects
+          grep -q "human detail" rebase-context/StreetName.vsir.cs
+
+      - name: Smoke test artifact discovery ignores
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p discovery-context/many/folders discovery-context/{.git,.vslices,bin,obj,legacy}
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/many/folders/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/.git/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/.vslices/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/bin/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/obj/StreetName.vsir
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir discovery-context/legacy/StreetName.vsir
+          cp -R .vslices/ruleset discovery-context/.vslices/ruleset
+          printf '# Project-specific ignore\nlegacy/\n' > discovery-context/.vslices/.ignore
+          cd discovery-context
+          $VSLICES lower StreetName --namespace Identities.Domain.ValueObjects
+          test -f many/folders/StreetName.vsir.cs
+          grep -q "sealed class StreetName" many/folders/StreetName.vsir.cs
+
+      - name: Smoke test .NET target context delegation
+        run: |
+          mkdir -p target-context/ValueObjects
+          cat > target-context/Demo.Identity.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+              <RootNamespace>Demo.Identity</RootNamespace>
+            </PropertyGroup>
+          </Project>
+          EOF
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir target-context/ValueObjects/StreetName.vsir
+          dotnet restore target-context/Demo.Identity.csproj
+          dotnet run --project src/VSlices.Tooling --configuration Release --no-build -- \
+            transpile target-context/ValueObjects/StreetName.vsir \
+            --stdout \
+            > delegated.cs
+          grep -q "namespace Demo.Identity" delegated.cs
+          test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
+
+      - name: Publish Native AOT CLI
+        run: dotnet publish src/VSlices.Tooling --configuration Release --runtime linux-x64
+
+      - name: Smoke test Native AOT executable, init, and config
+        run: |
+          VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
+          "$VSLICES" --help | grep -q "init"
+          "$VSLICES" --help | grep -q "lower"
+          "$VSLICES" --help | grep -q "transpile"
+          "$VSLICES" --help | grep -q "rebase"
+          "$VSLICES" --help | grep -q "update"
+
+          mkdir -p native-aot-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir native-aot-context/StreetName.vsir
+          cd native-aot-context
+
+          "$VSLICES" init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/config.yaml
+          test -f .vslices/.ignore
+          test -f .vslices/ruleset/manifest.yaml
+          test -d .vslices/ruleset/csharp
+          grep -q "default: csharp" .vslices/config.yaml
+          grep -q "source: https://github.com/vslices/tooling" .vslices/config.yaml
+          grep -q "channel: preview" .vslices/config.yaml
+
+          "$VSLICES" transpile StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects \
+            --stdout \
+            > native-transpiled.cs
+          grep -q "sealed class StreetName" native-transpiled.cs

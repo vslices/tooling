@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "VSlices Ruleset Manifest",
+  "type": "object",
+  "required": ["kind", "version", "targets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "kind": { "const": "vslices-ruleset" },
+    "version": { "type": ["string", "number"] },
+    "targets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["rules"],
+        "properties": {
+          "rules": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

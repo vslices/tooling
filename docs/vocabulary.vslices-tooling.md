@@ -4,48 +4,130 @@ type: domain-vocabulary
 status: active
 scope: project
 related:
-  - <optional-related-artifact-id>
+  - context.vslices-tooling
 ---
-
-<!--
-
-Status: draft, active, resolved, superseded, or archived.
-Scope: iteration, project
--->
-
 
 # Vocabulario de VSlices Tooling
 
-## Tipo de documento
+## VSIR
 
-Ver segmento [Conceptos de documentación](https://github.com/vslices/docs/blob/docs/spanish-translation-pass/docs/es/products/docs-standard/glossary.md#conceptos-de-documentaci%C3%B3n) del [Glosario de VSlices Docs Standard](https://github.com/vslices/docs/blob/docs/spanish-translation-pass/docs/es/products/docs-standard/glossary.md)
+Representación intermedia semántica utilizada por VSlices para expresar conocimiento que puede restringir materializaciones concretas sin prescribir necesariamente una única forma textual.
 
+## Materialización
 
-## Etapa del documento 
+Artefacto concreto que implementa o representa un VSIR para un target determinado.
 
-Ver segmento [Uso y madurez documental](https://github.com/vslices/docs/blob/docs/spanish-translation-pass/docs/es/products/docs-standard/glossary.md#uso-y-madurez-documental) del [Glosario de VSlices Docs Standard](https://github.com/vslices/docs/blob/docs/spanish-translation-pass/docs/es/products/docs-standard/glossary.md)
+En C#, la convención actual empareja:
 
+```text
+Name.vsir
+Name.vsir.cs
+```
 
-## Idioma del documento
+La materialización `.vsir.cs` es editable por humanos. No se considera output descartable mientras continúe satisfaciendo el contrato semántico correspondiente.
 
-Variante lingüística del documento o template. 
+## Transpile
 
-!!! note "Respecto al multilenguaje"
-    
-    VSlices esta en español e ingles, pero la prioridad es español.
+Lowering determinista desde VSIR hacia un target cuando las reglas y el contexto disponibles permiten construir una materialización sin inferencia interpretativa adicional.
 
+El comando actual es:
 
-## Scope del documento
+```text
+vslices transpile
+```
 
-Alcance donde aplica un documento: stage, iteration, project.
+Transpile construye un witness válido; no define una única representación privilegiada del VSIR.
 
-Sinonimos: Alcance del documento
+## Semantic Rebase
 
-## Plantilla de documento
+Integración determinista de un cambio de VSIR sobre una materialización previamente editada por humanos, preservando cambios compatibles cuando existe un baseline determinista anterior.
 
-Estructura reusable que guía la creación de documentos.
+El comando actual es:
 
-## Markdown Generado
+```text
+vslices rebase
+```
 
-Salida esperada del tooling, no necesariamente el documento final sin revisión.
+Rebase no trata VSIR y materialización como fuentes de igual autoridad semántica y no debe inventar ancestry ausente.
 
+## Lower
+
+Superficie de orquestación que selecciona el mecanismo menos interpretativo suficiente para materializar un VSIR.
+
+El comando actual es:
+
+```text
+vslices lower
+```
+
+En `v0.1.0-preview`, `lower` puede seleccionar transpile o rebase según el estado disponible y debe detenerse cuando no puede establecer legítimamente un baseline requerido.
+
+## Interpretate
+
+Lowering interpretativo para casos donde los mecanismos deterministas no pueden completar una decisión de materialización, pero existen obligaciones semánticas y evidencia contextual suficiente para resolverla sin inventar autoridad.
+
+`interpretate` está definido conceptualmente, pero no forma parte de la superficie ejecutable de `v0.1.0-preview`.
+
+`vslices interpretate` es candidato para `v0.2.0-preview`.
+
+## Ruleset
+
+Conjunto revisable de conocimiento de lowering externo al ejecutable.
+
+El ruleset oficial vive conceptualmente en `vslices/ruleset`; un proyecto materializa un snapshot local bajo:
+
+```text
+.vslices/ruleset/
+```
+
+La ausencia de una regla requerida no autoriza fallback ni guessing.
+
+## Configuración de proyecto
+
+Política operativa del proyecto expresada en:
+
+```text
+.vslices/config.yaml
+```
+
+No contiene semántica de VSIR ni reglas concretas de lowering.
+
+La precedencia es:
+
+```text
+argumento CLI explícito
+  > config.yaml
+  > default del ejecutable
+```
+
+## Artifact discovery
+
+Resolución compartida de artefactos VSIR por path o símbolo.
+
+El descubrimiento recursivo excluye siempre `.git/`, `.vslices/`, `bin/` y `obj/`, y puede incorporar exclusiones del proyecto desde:
+
+```text
+.vslices/.ignore
+```
+
+Un path explícito sigue siendo autoridad incluso cuando el artefacto estaría excluido del descubrimiento recursivo.
+
+## Target context
+
+Información de materialización delegada al tooling autoritativo del target cuando existe.
+
+Para C#/.NET, VSlices puede delegar resolución de contexto a .NET y aceptar un namespace explícito como override autoritativo.
+
+## Self-update
+
+Actualización del ejecutable standalone de VSlices Tooling mediante:
+
+```text
+vslices update --self
+```
+
+El artifact descargado debe verificarse antes de reemplazar el binario actual.
+
+## Markdown generado
+
+Salida producida por los mecanismos de generación documental de VSlices Tooling. No implica necesariamente que el documento resultante quede finalizado sin revisión humana.

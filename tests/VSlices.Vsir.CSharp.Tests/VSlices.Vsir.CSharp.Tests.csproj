@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/VSlices.Targets.DotNet/VSlices.Targets.DotNet.csproj" />
+    <ProjectReference Include="../../src/VSlices.Vsir/VSlices.Vsir.csproj" />
+    <ProjectReference Include="../../src/VSlices.Vsir.CSharp/VSlices.Vsir.CSharp.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures/StreetName.vsir" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures/Ruleset/**/*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

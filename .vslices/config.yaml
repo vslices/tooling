@@ -1,0 +1,9 @@
+version: 0.1
+targets:
+  default: csharp
+ruleset:
+  source: https://github.com/vslices/ruleset
+  ref: main
+updates:
+  source: https://github.com/vslices/tooling
+  channel: preview

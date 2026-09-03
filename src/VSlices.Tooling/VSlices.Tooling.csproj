@@ -5,15 +5,24 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <AssemblyName>vslices</AssemblyName>
+    <PublishAot>true</PublishAot>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>vslices</ToolCommandName>
+    <PackageId>VSlices.Tooling</PackageId>
+    <Version>0.1.0-local</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ConsoleAppFramework">
+    <PackageReference Include="ConsoleAppFramework" Version="5.7.13">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Kokuban" />
-    <PackageReference Include="Kurukuru" />
+    <PackageReference Include="Kokuban" Version="0.2.0" />
+    <PackageReference Include="Kurukuru" Version="1.5.0" />
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -22,6 +31,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VSlices.DocumentGeneration\VSlices.DocumentGeneration.csproj" />
+    <ProjectReference Include="..\VSlices.Targets.DotNet\VSlices.Targets.DotNet.csproj" />
+    <ProjectReference Include="..\VSlices.Vsir\VSlices.Vsir.csproj" />
+    <ProjectReference Include="..\VSlices.Vsir.CSharp\VSlices.Vsir.CSharp.csproj" />
   </ItemGroup>
 
 </Project>
