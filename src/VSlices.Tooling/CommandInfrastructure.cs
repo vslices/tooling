@@ -43,23 +43,28 @@ internal static class CommandInfrastructure
         string rulesetRoot)
     {
         if (!string.IsNullOrWhiteSpace(requested))
-        {
-            var normalized = NormalizeTarget(requested);
-            if (normalized == "csharp")
-                return (normalized, null);
+            return ValidateTarget(requested, rulesetRoot);
 
-            return (null, new("CLI020", $"Target '{requested}' is not supported. Current experimental target: C#."));
+        var configuration = ProjectConfiguration.LoadFromRulesetRoot(rulesetRoot);
+        if (!string.IsNullOrWhiteSpace(configuration?.DefaultTarget))
+        {
+            var configured = ValidateTarget(configuration.DefaultTarget, rulesetRoot);
+            if (configured.Diagnostic is not null)
+            {
+                return (null, new(
+                    "CLI023",
+                    $"Configured default target '{configuration.DefaultTarget}' is not available in the project-local ruleset."));
+            }
+
+            return configured;
         }
 
-        var installed = new List<string>();
-        if (Directory.Exists(Path.Combine(rulesetRoot, "csharp")))
-            installed.Add("csharp");
-
+        var installed = InstalledTargets(rulesetRoot);
         return installed.Count switch
         {
             1 => (installed[0], null),
             0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices init' or specify -to after installing a target.")),
-            _ => (null, new("CLI022", "More than one supported target is installed. Specify -to explicitly."))
+            _ => (null, new("CLI022", "More than one supported target is installed and no default target is configured. Specify -to explicitly or set targets.default in .vslices/config.yaml."))
         };
     }
 
@@ -136,6 +141,37 @@ internal static class CommandInfrastructure
     {
         foreach (var diagnostic in diagnostics)
             Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+    }
+
+    private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(
+        string target,
+        string rulesetRoot)
+    {
+        var normalized = NormalizeTarget(target);
+        if (normalized != "csharp")
+        {
+            return (null, new(
+                "CLI020",
+                $"Target '{target}' is not supported. Current experimental target: C#."));
+        }
+
+        if (!Directory.Exists(Path.Combine(rulesetRoot, normalized)))
+        {
+            return (null, new(
+                "CLI024",
+                $"Target '{DisplayTarget(normalized)}' is supported by the CLI but is not installed in the project-local ruleset."));
+        }
+
+        return (normalized, null);
+    }
+
+    private static IReadOnlyList<string> InstalledTargets(string rulesetRoot)
+    {
+        var installed = new List<string>();
+        if (Directory.Exists(Path.Combine(rulesetRoot, "csharp")))
+            installed.Add("csharp");
+
+        return installed;
     }
 
     private static IEnumerable<string> EnumerateVsirFiles(
