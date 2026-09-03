@@ -18,7 +18,7 @@ internal static class UpdateCommands
     {
         if (!self)
         {
-            Console.Error.WriteLine(
+            TerminalOutput.Error(
                 "UPD000: Specify what to update. Current supported surface: 'vslices update --self'.");
             return Task.FromResult(2);
         }
@@ -32,6 +32,12 @@ internal static class UpdateCommands
             ?? ProjectConfiguration.DefaultUpdateChannel;
         var resolvedPullRequest = pullRequest
             ?? configuration?.UpdatePullRequest;
+
+        TerminalOutput.Detail("Channel", resolvedChannel);
+        if (resolvedChannel.Equals("build", StringComparison.OrdinalIgnoreCase) && resolvedPullRequest is not null)
+            TerminalOutput.Detail("Pull request", $"#{resolvedPullRequest}");
+        TerminalOutput.Detail("Mode", check ? "check only" : "install");
+        TerminalOutput.BlankLine();
 
         return SelfUpdater.Update(
             resolvedSource,

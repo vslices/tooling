@@ -5,13 +5,14 @@ status: active
 scope: project
 related:
   - context.vslices-tooling
+  - ai-development-orientation
 ---
 
 # Vocabulario de VSlices Tooling
 
 ## VSIR
 
-Representación intermedia semántica utilizada por VSlices para expresar conocimiento que puede restringir materializaciones concretas sin prescribir necesariamente una única forma textual.
+Representación intermedia semántica utilizada por VSlices para expresar conocimiento que restringe materializaciones concretas sin prescribir necesariamente una única forma textual.
 
 ## Materialización
 
@@ -25,6 +26,18 @@ Name.vsir.cs
 ```
 
 La materialización `.vsir.cs` es editable por humanos. No se considera output descartable mientras continúe satisfaciendo el contrato semántico correspondiente.
+
+## Conformance
+
+Relación esperada entre un VSIR y una materialización válida.
+
+De forma abreviada:
+
+```text
+Implementation |= VSIR
+```
+
+Una materialización puede diferir de la salida exacta del transpiler y seguir siendo válida si conserva el contrato semántico.
 
 ## Transpile
 
@@ -60,21 +73,23 @@ El comando actual es:
 vslices lower
 ```
 
-En `v0.1.0-preview`, `lower` puede seleccionar transpile o rebase según el estado disponible y debe detenerse cuando no puede establecer legítimamente un baseline requerido.
+Actualmente puede seleccionar transpile o rebase según la evidencia disponible y debe detenerse cuando no puede establecer legítimamente un baseline o una autoridad requerida.
 
 ## Interpretate
 
 Lowering interpretativo para casos donde los mecanismos deterministas no pueden completar una decisión de materialización, pero existen obligaciones semánticas y evidencia contextual suficiente para resolverla sin inventar autoridad.
 
-`interpretate` está definido conceptualmente, pero no forma parte de la superficie ejecutable de `v0.1.0-preview`.
+`interpretate` está definido conceptualmente, pero no forma parte todavía de la superficie ejecutable.
 
-`vslices interpretate` es candidato para `v0.2.0-preview`.
+Durante `v0.2.0-preview`, un eventual `vslices interpretate` debe emerger de un caso concreto que permanezca genuinamente underdetermined pero constrained después de considerar VSIR, ruleset, evidencia del proyecto y tooling autoritativo del target.
+
+La ausencia de una regla determinista no demuestra por sí sola que una operación requiera interpretación.
 
 ## Ruleset
 
 Conjunto revisable de conocimiento de lowering externo al ejecutable.
 
-El ruleset oficial vive conceptualmente en `vslices/ruleset`; un proyecto materializa un snapshot local bajo:
+El ruleset oficial vive en `vslices/ruleset`; un proyecto materializa un snapshot local bajo:
 
 ```text
 .vslices/ruleset/
@@ -100,6 +115,8 @@ argumento CLI explícito
   > default del ejecutable
 ```
 
+La política de update, incluido `channel: build` y `pull-request`, pertenece a esta configuración persistente; los flags CLI correspondientes son overrides, no el happy path cotidiano.
+
 ## Artifact discovery
 
 Resolución compartida de artefactos VSIR por path o símbolo.
@@ -116,7 +133,25 @@ Un path explícito sigue siendo autoridad incluso cuando el artefacto estaría e
 
 Información de materialización delegada al tooling autoritativo del target cuando existe.
 
-Para C#/.NET, VSlices puede delegar resolución de contexto a .NET y aceptar un namespace explícito como override autoritativo.
+Para C#/.NET, VSlices puede delegar resolución de contexto a .NET/MSBuild y aceptar un namespace explícito como override autoritativo.
+
+Target context puede resolver detalles de materialización, pero no debe redefinir semántica VSIR.
+
+## Presentation boundary
+
+Frontera estática de presentación de terminal que permite a los comandos expresar roles como `Heading`, `Info`, `Success`, `Warning`, `Error`, `Muted` y `Progress` sin acoplar su semántica a Kokuban, Kurukuru u otra librería concreta.
+
+La presentación puede decorar output interactivo, pero no debe cambiar semántica ni contaminar stdout redirigido/machine-consumable.
+
+## Build identity
+
+Identidad humana de una build instalable de pull request:
+
+```text
+build<pr-number>.<run-number>
+```
+
+La representación SemVer usada internamente por .NET es detalle de materialización y no debe filtrarse como identidad normal del CLI.
 
 ## Self-update
 
@@ -126,7 +161,7 @@ Actualización del ejecutable standalone de VSlices Tooling mediante:
 vslices update --self
 ```
 
-El artifact descargado debe verificarse antes de reemplazar el binario actual.
+La política normal se lee desde `.vslices/config.yaml`. El artifact descargado debe verificarse antes de reemplazar el binario actual.
 
 ## Markdown generado
 

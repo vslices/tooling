@@ -37,7 +37,7 @@ internal static class RulesetCommands
 
         if (string.IsNullOrWhiteSpace(source))
         {
-            Console.Error.WriteLine("CLI010: Ruleset initialization was cancelled.");
+            TerminalOutput.Error("CLI010: Ruleset initialization was cancelled.");
             return 2;
         }
 
@@ -50,31 +50,58 @@ internal static class RulesetCommands
         var rulesetTarget = Path.Combine(vslicesRoot, "ruleset");
         if (Directory.Exists(rulesetTarget) && !force)
         {
-            Console.Error.WriteLine(
+            TerminalOutput.Warning("! Project already contains a VSlices ruleset");
+            TerminalOutput.Detail("Path", rulesetTarget);
+            TerminalOutput.Muted("  Use --force to replace it.");
+            TerminalOutput.BlankLine();
+            TerminalOutput.Error(
                 $"CLI011: Ruleset already exists at '{rulesetTarget}'. Use --force to replace it.");
             return 1;
         }
+
+        var official = source.Equals(OfficialRulesetArchive, StringComparison.OrdinalIgnoreCase);
+        TerminalOutput.Detail("Target", CommandInfrastructure.DisplayTarget(selectedTarget));
+        TerminalOutput.Detail("Ruleset", official ? "official" : DescribeSource(source));
+        TerminalOutput.Detail("Destination", Path.GetRelativePath(projectRoot, rulesetTarget));
+        if (force)
+            TerminalOutput.Detail("Mode", "replace existing");
+        TerminalOutput.BlankLine();
 
         var staging = Path.Combine(Path.GetTempPath(), "vslices-init-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
 
         try
         {
-            var sourceRoot = await MaterializeSource(source, staging, cancellationToken);
+            string? sourceRoot = null;
+            if (IsRemoteSource(source))
+            {
+                await TerminalOutput.ProgressAsync(
+                    "Downloading ruleset...",
+                    async () => sourceRoot = await MaterializeSource(source, staging, cancellationToken));
+            }
+            else
+            {
+                sourceRoot = await MaterializeSource(source, staging, cancellationToken);
+            }
+
             if (sourceRoot is null)
                 return 1;
 
+            TerminalOutput.Success("✓ Ruleset materialized");
+
             if (!File.Exists(Path.Combine(sourceRoot, "manifest.yaml")))
             {
-                Console.Error.WriteLine(
+                TerminalOutput.Error(
                     $"CLI012: Ruleset source '{source}' does not contain manifest.yaml.");
                 return 1;
             }
 
+            TerminalOutput.Success("✓ Manifest validated");
+
             var sourceTarget = Path.Combine(sourceRoot, selectedTarget);
             if (!Directory.Exists(sourceTarget))
             {
-                Console.Error.WriteLine(
+                TerminalOutput.Error(
                     $"CLI016: Ruleset source does not contain target '{selectedTarget}'.");
                 return 1;
             }
@@ -85,13 +112,13 @@ internal static class RulesetCommands
             Directory.CreateDirectory(rulesetTarget);
             CopyRootFiles(sourceRoot, rulesetTarget);
             CopyDirectory(sourceTarget, Path.Combine(rulesetTarget, selectedTarget));
+            TerminalOutput.Success($"✓ {CommandInfrastructure.DisplayTarget(selectedTarget)} target installed");
 
             var ignorePath = Path.Combine(vslicesRoot, ".ignore");
             if (!File.Exists(ignorePath))
                 await File.WriteAllTextAsync(ignorePath, DefaultIgnoreContent, cancellationToken);
 
             var existingConfiguration = ProjectConfiguration.LoadFromProjectRoot(projectRoot);
-            var official = source.Equals(OfficialRulesetArchive, StringComparison.OrdinalIgnoreCase);
             var configuration = new ProjectConfiguration(
                 ProjectConfiguration.CurrentVersion,
                 selectedTarget,
@@ -108,9 +135,9 @@ internal static class RulesetCommands
                 existingConfiguration?.UpdatePullRequest);
 
             await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
-
-            Console.WriteLine(
-                $"Initialized VSlices ruleset at '{rulesetTarget}' with target {CommandInfrastructure.DisplayTarget(selectedTarget)}.");
+            TerminalOutput.Success("✓ Configuration written");
+            TerminalOutput.BlankLine();
+            TerminalOutput.Success("VSlices project initialized");
             return 0;
         }
         finally
@@ -122,7 +149,7 @@ internal static class RulesetCommands
 
     private static string? PromptRulesetSource()
     {
-        Console.WriteLine("Select a ruleset source:");
+        TerminalOutput.Heading("Select a ruleset source");
         Console.WriteLine("  1. VSlices official ruleset");
         Console.WriteLine("  2. Custom source");
         Console.Write("Choice [1]: ");
@@ -133,7 +160,7 @@ internal static class RulesetCommands
 
         if (choice != "2")
         {
-            Console.Error.WriteLine("CLI017: Invalid ruleset source selection.");
+            TerminalOutput.Error("CLI017: Invalid ruleset source selection.");
             return null;
         }
 
@@ -149,7 +176,7 @@ internal static class RulesetCommands
             if (normalized == "csharp")
                 return normalized;
 
-            Console.Error.WriteLine(
+            TerminalOutput.Error(
                 $"CLI020: Target '{target}' is not supported. Current experimental target: C#." );
             return null;
         }
@@ -157,7 +184,7 @@ internal static class RulesetCommands
         if (Console.IsInputRedirected)
             return "csharp";
 
-        Console.WriteLine("Select a target:");
+        TerminalOutput.Heading("Select a target");
         Console.WriteLine("  1. C#");
         Console.Write("Choice [1]: ");
 
@@ -165,7 +192,7 @@ internal static class RulesetCommands
         if (string.IsNullOrEmpty(choice) || choice == "1")
             return "csharp";
 
-        Console.Error.WriteLine("CLI018: Invalid target selection.");
+        TerminalOutput.Error("CLI018: Invalid target selection.");
         return null;
     }
 
@@ -181,7 +208,7 @@ internal static class RulesetCommands
         if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
         {
-            Console.Error.WriteLine(
+            TerminalOutput.Error(
                 $"CLI013: Ruleset source '{source}' is neither an existing directory nor an HTTP(S) URL.");
             return null;
         }
@@ -200,7 +227,7 @@ internal static class RulesetCommands
 
             if (manifests.Length != 1)
             {
-                Console.Error.WriteLine(
+                TerminalOutput.Error(
                     "CLI014: Downloaded ruleset archive must contain exactly one manifest.yaml.");
                 return null;
             }
@@ -209,9 +236,22 @@ internal static class RulesetCommands
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"CLI015: Could not download ruleset source: {ex.Message}");
+            TerminalOutput.Error($"CLI015: Could not download ruleset source: {ex.Message}");
             return null;
         }
+    }
+
+    private static bool IsRemoteSource(string source) =>
+        Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+        uri.Scheme is "http" or "https";
+
+    private static string DescribeSource(string source)
+    {
+        if (IsRemoteSource(source))
+            return "custom remote";
+
+        var local = Path.GetFullPath(source, Environment.CurrentDirectory);
+        return Directory.Exists(local) ? "local" : "custom";
     }
 
     private static void CopyRootFiles(string source, string target)

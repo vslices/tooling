@@ -139,6 +139,18 @@ stable
 
 `preview` may select prereleases. `stable` selects only non-prerelease GitHub Releases.
 
+The intended operating model is config-first:
+
+```text
+.vslices/config.yaml
+  = persistent update policy
+
+vslices update --self
+  = normal update action
+```
+
+Command-line update options remain available as explicit one-off overrides for diagnostics, CI, experiments, or recovery. They are not the recommended everyday workflow when the project already declares its update policy.
+
 ## Test the latest build from a pull request
 
 Pull-request builds exist so CLI changes can be tested without creating a Git tag or GitHub Release.
@@ -152,21 +164,21 @@ build<pr-number>.<run-number>
 For example:
 
 ```text
-build2.162
+build3.173
 ```
 
 The user does not enter the run number manually.
 
-To follow the newest successful build from PR #2, configure the project:
+To follow the newest successful build from a pull request, configure that development stream once in `.vslices/config.yaml`:
 
 ```yaml
 updates:
   source: https://github.com/vslices/tooling
   channel: build
-  pull-request: 2
+  pull-request: 3
 ```
 
-Then run:
+Then the normal workflow is simply:
 
 ```powershell
 vslices update --self
@@ -174,20 +186,32 @@ vslices update --self
 
 The updater:
 
-1. finds the newest successful CI run associated with the configured pull request;
-2. resolves its build identity automatically;
-3. selects the artifact matching the current runtime, such as `win-arm64`;
-4. downloads the Actions artifact using the available GitHub authentication;
-5. verifies the SHA-256 checksum contained in the build artifact;
-6. replaces the standalone CLI after the current process exits.
+1. reads the configured build channel and pull request;
+2. finds the newest successful CI run associated with that pull request;
+3. resolves its build identity automatically;
+4. selects the artifact matching the current runtime, such as `win-x64` or `win-arm64`;
+5. downloads the Actions artifact using the available GitHub authentication;
+6. verifies the SHA-256 checksum contained in the build artifact;
+7. replaces the standalone CLI after the current process exits.
 
-A later push to the same pull request creates a newer build. Running `vslices update --self` again follows that newest successful build without editing the run number in configuration.
+A later push to the same pull request creates a newer build. Running `vslices update --self` again follows that newest successful build without editing either the run number or the command.
 
-The same behavior can be requested for one invocation without editing configuration:
+This is the preferred development loop:
 
-```powershell
-vslices update --self --channel build --pull-request 2
+```text
+edit .vslices/config.yaml once
+        ↓
+channel: build
+pull-request: <pr>
+        ↓
+vslices update --self
+        ↓
+new successful PR build appears
+        ↓
+vslices update --self
 ```
+
+If a one-off override is genuinely needed, the CLI still supports explicit update arguments. Those flags should be treated as overrides of project policy rather than the normal way to follow a PR build.
 
 ## Authenticate for pull-request builds
 
@@ -214,8 +238,8 @@ A PR build is not a product release version.
 Examples:
 
 ```text
-build2.162
-build2.163
+build3.173
+build3.174
 ```
 
 These identify development artifacts associated with a PR and CI run. They create neither Git tags nor GitHub Releases.
@@ -223,7 +247,7 @@ These identify development artifacts associated with a PR and CI run. They creat
 Published versions remain deliberate tag decisions, for example:
 
 ```text
-v0.1.1-preview
+v0.2.0-preview
 v1.0.0
 ```
 
