@@ -104,7 +104,8 @@ internal static class RulesetCommands
                     ? ProjectConfiguration.OfficialRulesetRef
                     : existingConfiguration?.RulesetRef,
                 existingConfiguration?.UpdateSource ?? ProjectConfiguration.OfficialToolingSource,
-                existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel);
+                existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel,
+                existingConfiguration?.UpdatePullRequest);
 
             await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
 
