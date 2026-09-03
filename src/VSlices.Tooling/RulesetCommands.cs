@@ -103,6 +103,7 @@ internal static class RulesetCommands
                 official
                     ? ProjectConfiguration.OfficialRulesetRef
                     : existingConfiguration?.RulesetRef,
+                existingConfiguration?.UpdateSource ?? ProjectConfiguration.OfficialToolingSource,
                 existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel);
 
             await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
@@ -148,7 +149,7 @@ internal static class RulesetCommands
                 return normalized;
 
             Console.Error.WriteLine(
-                $"CLI020: Target '{target}' is not supported. Current experimental target: C#.");
+                $"CLI020: Target '{target}' is not supported. Current experimental target: C#." );
             return null;
         }
 
