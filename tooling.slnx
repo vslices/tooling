@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/VSlices.DocumentGeneration/VSlices.DocumentGeneration.csproj" />
     <Project Path="src/VSlices.Targets.DotNet/VSlices.Targets.DotNet.csproj" />
+    <Project Path="src/VSlices.Targets.DotNet.Refactor/VSlices.Targets.DotNet.Refactor.csproj" />
     <Project Path="src/VSlices.Tooling/VSlices.Tooling.csproj" />
     <Project Path="src/VSlices.Vsir/VSlices.Vsir.csproj" />
     <Project Path="src/VSlices.Vsir.CSharp/VSlices.Vsir.CSharp.csproj" />
