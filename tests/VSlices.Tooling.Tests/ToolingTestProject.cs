@@ -1,4 +1,8 @@
+using System.Diagnostics;
+
 namespace VSlices.Tooling.Tests;
+
+internal sealed record CliResult(int ExitCode, string StandardOutput, string StandardError);
 
 internal sealed class ToolingTestProject : IDisposable
 {
@@ -17,23 +21,33 @@ internal sealed class ToolingTestProject : IDisposable
     public string RulesetRoot => Path.Combine(VslicesRoot, "ruleset");
     public string LineageRoot => Path.Combine(VslicesRoot, "lineage");
 
-    public async Task WriteConfiguration(
+    public void WriteConfiguration(
         string? rulesetSource = null,
         string? rulesetRef = null,
-        string? convention = ProjectConfiguration.DefaultLineageBootstrapConvention)
+        bool bootstrap = true)
     {
-        await ProjectConfiguration.WriteAsync(
-            Root,
-            new ProjectConfiguration(
-                ProjectConfiguration.CurrentVersion,
-                "csharp",
-                rulesetSource ?? ProjectConfiguration.OfficialRulesetSource,
-                rulesetRef,
-                ProjectConfiguration.OfficialToolingSource,
-                ProjectConfiguration.DefaultUpdateChannel,
-                null,
-                convention),
-            CancellationToken.None);
+        Directory.CreateDirectory(VslicesRoot);
+        var refText = string.IsNullOrWhiteSpace(rulesetRef)
+            ? string.Empty
+            : $"  ref: {rulesetRef}{Environment.NewLine}";
+        var lineage = bootstrap
+            ? """
+              lineage:
+                bootstrap:
+                  convention: existing-materialization
+              """ + Environment.NewLine
+            : string.Empty;
+
+        File.WriteAllText(Path.Combine(VslicesRoot, "config.yaml"), $"""
+            version: 0.1
+            targets:
+              default: csharp
+            ruleset:
+              source: {rulesetSource ?? "https://github.com/vslices/ruleset"}
+            {refText}{lineage}updates:
+              source: https://github.com/vslices/tooling
+              channel: preview
+            """);
     }
 
     public static void WriteValidRuleset(string root, string? marker = null)
@@ -68,9 +82,11 @@ internal sealed class ToolingTestProject : IDisposable
             File.WriteAllText(Path.Combine(root, marker), marker);
     }
 
-    public string WriteStreetName(int max = 30)
+    public string WriteStreetName(int max = 30, string? directory = null)
     {
-        var path = Path.Combine(Root, "StreetName.vsir");
+        var targetDirectory = directory ?? Root;
+        Directory.CreateDirectory(targetDirectory);
+        var path = Path.Combine(targetDirectory, "StreetName.vsir");
         File.WriteAllText(path, $$"""
             vsir: 0.1
             kind: domain-type
@@ -78,13 +94,10 @@ internal sealed class ToolingTestProject : IDisposable
             classification: value-object
             shape: product
             traits: [transform]
-
             state:
               Value: string
-
             representation:
               Value: string
-
             construction:
               input:
                 Value: string
@@ -106,9 +119,48 @@ internal sealed class ToolingTestProject : IDisposable
         return path;
     }
 
-    public VSlicesProjectContext Context() =>
-        VSlicesProjectContext.FindFrom(Root)
-        ?? throw new InvalidOperationException("Expected test project context.");
+    public async Task<CliResult> Run(string workingDirectory, params string[] arguments)
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var cli = Path.Combine(repositoryRoot, "src", "VSlices.Tooling", "bin", "Release", "net10.0", "vslices.dll");
+        Assert.True(File.Exists(cli), $"Expected built CLI at '{cli}'.");
+
+        var start = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = workingDirectory,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        start.ArgumentList.Add(cli);
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
+
+        using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start VSlices CLI.");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return new CliResult(process.ExitCode, await stdout, await stderr);
+    }
+
+    public string BaselineFor(string materializationPath) =>
+        Path.Combine(
+            LineageRoot,
+            "csharp",
+            Path.GetRelativePath(Root, materializationPath) + ".baseline");
+
+    private static string FindRepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null)
+        {
+            if (File.Exists(Path.Combine(current.FullName, "tooling.slnx")))
+                return current.FullName;
+            current = current.Parent;
+        }
+
+        throw new InvalidOperationException("Could not locate tooling.slnx from test output.");
+    }
 
     public void Dispose()
     {

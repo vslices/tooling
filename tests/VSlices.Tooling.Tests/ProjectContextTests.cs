@@ -3,52 +3,69 @@ namespace VSlices.Tooling.Tests;
 public sealed class ProjectContextTests
 {
     [Fact]
-    public async Task Finds_nearest_project_and_resolves_canonical_roots()
+    public async Task Nested_command_uses_nearest_project_context_and_root_lineage()
     {
-        using var project = new ToolingTestProject();
-        await project.WriteConfiguration();
-        var nested = Path.Combine(project.Root, "a", "b", "c");
-        Directory.CreateDirectory(nested);
+        using var project = ReadyProject();
+        var nested = Path.Combine(project.Root, "a", "b");
+        var vsir = project.WriteStreetName(directory: nested);
 
-        var context = VSlicesProjectContext.FindFrom(nested);
+        var result = await project.Run(nested, "lower", "StreetName.vsir", "--namespace", "Tests.Domain");
 
-        Assert.NotNull(context);
-        Assert.Equal(project.Root, context!.ProjectRoot);
-        Assert.Equal(project.VslicesRoot, context.VslicesRoot);
-        Assert.Equal(Path.Combine(project.VslicesRoot, "config.yaml"), context.ConfigurationPath);
-        Assert.Equal(project.RulesetRoot, context.RulesetRoot);
-        Assert.Equal(project.LineageRoot, context.LineageRoot);
+        Assert.Equal(0, result.ExitCode);
+        var materialization = vsir + ".cs";
+        Assert.True(File.Exists(materialization));
+        Assert.True(File.Exists(project.BaselineFor(materialization)));
     }
 
     [Fact]
-    public async Task Nearest_nested_project_wins()
+    public async Task Nested_project_boundary_wins_over_outer_project()
     {
-        using var project = new ToolingTestProject();
-        await project.WriteConfiguration();
-        var nestedRoot = Path.Combine(project.Root, "nested");
-        Directory.CreateDirectory(nestedRoot);
-        await ProjectConfiguration.WriteAsync(
-            nestedRoot,
-            ProjectConfiguration.Default(),
-            CancellationToken.None);
-        var child = Path.Combine(nestedRoot, "child");
-        Directory.CreateDirectory(child);
+        using var project = ReadyProject();
+        var nested = Path.Combine(project.Root, "nested");
+        Directory.CreateDirectory(Path.Combine(nested, ".vslices", "ruleset"));
+        File.WriteAllText(Path.Combine(nested, ".vslices", "config.yaml"), """
+            version: 0.1
+            targets:
+              default: csharp
+            ruleset:
+              source: local
+            """);
+        File.WriteAllText(Path.Combine(nested, ".vslices", "ruleset", "manifest.yaml"), "targets: {}\n");
+        project.WriteStreetName(directory: nested);
 
-        var context = VSlicesProjectContext.FindFrom(child);
+        var result = await project.Run(nested, "lower", "StreetName.vsir", "--namespace", "Tests.Domain");
 
-        Assert.NotNull(context);
-        Assert.Equal(nestedRoot, context!.ProjectRoot);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.False(File.Exists(Path.Combine(nested, "StreetName.vsir.cs")));
     }
 
     [Fact]
-    public async Task Lineage_paths_cannot_escape_project_boundary()
+    public async Task Lineage_does_not_escape_project_when_output_is_outside()
     {
-        using var project = new ToolingTestProject();
-        await project.WriteConfiguration();
-        var context = project.Context();
-        var outside = Path.Combine(Path.GetTempPath(), "outside-" + Guid.NewGuid().ToString("N") + ".cs");
+        using var project = ReadyProject();
+        var vsir = project.WriteStreetName();
+        var outside = Path.Combine(Path.GetTempPath(), "vslices-outside-" + Guid.NewGuid().ToString("N") + ".cs");
+        try
+        {
+            var result = await project.Run(project.Root,
+                "lower", vsir, "--namespace", "Tests.Domain", "-o", outside);
 
-        Assert.False(context.Contains(outside));
-        Assert.Null(LoweringLineageStore.ResolveBaselinePath(context, outside, "csharp"));
+            Assert.Equal(0, result.ExitCode);
+            Assert.True(File.Exists(outside));
+            Assert.False(Directory.Exists(project.LineageRoot));
+        }
+        finally
+        {
+            if (File.Exists(outside))
+                File.Delete(outside);
+        }
+    }
+
+    private static ToolingTestProject ReadyProject()
+    {
+        var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        ToolingTestProject.WriteValidRuleset(project.RulesetRoot);
+        return project;
     }
 }

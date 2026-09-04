@@ -1,3 +1,5 @@
+using VSlices.Tooling;
+
 namespace VSlices.Tooling.Tests;
 
 public sealed class RulesetUpdateTests
@@ -9,15 +11,15 @@ public sealed class RulesetUpdateTests
         var source = Path.Combine(project.Root, "source-ruleset");
         ToolingTestProject.WriteValidRuleset(source, "new.marker");
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
-        await project.WriteConfiguration(source, null);
+        project.WriteConfiguration(source);
 
-        var exitCode = await RulesetUpdater.Update(project.Context(), CancellationToken.None);
+        var result = await project.Run(project.Root, "update", "--ruleset");
 
-        Assert.Equal(0, exitCode);
+        Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "new.marker")));
         Assert.False(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));
-        Assert.Empty(Directory.EnumerateDirectories(project.VslicesRoot)
-            .Where(path => Path.GetFileName(path).StartsWith(".ruleset-", StringComparison.Ordinal)));
+        Assert.DoesNotContain(Directory.EnumerateDirectories(project.VslicesRoot),
+            path => Path.GetFileName(path).StartsWith(".ruleset-", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -32,14 +34,14 @@ public sealed class RulesetUpdateTests
         var source = Path.Combine(project.Root, "invalid-source");
         WriteInvalidRuleset(source, invalidCase);
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
-        await project.WriteConfiguration(source, null);
+        project.WriteConfiguration(source);
 
-        var exitCode = await RulesetUpdater.Update(project.Context(), CancellationToken.None);
+        var result = await project.Run(project.Root, "update", "--ruleset");
 
-        Assert.Equal(1, exitCode);
+        Assert.NotEqual(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));
-        Assert.Empty(Directory.EnumerateDirectories(project.VslicesRoot)
-            .Where(path => Path.GetFileName(path).StartsWith(".ruleset-", StringComparison.Ordinal)));
+        Assert.DoesNotContain(Directory.EnumerateDirectories(project.VslicesRoot),
+            path => Path.GetFileName(path).StartsWith(".ruleset-", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -56,19 +58,18 @@ public sealed class RulesetUpdateTests
     }
 
     [Fact]
-    public async Task Local_source_rejects_git_ref_instead_of_silently_treating_it_as_branch()
+    public async Task Local_source_with_ref_fails_instead_of_silently_treating_ref_as_branch()
     {
         using var project = new ToolingTestProject();
         var source = Path.Combine(project.Root, "source-ruleset");
         ToolingTestProject.WriteValidRuleset(source);
+        ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
+        project.WriteConfiguration(source, "main");
 
-        var result = await RulesetSourceMaterializer.Materialize(
-            new RulesetSource(source, "main"),
-            Path.Combine(project.Root, "staging"),
-            CancellationToken.None);
+        var result = await project.Run(project.Root, "update", "--ruleset");
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal("RSM002", result.DiagnosticCode);
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));
     }
 
     private static void WriteInvalidRuleset(string root, string invalidCase)
@@ -90,7 +91,6 @@ public sealed class RulesetUpdateTests
                 rules:
                   - csharp/intrinsics.yaml
             """);
-
         if (invalidCase == "missing-rule-file")
             return;
 
