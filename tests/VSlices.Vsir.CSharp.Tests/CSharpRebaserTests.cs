@@ -92,11 +92,14 @@ public sealed class CSharpRebaserTests
     }
 
     [Fact]
-    public void Rebase_remains_ambiguous_when_deterministic_context_cannot_identify_one_region()
+    public void Rebase_remains_ambiguous_when_even_full_deterministic_context_occurs_twice()
     {
-        const string previous = "value=30; value=30;";
-        const string human = "value=30; value=30; // human";
-        const string next = "value=31; value=31;";
+        const string previous = "value=30;";
+        const string human = """
+            value=30;
+            value=30;
+            """;
+        const string next = "value=31;";
 
         var result = CSharpRebaser.Rebase(previous, human, next);
 
