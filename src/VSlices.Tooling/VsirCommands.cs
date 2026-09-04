@@ -217,38 +217,36 @@ internal static class VsirCommands
                     return 0;
                 }
 
-                var configuredBaseline = await LoweringLineageBootstrap.TryResolveConfiguredBaseline(
-                    rulesetRoot,
-                    conventional,
-                    existing,
-                    source,
-                    cancellationToken);
-
-                if (configuredBaseline is null)
+                if (!LoweringLineageBootstrap.IsConfiguredFor(
+                        rulesetRoot,
+                        conventional,
+                        existing,
+                        source))
                 {
                     Console.Error.WriteLine(
                         "LOWER001: No trustworthy deterministic baseline could be inferred. Configure lineage.bootstrap.convention for the conventional materialization, or run once with --from <previous-vsir> to establish lineage explicitly.");
                     return 1;
                 }
 
+                await LoweringLineageStore.TryWrite(
+                    rulesetRoot,
+                    existing,
+                    target.Target!,
+                    next.Source!,
+                    cancellationToken);
+
                 TerminalOutput.Detail(
                     "Lineage bootstrap",
                     ProjectConfiguration.DefaultLineageBootstrapConvention);
+                TerminalOutput.Success("✓ Lowering lineage established without modifying the existing materialization");
+                return 0;
+            }
 
-                rebased = await RebaseFromDeterministicBaseline(
-                    next,
-                    configuredBaseline,
-                    existing,
-                    cancellationToken);
-            }
-            else
-            {
-                rebased = await RebaseFromDeterministicBaseline(
-                    next,
-                    previousDeterministic,
-                    existing,
-                    cancellationToken);
-            }
+            rebased = await RebaseFromDeterministicBaseline(
+                next,
+                previousDeterministic,
+                existing,
+                cancellationToken);
         }
 
         if (!rebased.IsSuccess)
