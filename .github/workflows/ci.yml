@@ -69,6 +69,37 @@ jobs:
             --namespace Identities.Domain.ValueObjects
           grep -q "human detail" rebase-context/StreetName.vsir.cs
 
+      - name: Smoke test ruleset update validates before swap
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p ruleset-update-context
+          cd ruleset-update-context
+          $VSLICES init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/ruleset/csharp/intrinsics.yaml
+          rm .vslices/ruleset/csharp/intrinsics.yaml
+          $VSLICES update --ruleset
+          test -f .vslices/ruleset/csharp/intrinsics.yaml
+          test -z "$(find .vslices -maxdepth 1 \( -name '.ruleset-update-*' -o -name '.ruleset-backup-*' \) -print -quit)"
+
+      - name: Smoke test lineage bootstrap and subsequent automatic rebase
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p lineage-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir lineage-context/StreetName.vsir
+          cd lineage-context
+          $VSLICES init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          $VSLICES transpile StreetName.vsir --namespace Identities.Domain.ValueObjects
+          printf '\n// human detail\n' >> StreetName.vsir.cs
+          BEFORE="$(sha256sum StreetName.vsir.cs | awk '{print $1}')"
+          $VSLICES lower StreetName.vsir --namespace Identities.Domain.ValueObjects
+          AFTER="$(sha256sum StreetName.vsir.cs | awk '{print $1}')"
+          test "$BEFORE" = "$AFTER"
+          test -f .vslices/lineage/csharp/StreetName.vsir.cs.baseline
+          sed -i 's/max: 30/max: 31/' StreetName.vsir
+          $VSLICES lower StreetName.vsir --namespace Identities.Domain.ValueObjects
+          grep -q '<= 31' StreetName.vsir.cs
+          grep -q 'human detail' StreetName.vsir.cs
+
       - name: Smoke test artifact discovery ignores
         run: |
           VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
