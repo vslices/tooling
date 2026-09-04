@@ -32,7 +32,8 @@ internal static class UpdateCommands
             return Task.FromResult(2);
         }
 
-        var configuration = ProjectConfiguration.LoadNearest(Environment.CurrentDirectory);
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        var configuration = project?.Configuration;
 
         if (ruleset)
         {
@@ -43,14 +44,14 @@ internal static class UpdateCommands
                 return Task.FromResult(2);
             }
 
-            if (configuration is null)
+            if (project is null)
             {
                 TerminalOutput.Error(
                     "UPD010: Could not locate .vslices/config.yaml. Run 'vslices init' before updating the project ruleset.");
                 return Task.FromResult(1);
             }
 
-            return RulesetUpdater.Update(configuration, cancellationToken);
+            return RulesetUpdater.Update(project, cancellationToken);
         }
 
         var resolvedSource = source
