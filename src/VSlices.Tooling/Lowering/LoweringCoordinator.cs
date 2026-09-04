@@ -157,7 +157,8 @@ internal static class LoweringCoordinator
 
             ShowBlastRadius(project, semanticPlan);
 
-            if (semanticPlan.RequiresAuthorization && !ConfirmSemanticRefactoring())
+            if (semanticPlan.RequiresAuthorization &&
+                !SemanticRefactoringAuthorization.Confirm(Console.In, Console.Out))
             {
                 TerminalOutput.BlankLine();
                 TerminalOutput.Muted("No files were modified. Lowering lineage was not advanced.");
@@ -261,14 +262,6 @@ internal static class LoweringCoordinator
             TerminalOutput.BlankLine();
             TerminalOutput.Info("This operation will modify human-maintained code outside the deterministic rebase region.");
         }
-    }
-
-    private static bool ConfirmSemanticRefactoring()
-    {
-        Console.Write("Apply semantic refactoring? [y/N] ");
-        var answer = Console.ReadLine()?.Trim();
-        return answer?.Equals("y", StringComparison.OrdinalIgnoreCase) == true ||
-               answer?.Equals("yes", StringComparison.OrdinalIgnoreCase) == true;
     }
 
     private static bool TryResolveWrittenPath(
