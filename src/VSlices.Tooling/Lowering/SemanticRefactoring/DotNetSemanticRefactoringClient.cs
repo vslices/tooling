@@ -73,6 +73,10 @@ internal static class DotNetSemanticRefactoringClient
             Add("--staging", stagingPath);
             Add("--manifest", manifestPath);
 
+            var analysisStarted = Stopwatch.GetTimestamp();
+            if (!Console.IsErrorRedirected)
+                Console.Error.WriteLine("Analyzing semantic blast radius with Roslyn...");
+
             using var process = Process.Start(startInfo);
             if (process is null)
             {
@@ -87,6 +91,12 @@ internal static class DotNetSemanticRefactoringClient
             await process.WaitForExitAsync(cancellationToken);
             var standardOutput = await stdout;
             var standardError = await stderr;
+
+            if (!Console.IsErrorRedirected)
+            {
+                var elapsed = Stopwatch.GetElapsedTime(analysisStarted);
+                Console.Error.WriteLine($"Roslyn semantic analysis finished in {elapsed.TotalSeconds:0.0}s.");
+            }
 
             if (!File.Exists(manifestPath))
             {
