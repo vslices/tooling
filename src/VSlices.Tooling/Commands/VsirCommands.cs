@@ -1,4 +1,5 @@
 using ConsoleAppFramework;
+using VSlices.Vsir.CSharp;
 
 namespace VSlices.Tooling;
 
@@ -48,6 +49,7 @@ internal static class VsirCommands
     /// <param name="output">-o, Optional output path. By default the source materialization is updated.</param>
     /// <param name="stdout">Write the result to standard output instead of updating a file. Equivalent to -o -.</param>
     /// <param name="namespace">-n, Optional namespace override. By default VSlices asks the target tooling for project/item context.</param>
+    /// <param name="resolve">Optional conflict resolution strategy. Current supported value: deterministic.</param>
     public static async Task<int> Rebase(
         [Argument] string subject,
         string? to = null,
@@ -56,6 +58,7 @@ internal static class VsirCommands
         string? output = null,
         bool stdout = false,
         string? @namespace = null,
+        string? resolve = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(from))
@@ -65,12 +68,16 @@ internal static class VsirCommands
             return 2;
         }
 
+        if (!TryParseResolution(resolve, out var resolution))
+            return 2;
+
         var result = await RebaseOperation.ExecuteFromVsir(
             subject,
             to,
             from,
             source,
             @namespace,
+            resolution,
             cancellationToken);
         if (!result.IsSuccess)
         {
@@ -95,7 +102,8 @@ internal static class VsirCommands
     /// <param name="output">-o, Optional output path.</param>
     /// <param name="stdout">Write the result to standard output instead of a file. Equivalent to -o -.</param>
     /// <param name="namespace">-n, Optional namespace override.</param>
-    public static Task<int> Lower(
+    /// <param name="resolve">Optional conflict resolution strategy. Current supported value: deterministic.</param>
+    public static async Task<int> Lower(
         [Argument] string subject,
         string? to = null,
         string? from = null,
@@ -103,8 +111,13 @@ internal static class VsirCommands
         string? output = null,
         bool stdout = false,
         string? @namespace = null,
-        CancellationToken cancellationToken = default) =>
-        LoweringCoordinator.Execute(
+        string? resolve = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!TryParseResolution(resolve, out var resolution))
+            return 2;
+
+        return await LoweringCoordinator.Execute(
             subject,
             to,
             from,
@@ -112,5 +125,26 @@ internal static class VsirCommands
             output,
             stdout,
             @namespace,
+            resolution,
             cancellationToken);
+    }
+
+    private static bool TryParseResolution(
+        string? value,
+        out CSharpRebaseResolution resolution)
+    {
+        resolution = CSharpRebaseResolution.None;
+        if (string.IsNullOrWhiteSpace(value))
+            return true;
+
+        if (value.Equals("deterministic", StringComparison.OrdinalIgnoreCase))
+        {
+            resolution = CSharpRebaseResolution.Deterministic;
+            return true;
+        }
+
+        Console.Error.WriteLine(
+            $"CLI041: Unsupported conflict resolution '{value}'. Current supported value: deterministic.");
+        return false;
+    }
 }
