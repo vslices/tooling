@@ -55,6 +55,23 @@ public static class DomainTypeValidator
                 $"Cannot project representation.{representationField.Name} deterministically from state. A representation mapping is required.");
         }
 
+        foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
+        {
+            Require(
+                normalize.Target.StartsWith("input.", StringComparison.Ordinal),
+                "VSIR219",
+                $"Normalize currently requires a construction input target, got '{normalize.Target}'.");
+
+            if (normalize.Target.StartsWith("input.", StringComparison.Ordinal))
+            {
+                var fieldName = normalize.Target["input.".Length..];
+                Require(
+                    document.Construction.Input.Fields.Any(x => x.Name == fieldName),
+                    "VSIR220",
+                    $"Normalize references unknown input field '{fieldName}'.");
+            }
+        }
+
         foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
         {
             var value = ensure.Condition switch
