@@ -2,23 +2,27 @@
 
 This branch exercises the current VSIR lowering boundary against the real `TicketCode` specimen from Ticket Support.
 
-## Baseline
-
-The experiment began with the real consumer stopping while parsing `construction.steps[].normalize`:
+## Observation chain
 
 ```text
-VSIR100: Only construction step 'ensure' is supported by the experimental parser.
+TicketCode.vsir
+  -> real consumer
+  -> VSIR100
+     normalize not representable
+
+  -> represent normalize explicitly
+  -> real consumer
+  -> CSL030
+     normalize represented, but C# lowerer has no execution mechanism
+
+  -> add ordered normalization dataflow in Tooling
+     using the existing deterministic expression renderer
+
+  -> test-only intrinsic.trim rule proves the current renderer is sufficient
+
+  -> real Ruleset still has no intrinsic.trim
+  -> expected next consumer boundary: CSL031
 ```
-
-That established semantic representation/parsing as the first boundary.
-
-After representing `normalize` explicitly and keeping lowering fail-closed, the next real consumer run produced:
-
-```text
-CSL030: Construction step 'normalize' is represented but not supported by the current C# lowerer (intrinsic 'trim', target 'input.Value').
-```
-
-That moved the boundary from VSIR representation into C# lowering mechanics.
 
 ## Experimental prioritization
 
@@ -26,33 +30,13 @@ Evidence determines what the current machinery can justify and where the observe
 
 Human maintainer interest may therefore prioritize which evidence-compatible experiment is run next. That interest may order the research agenda, but it does not redefine consumer semantics, move a failure to a preferred layer, or justify implementation without discriminating evidence.
 
-`TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the `VSIR100` and `CSL030` observations themselves still come from the real consumer executions.
+`TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the observed failures themselves still come from real consumer executions.
 
-## Current experiment
+## Current finding
 
-The current question is whether normalization needs a new Ruleset execution primitive or whether the existing deterministic `expression` renderer is already sufficient once Tooling provides reusable normalization dataflow.
+The current Ruleset primitive is already expressive enough for the observed normalization.
 
-Tooling now processes construction steps in order and carries a reference-to-expression environment through the lowering pipeline.
-
-For a normalize step:
-
-```yaml
-- normalize:
-    target: input.Value
-    intrinsic: trim
-```
-
-Tooling asks the existing Ruleset expression renderer for:
-
-```text
-node: intrinsic.trim
-bindings:
-  value: <current expression for input.Value>
-```
-
-If the rule exists, the returned expression becomes the new expression for that target and is used by later ensures and final state construction. This preserves construction ordering without encoding `Trim()` or another target-specific operation directly in Tooling.
-
-A test-only Ruleset rule:
+A deterministic expression rule of the form:
 
 ```yaml
 - node: intrinsic.trim
@@ -61,38 +45,40 @@ A test-only Ruleset rule:
   template: "{value}.Trim()"
 ```
 
-demonstrates that the existing rule primitive is sufficient for the currently observed TicketCode semantics. With only that test rule added, the generated witness applies the normalized expression both to the following `non-empty` ensure and to final state construction.
+can be consumed by Tooling without a new renderer mode.
 
-No new renderer mode is introduced, and the repository Ruleset intentionally still does **not** contain `intrinsic.trim`.
+Tooling now processes construction steps in order and keeps a reference-to-expression environment. A successful normalize rule replaces the current expression for its target, and later ensures plus final state construction consume that updated expression.
+
+For `TicketCode`, a test-only trim rule therefore produces semantics equivalent to:
+
+```text
+ensure non-empty(input.Value.Trim())
+state.Value <- input.Value.Trim()
+```
+
+The production Ruleset remains intentionally unchanged so the next real consumer execution can test whether the boundary has moved cleanly into Ruleset knowledge.
 
 ## Expected next observation
 
-Running:
-
 ```text
 vslices lower TicketCode
+  -> CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'.
 ```
 
-against the real Ticket Support project and its current Ruleset should now stop with:
+If observed, the ownership split is demonstrated as:
 
 ```text
-CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'.
+normalization dataflow / execution mechanism -> Tooling
+trim realization knowledge                 -> Ruleset
 ```
 
-If that occurs, the experiment has discriminated the two layers:
-
-```text
-normalization dataflow / execution mechanism -> Tooling, demonstrated
-trim realization knowledge                 -> Ruleset, still missing
-```
-
-At that point the next justified repository change belongs to the existing `vslices/ruleset:experiment/ticket-code-lowering` branch: add only the demonstrated `intrinsic.trim` target knowledge, then re-run the real consumer again.
+Only then should the existing `vslices/ruleset:experiment/ticket-code-lowering` branch receive `intrinsic.trim`.
 
 ## Non-scope continuity
 
 All prior explicit non-scope remains inherited except for the narrow boundary moved by direct TicketCode evidence.
 
-Still out of scope here:
+Still out of scope:
 
 ```text
 new VSIR concepts or classifications beyond the observed normalize semantic
