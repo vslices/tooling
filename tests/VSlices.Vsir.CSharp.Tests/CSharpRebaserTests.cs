@@ -51,6 +51,63 @@ public sealed class CSharpRebaserTests
     }
 
     [Fact]
+    public void Rebase_uses_unique_deterministic_context_when_the_minimal_delta_is_ambiguous()
+    {
+        const string previous = """
+            class StreetName
+            {
+                Other = 10;
+                MaxLength = 30;
+                Another = 20;
+            }
+            """;
+
+        const string human = """
+            class StreetName
+            {
+                Other = 10;
+                MaxLength = 30;
+                Another = 20;
+
+                // human detail
+            }
+            """;
+
+        const string next = """
+            class StreetName
+            {
+                Other = 10;
+                MaxLength = 31;
+                Another = 20;
+            }
+            """;
+
+        var result = CSharpRebaser.Rebase(previous, human, next);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Contains("MaxLength = 31;", result.Source, StringComparison.Ordinal);
+        Assert.Contains("Other = 10;", result.Source, StringComparison.Ordinal);
+        Assert.Contains("Another = 20;", result.Source, StringComparison.Ordinal);
+        Assert.Contains("// human detail", result.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rebase_remains_ambiguous_when_even_full_deterministic_context_occurs_twice()
+    {
+        const string previous = "value=30;";
+        const string human = """
+            value=30;
+            value=30;
+            """;
+        const string next = "value=31;";
+
+        var result = CSharpRebaser.Rebase(previous, human, next);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Diagnostics, x => x.Code == "REB002");
+    }
+
+    [Fact]
     public void Rebase_rejects_a_conflict_when_the_human_changed_the_same_region()
     {
         const string previous = "MaxLength = 30;";

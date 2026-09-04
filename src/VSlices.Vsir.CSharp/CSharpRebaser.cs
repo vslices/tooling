@@ -39,23 +39,92 @@ public static class CSharpRebaser
             return new(humanSource.Insert(anchorIndex, nextChanged), []);
         }
 
-        var index = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
-        if (index < 0)
+        var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
+        if (directIndex < 0)
         {
             return new(null, [new(
                 "REB001",
                 "The VSIR-generated region changed by the developer and cannot be rebased deterministically.")]);
         }
 
-        if (humanSource.IndexOf(previousChanged, index + previousChanged.Length, StringComparison.Ordinal) >= 0)
+        if (humanSource.IndexOf(previousChanged, directIndex + previousChanged.Length, StringComparison.Ordinal) < 0)
+        {
+            var rebasedDirectly = humanSource
+                .Remove(directIndex, previousChanged.Length)
+                .Insert(directIndex, nextChanged);
+            return new(rebasedDirectly, []);
+        }
+
+        if (!TryLocateWithDeterministicContext(
+                previousDeterministicSource,
+                humanSource,
+                prefixLength,
+                previousChanged.Length,
+                out var contextualIndex))
         {
             return new(null, [new(
                 "REB002",
                 "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically.")]);
         }
 
-        var rebased = humanSource.Remove(index, previousChanged.Length).Insert(index, nextChanged);
+        var rebased = humanSource
+            .Remove(contextualIndex, previousChanged.Length)
+            .Insert(contextualIndex, nextChanged);
         return new(rebased, []);
+    }
+
+    private static bool TryLocateWithDeterministicContext(
+        string previousDeterministicSource,
+        string humanSource,
+        int changedStart,
+        int changedLength,
+        out int humanChangedStart)
+    {
+        humanChangedStart = -1;
+
+        var changedEnd = changedStart + changedLength;
+        var maxContext = Math.Max(changedStart, previousDeterministicSource.Length - changedEnd);
+
+        for (var context = 1; context <= maxContext; context = NextContextSize(context, maxContext))
+        {
+            var windowStart = Math.Max(0, changedStart - context);
+            var windowEnd = Math.Min(previousDeterministicSource.Length, changedEnd + context);
+            var window = previousDeterministicSource[windowStart..windowEnd];
+
+            if (!HasSingleOccurrence(previousDeterministicSource, window, out var deterministicIndex) ||
+                deterministicIndex != windowStart)
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            if (!HasSingleOccurrence(humanSource, window, out var humanWindowStart))
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            humanChangedStart = humanWindowStart + (changedStart - windowStart);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static int NextContextSize(int current, int max) =>
+        current >= max
+            ? max + 1
+            : Math.Min(max, current < 16 ? current + 1 : current * 2);
+
+    private static bool HasSingleOccurrence(string source, string value, out int index)
+    {
+        index = source.IndexOf(value, StringComparison.Ordinal);
+        if (index < 0)
+            return false;
+
+        return source.IndexOf(value, index + 1, StringComparison.Ordinal) < 0;
     }
 
     private static int CommonPrefixLength(string left, string right)

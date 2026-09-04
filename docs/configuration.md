@@ -1,40 +1,8 @@
 # VSlices project configuration
 
-VSlices project configuration lives under `.vslices/` and represents project-specific operational policy.
+`.vslices/config.yaml` represents project-specific operating policy. It does not redefine VSIR semantics.
 
-The intended boundary is:
-
-```text
-.vslices/config.yaml
-  = project and CLI operating preferences
-
-.vslices/.ignore
-  = project-specific artifact discovery exclusions
-
-.vslices/ruleset/
-  = revisable lowering knowledge
-
-vslices executable
-  = mechanisms, safety guarantees, orchestration, and target adapters
-```
-
-Configuration must not be used to redefine VSIR semantics or to weaken execution guarantees that the tooling relies on for correctness.
-
-## Precedence
-
-When an option can be supplied both explicitly and through project configuration, the precedence is:
-
-```text
-explicit CLI argument
-  > .vslices/config.yaml
-  > built-in default
-```
-
-This allows normal project workflows to stay concise while preserving explicit command-level overrides for CI, diagnostics, experiments, and one-off operations.
-
-## Initial configuration surface
-
-The initial project configuration is intentionally small:
+A normal initialized configuration is:
 
 ```yaml
 version: 0.1
@@ -46,229 +14,124 @@ ruleset:
   source: https://github.com/vslices/ruleset
   ref: main
 
+lineage:
+  bootstrap:
+    convention: existing-materialization
+
 updates:
   source: https://github.com/vslices/tooling
   channel: preview
 ```
 
-The fields are operational rather than semantic.
-
-### `targets.default`
-
-Declares the normal target used when a command does not receive `-to` explicitly.
-
-Installing more than one target must not by itself make previously concise commands ambiguous when the project has declared a default.
-
-An explicit `-to` always overrides the configured default.
-
-### `ruleset.source`
-
-Records the source from which the project-local ruleset was initialized.
-
-For the official VSlices ruleset the canonical source is currently:
+Operational precedence is:
 
 ```text
-https://github.com/vslices/ruleset
+explicit CLI argument
+  > project configuration
+  > executable default
 ```
 
-Custom ruleset sources may be recorded instead. Initialization from an explicit source should preserve that provenance in configuration so later ruleset update mechanisms do not need to guess where the rules came from.
-
-### `ruleset.ref`
-
-Declares the source revision or channel-like reference used for ruleset acquisition when the source supports refs.
-
-The initial official default is `main` while the ruleset remains experimental.
-
-### `updates.source`
-
-Declares where the CLI looks for self-update releases or CI build artifacts. The initial supported source shape is a GitHub repository URL.
-
-The official default is:
+## Project surface
 
 ```text
-https://github.com/vslices/tooling
+.vslices/config.yaml
+  = operating policy
+
+.vslices/.ignore
+  = project-specific discovery exclusions
+
+.vslices/ruleset/
+  = local target-lowering snapshot
+
+.vslices/lineage/
+  = operational deterministic ancestry evidence
 ```
 
-An explicit `vslices update --self --source ...` invocation overrides this value for one run.
+`VSlicesProjectContext` resolves these paths from the nearest `.vslices/config.yaml`. Other Tooling components reuse that context rather than independently inferring parent relationships.
 
-### `updates.channel`
+## Target configuration
 
-Declares the preferred CLI update channel.
+`targets.default` selects the normal target when `-to` is omitted. Explicit target arguments remain authoritative.
 
-The supported channels are:
+## Ruleset provenance
+
+`ruleset.source` records where the project-local snapshot is acquired from.
+
+Supported source shapes currently include:
+
+- local directory;
+- direct HTTP(S) ZIP archive;
+- supported GitHub repository URL.
+
+For a GitHub repository source, `ruleset.ref` is a real Git reference candidate. Acquisition tries branch, tag and then direct archive/commit reference forms. This preserves support for experimental branch names while making `ref` honest enough to represent tags and commits too.
+
+A local directory with `ruleset.ref` is rejected rather than silently treating the value as a branch. A generic direct ZIP URL likewise does not gain Git-ref semantics.
+
+The official defaults are:
 
 ```text
-stable
-preview
-build
+source: https://github.com/vslices/ruleset
+ref: main
 ```
 
-`stable` accepts only non-prerelease GitHub releases. `preview` may accept prereleases as well as stable releases, preferring the newest release returned by the configured source.
+## Lineage bootstrap
 
-`build` is a developer channel backed by GitHub Actions artifacts rather than Git tags or GitHub Releases. It resolves the newest successful CI run for the configured pull request and installs the artifact matching the current runtime identifier.
-
-An explicit `vslices update --self --channel ...` invocation overrides this value for one run.
-
-### `updates.pull-request`
-
-Selects the pull request followed by the `build` channel.
-
-Example:
+The first supported convention is:
 
 ```yaml
-updates:
-  source: https://github.com/vslices/tooling
-  channel: build
-  pull-request: 2
+lineage:
+  bootstrap:
+    convention: existing-materialization
 ```
 
-With this configuration, every successful CI run for PR #2 may publish build identities such as:
+Its exact meaning is:
 
 ```text
-build2.153
-build2.154
-build2.155
+existing conventional materialization
++ no lineage
++ configured bootstrap convention
+
+  -> compute current deterministic projection
+  -> record that deterministic projection in .vslices/lineage
+  -> preserve the human materialization byte-for-byte
+  -> succeed without immediate rebase
 ```
 
-`vslices update --self` resolves the newest successful one automatically. The run number is therefore not stored in project configuration and does not require a manual edit after every push.
+The human `.vsir.cs` is not declared to be a deterministic historical baseline. The configuration only authorizes lineage to begin at the current point.
 
-The build identity is deliberately independent of a future product version. A PR build does not claim that it will become `v0.1.1-preview`, `v0.1.2-preview`, or any other release. Published versions remain decisions represented by tags.
-
-Build artifacts require GitHub authentication for download. The updater resolves credentials from `GH_TOKEN`, then `GITHUB_TOKEN`, then an authenticated GitHub CLI session via `gh auth token`. If none are available, the updater stops with an explicit diagnostic.
-
-An explicit `vslices update --self --pull-request ...` invocation overrides this value for one run.
-
-## Artifact discovery configuration
-
-Project-specific discovery exclusions remain in:
+On a later semantic change:
 
 ```text
-.vslices/.ignore
+stored previous deterministic
++ current human witness
++ next deterministic projection
+-> rebase
 ```
 
-rather than being embedded as a list inside `config.yaml`.
+The convention does not apply to an explicit `--source` override or a non-conventional materialization with no trusted ancestry.
 
-The tooling always ignores these directories during recursive artifact discovery:
+## Lineage versioning
 
-```text
-.git/
-.vslices/
-bin/
-obj/
-```
+`.vslices/lineage/` is intended to be version-controlled by default.
 
-These are safety/runtime exclusions and are not configurable.
+Reason: another developer, machine or CI process should be able to reconstruct the same automatic three-way rebase from repository state. Lineage remains operational evidence, not semantic authority. Tooling does not currently infer missing ancestry from Git history, and no provenance graph is introduced.
 
-The current `.vslices/.ignore` contract supports blank lines, `#` comments, directory paths, `*`, and `**`. Negation with `!` is not yet part of the contract.
+## Ruleset updates
 
-Explicit paths remain authoritative: an ignored artifact is excluded from recursive discovery but may still be addressed directly by path.
+`vslices update --ruleset` is implemented.
 
-## Materialization conventions
+The operation uses configured `ruleset.source` and `ruleset.ref`, materializes a candidate snapshot, copies only the selected target plus root files, validates the prepared snapshot with the real target loader and only then performs atomic replacement with backup/rollback.
 
-The current C# sibling convention remains:
+For C#, validation includes `CSharpLoweringRuleSet.Load`, so missing declared files, duplicate rule nodes, unsupported rule mode/renderer and missing templates prevent replacement.
 
-```text
-Name.vsir
-Name.vsir.cs
-```
+`vslices update --self` remains independent. Plain `vslices update` and combined `--self --ruleset` remain undefined while aggregate ordering and partial-failure semantics are still under study.
 
-This is intentionally not exposed as arbitrary configuration yet. The sibling relationship carries useful continuity between semantic source and editable materialization, and no concrete requirement currently justifies alternate layouts.
+## CLI update policy
 
-## What does not belong in `config.yaml`
+`updates.source`, `updates.channel` and optional `updates.pull-request` configure standalone CLI self-update. Supported channels remain `stable`, `preview`, and `build`; explicit self-update flags override project values for one invocation.
 
-Concrete lowering knowledge does not belong in project configuration. Examples include:
+## Artifact discovery
 
-- intrinsic renderers;
-- target syntax templates;
-- construction mappings;
-- semantic operation authority;
-- lowering obligations and prohibitions.
+Project-specific recursive-discovery exclusions live in `.vslices/.ignore`. Built-in exclusions remain `.git/`, `.vslices/`, `bin/`, and `obj/`.
 
-Those belong in the ruleset.
-
-Correctness and safety guarantees also remain executable behavior rather than preferences. Examples include:
-
-- atomic file replacement;
-- stopping when a required lowering rule is absent;
-- refusing to invent semantic ancestry for rebase;
-- built-in artifact discovery exclusions;
-- SHA-256 validation of downloaded update artifacts before replacement.
-
-A project must not be able to turn these guarantees off through configuration.
-
-## Initialization
-
-`vslices init` establishes the project-local VSlices operating surface:
-
-```text
-.vslices/
-  config.yaml
-  .ignore
-  ruleset/
-```
-
-Initialization should:
-
-1. resolve the selected ruleset source and target;
-2. materialize only the selected target rules currently required by the project;
-3. write `config.yaml` with the selected default target and ruleset provenance;
-4. preserve existing CLI update source/channel preferences when replacing a ruleset;
-5. create `.ignore` if absent.
-
-`init --force` replaces the ruleset snapshot, not unrelated local project policy.
-
-## Self update
-
-The self-update surface is:
-
-```text
-vslices update --self
-vslices update --self --check
-```
-
-For `stable` and `preview`, `--check` resolves the configured source, channel, current RID, and available GitHub Release without replacing the executable.
-
-For `build`, `--check` resolves the latest successful CI run for the configured PR and reports its `build<pr>.<run>` identity without replacing the executable.
-
-Published release assets use this contract:
-
-```text
-vslices-<rid>.zip
-vslices-<rid>.zip.sha256
-```
-
-PR build artifacts use the same inner archive/checksum pair, wrapped in an Actions artifact named:
-
-```text
-build<pr>.<run>-<rid>
-```
-
-For example:
-
-```text
-build2.154-win-x64
-build2.154-win-arm64
-build2.154-linux-x64
-```
-
-The CI build embeds a SemVer-compatible assembly representation such as `0.0.0-build.2.154`, while the user-facing build identity remains `build2.154`.
-
-The ZIP must contain exactly one platform executable named `vslices.exe` on Windows or `vslices` elsewhere. The checksum file contains the SHA-256 of the ZIP.
-
-Self-update must verify the checksum before replacement. On Unix-like systems the executable can be replaced directly after verification. On Windows replacement is deferred to a temporary helper process after the running `vslices.exe` exits.
-
-Self-update is only supported for the standalone native executable. Installations controlled by another package manager should be updated through that installation mechanism rather than silently replacing package-managed state.
-
-## Update direction
-
-CLI version and ruleset version are deliberately independent:
-
-```text
-vslices update --self
-  = update the CLI executable
-
-vslices update --ruleset
-  = future update of project-local lowering knowledge
-```
-
-The current implementation only materializes the `--self` path. Ruleset update remains a separate subsequent capability.
+Configuration cannot disable correctness/safety guarantees such as atomic writes, missing-rule failure, complete ruleset validation before swap, or trusted-ancestry requirements for rebase.

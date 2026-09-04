@@ -9,13 +9,15 @@ internal sealed record ProjectConfiguration(
     string? RulesetRef,
     string? UpdateSource,
     string? UpdateChannel,
-    int? UpdatePullRequest = null)
+    int? UpdatePullRequest = null,
+    string? LineageBootstrapConvention = "existing-materialization")
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
     public const string OfficialRulesetRef = "main";
     public const string OfficialToolingSource = "https://github.com/vslices/tooling";
     public const string DefaultUpdateChannel = "preview";
+    public const string DefaultLineageBootstrapConvention = "existing-materialization";
 
     public static ProjectConfiguration Default(string? target = "csharp") =>
         new(
@@ -25,28 +27,11 @@ internal sealed record ProjectConfiguration(
             OfficialRulesetRef,
             OfficialToolingSource,
             DefaultUpdateChannel,
-            null);
-
-    public static ProjectConfiguration? LoadFromRulesetRoot(string rulesetRoot) =>
-        LoadFromVslicesDirectory(Directory.GetParent(rulesetRoot)?.FullName);
+            null,
+            DefaultLineageBootstrapConvention);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
-
-    public static ProjectConfiguration? LoadNearest(string start)
-    {
-        var current = new DirectoryInfo(Path.GetFullPath(start));
-        while (current is not null)
-        {
-            var config = LoadFromProjectRoot(current.FullName);
-            if (config is not null)
-                return config;
-
-            current = current.Parent;
-        }
-
-        return null;
-    }
 
     public static async Task WriteAsync(
         string projectRoot,
@@ -75,6 +60,22 @@ internal sealed record ProjectConfiguration(
             ruleset.Add("ref", configuration.RulesetRef);
         root.Add("ruleset", ruleset);
 
+        if (!string.IsNullOrWhiteSpace(configuration.LineageBootstrapConvention))
+        {
+            root.Add(
+                "lineage",
+                new YamlMappingNode
+                {
+                    {
+                        "bootstrap",
+                        new YamlMappingNode
+                        {
+                            { "convention", configuration.LineageBootstrapConvention }
+                        }
+                    }
+                });
+        }
+
         var updates = new YamlMappingNode
         {
             { "source", configuration.UpdateSource ?? OfficialToolingSource },
@@ -94,11 +95,8 @@ internal sealed record ProjectConfiguration(
             cancellationToken);
     }
 
-    private static ProjectConfiguration? LoadFromVslicesDirectory(string? vslicesDirectory)
+    private static ProjectConfiguration? LoadFromVslicesDirectory(string vslicesDirectory)
     {
-        if (string.IsNullOrWhiteSpace(vslicesDirectory))
-            return null;
-
         var path = Path.Combine(vslicesDirectory, "config.yaml");
         if (!File.Exists(path))
             return null;
@@ -123,7 +121,8 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "ruleset", "ref"),
             NestedScalar(root, "updates", "source"),
             NestedScalar(root, "updates", "channel"),
-            pullRequest);
+            pullRequest,
+            NestedScalar(root, "lineage", "bootstrap", "convention"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)
@@ -135,11 +134,26 @@ internal sealed record ProjectConfiguration(
         return Scalar(mapping, key);
     }
 
-    private static string? Scalar(YamlMappingNode mapping, string key)
+    private static string? NestedScalar(
+        YamlMappingNode root,
+        string section,
+        string subsection,
+        string key)
     {
-        return mapping.Children.TryGetValue(new YamlScalarNode(key), out var node) &&
-               node is YamlScalarNode scalar
+        if (!root.Children.TryGetValue(new YamlScalarNode(section), out var sectionNode) ||
+            sectionNode is not YamlMappingNode sectionMapping ||
+            !sectionMapping.Children.TryGetValue(new YamlScalarNode(subsection), out var subsectionNode) ||
+            subsectionNode is not YamlMappingNode subsectionMapping)
+        {
+            return null;
+        }
+
+        return Scalar(subsectionMapping, key);
+    }
+
+    private static string? Scalar(YamlMappingNode mapping, string key) =>
+        mapping.Children.TryGetValue(new YamlScalarNode(key), out var node) &&
+        node is YamlScalarNode scalar
             ? scalar.Value
             : null;
-    }
 }

@@ -3,7 +3,18 @@ rules:
     mode: deterministic
     renderer: expression
     template: "!string.IsNullOrEmpty({value})"
+
   - node: intrinsic.length-at-most
     mode: deterministic
     renderer: expression
     template: "{value}.Length <= {max}"
+
+  - node: equality.ordinal-equals.equals
+    mode: deterministic
+    renderer: expression
+    template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
+
+  - node: equality.ordinal-equals.hash
+    mode: deterministic
+    renderer: expression
+    template: "StringComparer.Ordinal.GetHashCode({value})"

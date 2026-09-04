@@ -1,12 +1,7 @@
-using System.IO.Compression;
-
 namespace VSlices.Tooling;
 
 internal static class RulesetCommands
 {
-    private const string OfficialRulesetArchive =
-        "https://github.com/vslices/ruleset/archive/refs/heads/main.zip";
-
     private const string DefaultIgnoreContent =
         "# Project-specific paths ignored by VSlices artifact discovery.\n" +
         "# Built-in exclusions: .git/, .vslices/, bin/, obj/.\n";
@@ -21,17 +16,14 @@ internal static class RulesetCommands
         bool force = false,
         CancellationToken cancellationToken = default)
     {
-        var explicitSource = !string.IsNullOrWhiteSpace(from) ||
-                             !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE"));
-
-        var source = string.IsNullOrWhiteSpace(from)
-            ? Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE")
-            : from;
+        var environmentSource = Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE");
+        var explicitSource = !string.IsNullOrWhiteSpace(from) || !string.IsNullOrWhiteSpace(environmentSource);
+        var source = string.IsNullOrWhiteSpace(from) ? environmentSource : from;
 
         if (string.IsNullOrWhiteSpace(source))
         {
             source = Console.IsInputRedirected
-                ? OfficialRulesetArchive
+                ? ProjectConfiguration.OfficialRulesetSource
                 : PromptRulesetSource();
         }
 
@@ -59,7 +51,9 @@ internal static class RulesetCommands
             return 1;
         }
 
-        var official = source.Equals(OfficialRulesetArchive, StringComparison.OrdinalIgnoreCase);
+        var official = source.Equals(ProjectConfiguration.OfficialRulesetSource, StringComparison.OrdinalIgnoreCase);
+        var reference = official ? ProjectConfiguration.OfficialRulesetRef : null;
+
         TerminalOutput.Detail("Target", CommandInfrastructure.DisplayTarget(selectedTarget));
         TerminalOutput.Detail("Ruleset", official ? "official" : DescribeSource(source));
         TerminalOutput.Detail("Destination", Path.GetRelativePath(projectRoot, rulesetTarget));
@@ -68,50 +62,49 @@ internal static class RulesetCommands
         TerminalOutput.BlankLine();
 
         var staging = Path.Combine(Path.GetTempPath(), "vslices-init-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(staging);
+        var prepared = Path.Combine(vslicesRoot, ".ruleset-init-" + Guid.NewGuid().ToString("N"));
 
         try
         {
-            string? sourceRoot = null;
-            if (IsRemoteSource(source))
+            RulesetMaterializationResult materialized = null!;
+            var rulesetSource = new RulesetSource(source, reference);
+            if (RulesetSourceMaterializer.IsRemoteSource(source))
             {
                 await TerminalOutput.ProgressAsync(
                     "Downloading ruleset...",
-                    async () => sourceRoot = await MaterializeSource(source, staging, cancellationToken));
+                    async () => materialized = await RulesetSourceMaterializer.Materialize(
+                        rulesetSource,
+                        staging,
+                        cancellationToken));
             }
             else
             {
-                sourceRoot = await MaterializeSource(source, staging, cancellationToken);
+                materialized = await RulesetSourceMaterializer.Materialize(
+                    rulesetSource,
+                    staging,
+                    cancellationToken);
             }
 
-            if (sourceRoot is null)
+            if (!materialized.IsSuccess)
+            {
+                TerminalOutput.Error($"{materialized.DiagnosticCode}: {materialized.Message}");
                 return 1;
+            }
 
             TerminalOutput.Success("✓ Ruleset materialized");
 
-            if (!File.Exists(Path.Combine(sourceRoot, "manifest.yaml")))
+            var preparedResult = RulesetSnapshotInstaller.Prepare(
+                materialized.Root!,
+                selectedTarget,
+                prepared);
+            if (!preparedResult.IsSuccess)
             {
-                TerminalOutput.Error(
-                    $"CLI012: Ruleset source '{source}' does not contain manifest.yaml.");
+                CommandInfrastructure.WriteDiagnostics(preparedResult.Diagnostics);
                 return 1;
             }
 
-            TerminalOutput.Success("✓ Manifest validated");
-
-            var sourceTarget = Path.Combine(sourceRoot, selectedTarget);
-            if (!Directory.Exists(sourceTarget))
-            {
-                TerminalOutput.Error(
-                    $"CLI016: Ruleset source does not contain target '{selectedTarget}'.");
-                return 1;
-            }
-
-            if (Directory.Exists(rulesetTarget))
-                Directory.Delete(rulesetTarget, recursive: true);
-
-            Directory.CreateDirectory(rulesetTarget);
-            CopyRootFiles(sourceRoot, rulesetTarget);
-            CopyDirectory(sourceTarget, Path.Combine(rulesetTarget, selectedTarget));
+            TerminalOutput.Success("✓ Ruleset validated");
+            RulesetSnapshotInstaller.Replace(vslicesRoot, prepared);
             TerminalOutput.Success($"✓ {CommandInfrastructure.DisplayTarget(selectedTarget)} target installed");
 
             var ignorePath = Path.Combine(vslicesRoot, ".ignore");
@@ -129,10 +122,11 @@ internal static class RulesetCommands
                         : existingConfiguration?.RulesetSource ?? source,
                 official
                     ? ProjectConfiguration.OfficialRulesetRef
-                    : existingConfiguration?.RulesetRef,
+                    : null,
                 existingConfiguration?.UpdateSource ?? ProjectConfiguration.OfficialToolingSource,
                 existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel,
-                existingConfiguration?.UpdatePullRequest);
+                existingConfiguration?.UpdatePullRequest,
+                existingConfiguration?.LineageBootstrapConvention ?? ProjectConfiguration.DefaultLineageBootstrapConvention);
 
             await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
             TerminalOutput.Success("✓ Configuration written");
@@ -144,6 +138,8 @@ internal static class RulesetCommands
         {
             if (Directory.Exists(staging))
                 Directory.Delete(staging, recursive: true);
+            if (Directory.Exists(prepared))
+                Directory.Delete(prepared, recursive: true);
         }
     }
 
@@ -156,7 +152,7 @@ internal static class RulesetCommands
 
         var choice = Console.ReadLine()?.Trim();
         if (string.IsNullOrEmpty(choice) || choice == "1")
-            return OfficialRulesetArchive;
+            return ProjectConfiguration.OfficialRulesetSource;
 
         if (choice != "2")
         {
@@ -177,7 +173,7 @@ internal static class RulesetCommands
                 return normalized;
 
             TerminalOutput.Error(
-                $"CLI020: Target '{target}' is not supported. Current experimental target: C#." );
+                $"CLI020: Target '{target}' is not supported. Current experimental target: C#.");
             return null;
         }
 
@@ -196,78 +192,12 @@ internal static class RulesetCommands
         return null;
     }
 
-    private static async Task<string?> MaterializeSource(
-        string source,
-        string staging,
-        CancellationToken cancellationToken)
-    {
-        var local = Path.GetFullPath(source, Environment.CurrentDirectory);
-        if (Directory.Exists(local))
-            return local;
-
-        if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) ||
-            uri.Scheme is not ("http" or "https"))
-        {
-            TerminalOutput.Error(
-                $"CLI013: Ruleset source '{source}' is neither an existing directory nor an HTTP(S) URL.");
-            return null;
-        }
-
-        try
-        {
-            using var http = new HttpClient();
-            await using var stream = await http.GetStreamAsync(uri, cancellationToken);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Read);
-            archive.ExtractToDirectory(staging);
-
-            var manifests = Directory
-                .EnumerateFiles(staging, "manifest.yaml", SearchOption.AllDirectories)
-                .Take(2)
-                .ToArray();
-
-            if (manifests.Length != 1)
-            {
-                TerminalOutput.Error(
-                    "CLI014: Downloaded ruleset archive must contain exactly one manifest.yaml.");
-                return null;
-            }
-
-            return Path.GetDirectoryName(manifests[0]);
-        }
-        catch (Exception ex)
-        {
-            TerminalOutput.Error($"CLI015: Could not download ruleset source: {ex.Message}");
-            return null;
-        }
-    }
-
-    private static bool IsRemoteSource(string source) =>
-        Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
-        uri.Scheme is "http" or "https";
-
     private static string DescribeSource(string source)
     {
-        if (IsRemoteSource(source))
+        if (RulesetSourceMaterializer.IsRemoteSource(source))
             return "custom remote";
 
         var local = Path.GetFullPath(source, Environment.CurrentDirectory);
         return Directory.Exists(local) ? "local" : "custom";
-    }
-
-    private static void CopyRootFiles(string source, string target)
-    {
-        foreach (var file in Directory.EnumerateFiles(source))
-            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
-    }
-
-    private static void CopyDirectory(string source, string target)
-    {
-        Directory.CreateDirectory(target);
-
-        foreach (var file in Directory.EnumerateFiles(source))
-            File.Copy(file, Path.Combine(target, Path.GetFileName(file)), overwrite: true);
-
-        foreach (var directory in Directory.EnumerateDirectories(source))
-            CopyDirectory(directory, Path.Combine(target, Path.GetFileName(directory)));
     }
 }

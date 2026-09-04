@@ -72,6 +72,13 @@ public sealed class CSharpLoweringRuleSet
                         continue;
                     }
 
+                    if (!mode.Equals("deterministic", StringComparison.OrdinalIgnoreCase))
+                        diagnostics.Add(new("CSR008", $"Lowering rule '{node}' uses unsupported mode '{mode}'."));
+                    if (!renderer.Equals("expression", StringComparison.OrdinalIgnoreCase))
+                        diagnostics.Add(new("CSR009", $"Lowering rule '{node}' uses unsupported renderer '{renderer}'."));
+                    if (string.IsNullOrWhiteSpace(template))
+                        diagnostics.Add(new("CSR010", $"Lowering rule '{node}' must declare a non-empty template."));
+
                     if (!rules.TryAdd(node, new(node, mode, renderer, template)))
                         diagnostics.Add(new("CSR007", $"Lowering rule '{node}' is declared more than once."));
                 }
@@ -156,7 +163,10 @@ public sealed class CSharpLoweringRuleSet
     private static bool IsWithin(string root, string path)
     {
         var normalizedRoot = Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar;
-        return path.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return path.StartsWith(normalizedRoot, comparison);
     }
 }
 
