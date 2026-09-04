@@ -38,7 +38,7 @@
 
   <Target Name="PublishSemanticRefactoringHelper" AfterTargets="Publish">
     <PropertyGroup>
-      <SemanticRefactoringPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)refactor'))</SemanticRefactoringPublishDir>
+      <SemanticRefactoringPublishDir>$([MSBuild]::EnsureTrailingSlash($([System.IO.Path]::GetFullPath('$(PublishDir)refactor'))))</SemanticRefactoringPublishDir>
     </PropertyGroup>
     <MSBuild
       Projects="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
