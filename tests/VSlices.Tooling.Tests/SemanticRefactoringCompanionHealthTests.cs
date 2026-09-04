@@ -10,7 +10,8 @@ public sealed class SemanticRefactoringCompanionHealthTests
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
             ["--version"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
-            temp.Path);
+            temp.Path,
+            isNativeAot: true);
 
         Assert.True(shouldNotify);
     }
@@ -28,7 +29,8 @@ public sealed class SemanticRefactoringCompanionHealthTests
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
             ["--version"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
-            temp.Path);
+            temp.Path,
+            isNativeAot: true);
 
         Assert.True(shouldNotify);
     }
@@ -37,20 +39,13 @@ public sealed class SemanticRefactoringCompanionHealthTests
     public void Complete_companion_suppresses_notification()
     {
         using var temp = TempDirectory.Create();
-        var refactor = Path.Combine(temp.Path, "refactor");
-        var buildHost = Path.Combine(refactor, "BuildHost-netcore");
-        Directory.CreateDirectory(buildHost);
-        File.WriteAllText(
-            Path.Combine(refactor, "VSlices.Targets.DotNet.Refactor.dll"),
-            "test");
-        File.WriteAllText(
-            Path.Combine(buildHost, "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll"),
-            "test");
+        CreateCompleteCompanion(temp.Path);
 
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
             ["--version"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
-            temp.Path);
+            temp.Path,
+            isNativeAot: true);
 
         Assert.False(shouldNotify);
     }
@@ -63,7 +58,22 @@ public sealed class SemanticRefactoringCompanionHealthTests
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
             ["update", "--self"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
-            temp.Path);
+            temp.Path,
+            isNativeAot: true);
+
+        Assert.False(shouldNotify);
+    }
+
+    [Fact]
+    public void Managed_apphost_named_vslices_does_not_report_installation_health()
+    {
+        using var temp = TempDirectory.Create();
+
+        var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
+            ["--version"],
+            Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
+            temp.Path,
+            isNativeAot: false);
 
         Assert.False(shouldNotify);
     }
@@ -76,9 +86,23 @@ public sealed class SemanticRefactoringCompanionHealthTests
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
             ["--version"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet"),
-            temp.Path);
+            temp.Path,
+            isNativeAot: true);
 
         Assert.False(shouldNotify);
+    }
+
+    private static void CreateCompleteCompanion(string baseDirectory)
+    {
+        var refactor = Path.Combine(baseDirectory, "refactor");
+        var buildHost = Path.Combine(refactor, "BuildHost-netcore");
+        Directory.CreateDirectory(buildHost);
+        File.WriteAllText(
+            Path.Combine(refactor, "VSlices.Targets.DotNet.Refactor.dll"),
+            "test");
+        File.WriteAllText(
+            Path.Combine(buildHost, "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll"),
+            "test");
     }
 
     private sealed class TempDirectory : IDisposable
