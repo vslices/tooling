@@ -71,7 +71,7 @@ public sealed class LineageTests
     }
 
     [Fact]
-    public async Task Concurrent_namespace_insertion_reports_details_and_can_be_resolved_from_the_cli()
+    public async Task Concurrent_namespace_insertion_reports_rebase_conflict_then_stops_at_target_context_before_writing()
     {
         using var project = ReadyProject();
         var vsir = project.WriteStreetName();
@@ -89,6 +89,8 @@ public sealed class LineageTests
         File.WriteAllText(
             materialization,
             human + Environment.NewLine + "// human detail" + Environment.NewLine);
+        var humanBeforeResolution = File.ReadAllBytes(materialization);
+        var baselineBeforeResolution = File.ReadAllBytes(project.BaselineFor(materialization));
 
         var conflict = await project.Run(project.Root,
             "lower", vsir,
@@ -107,15 +109,12 @@ public sealed class LineageTests
             "--namespace", "Tests.Domain.Aggregates.Tickets",
             "--resolve", "deterministic");
 
-        Assert.Equal(0, resolved.ExitCode);
-        var source = File.ReadAllText(materialization);
-        Assert.Contains("namespace Tests.Domain.Aggregates.Tickets;", source, StringComparison.Ordinal);
-        Assert.Contains("// human detail", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("namespace Tests.Domain.Aggregates;", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "namespace Tests.Domain.Aggregates.Tickets;",
-            File.ReadAllText(project.BaselineFor(materialization)),
-            StringComparison.Ordinal);
+        Assert.Equal(1, resolved.ExitCode);
+        var resolutionText = resolved.StandardError + resolved.StandardOutput;
+        Assert.Contains("DOTNET020", resolutionText, StringComparison.Ordinal);
+        Assert.Contains("no related .csproj", resolutionText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(humanBeforeResolution, File.ReadAllBytes(materialization));
+        Assert.Equal(baselineBeforeResolution, File.ReadAllBytes(project.BaselineFor(materialization)));
     }
 
     [Fact]
