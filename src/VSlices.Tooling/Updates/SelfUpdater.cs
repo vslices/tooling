@@ -350,6 +350,20 @@ internal static class SelfUpdater
         }
 
         var replacement = replacements[0];
+        var packageRoot = Path.GetDirectoryName(replacement)!;
+        var companionSource = Path.Combine(packageRoot, "refactor");
+        var companionAssembly = Path.Combine(companionSource, "VSlices.Targets.DotNet.Refactor.dll");
+        if (!File.Exists(companionAssembly))
+        {
+            Console.Error.WriteLine(
+                $"UPD015: Release archive '{assetName}' does not contain the Roslyn semantic-refactoring companion.");
+            return 1;
+        }
+
+        InstallCompanionDirectory(
+            companionSource,
+            Path.Combine(Path.GetDirectoryName(executable)!, "refactor"));
+
         if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(
@@ -368,6 +382,61 @@ internal static class SelfUpdater
             replacement,
             version,
             cancellationToken);
+    }
+
+    private static void InstallCompanionDirectory(string source, string destination)
+    {
+        var parent = Path.GetDirectoryName(destination)!;
+        Directory.CreateDirectory(parent);
+
+        var transactionId = Guid.NewGuid().ToString("N");
+        var pending = Path.Combine(parent, ".vslices.refactor.pending." + transactionId);
+        var backup = Path.Combine(parent, ".vslices.refactor.backup." + transactionId);
+
+        try
+        {
+            CopyDirectory(source, pending);
+            if (!File.Exists(Path.Combine(pending, "VSlices.Targets.DotNet.Refactor.dll")))
+                throw new InvalidOperationException("Semantic-refactoring companion staging is incomplete.");
+
+            if (Directory.Exists(destination))
+                Directory.Move(destination, backup);
+
+            Directory.Move(pending, destination);
+
+            if (Directory.Exists(backup))
+                Directory.Delete(backup, recursive: true);
+        }
+        catch
+        {
+            if (Directory.Exists(destination) && Directory.Exists(backup))
+                Directory.Delete(destination, recursive: true);
+
+            if (!Directory.Exists(destination) && Directory.Exists(backup))
+                Directory.Move(backup, destination);
+
+            if (Directory.Exists(pending))
+                Directory.Delete(pending, recursive: true);
+            throw;
+        }
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, directory);
+            Directory.CreateDirectory(Path.Combine(destination, relative));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            var target = Path.Combine(destination, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
     }
 
     private static void ShowResolvedUpdate(string current, string latest, string rid)
