@@ -14,7 +14,8 @@ public static class VsirParser
         "traits",
         "state",
         "representation",
-        "construction"
+        "construction",
+        "equality"
     ];
 
     public static VsirParseResult Parse(string text)
@@ -39,6 +40,7 @@ public static class VsirParser
             var traits = Sequence(root, "traits");
             var state = Product(root, "state");
             var representation = Product(root, "representation");
+            var equality = ParseEquality(root, diagnostics);
 
             if (!TryMapping(root, "construction", out var constructionNode))
                 return Failure("VSIR002", "Missing construction mapping.");
@@ -96,7 +98,8 @@ public static class VsirParser
                 traits,
                 state,
                 representation,
-                new Construction(input, steps));
+                new Construction(input, steps),
+                equality);
 
             diagnostics.AddRange(DomainTypeValidator.Validate(document));
             return new(document, diagnostics);
@@ -105,6 +108,31 @@ public static class VsirParser
         {
             return Failure("VSIR000", ex.Message);
         }
+    }
+
+    private static EqualitySemantics? ParseEquality(
+        YamlMappingNode root,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (!root.Children.ContainsKey(new YamlScalarNode("equality")))
+            return null;
+
+        if (!TryMapping(root, "equality", out var equalityNode))
+        {
+            diagnostics.Add(new("VSIR105", "Equality must be a mapping."));
+            return null;
+        }
+
+        var intrinsic = Scalar(equalityNode, "intrinsic");
+        var by = Scalar(equalityNode, "by");
+
+        if (string.IsNullOrWhiteSpace(intrinsic) || string.IsNullOrWhiteSpace(by))
+        {
+            diagnostics.Add(new("VSIR106", "Equality requires both 'intrinsic' and 'by'."));
+            return null;
+        }
+
+        return new(intrinsic, by);
     }
 
     private static IEnumerable<VsirDiagnostic> UnsupportedRootSemantics(YamlMappingNode root)
