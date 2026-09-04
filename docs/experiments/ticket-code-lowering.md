@@ -93,3 +93,5 @@ configurable terminal themes
 new lineage or rebase semantics
 normalization semantics beyond deterministic expression transforms demonstrated by TicketCode
 ```
+
+The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow while the actual `trim` realization remains external Ruleset knowledge.
