@@ -42,7 +42,7 @@
     </PropertyGroup>
     <MSBuild
       Projects="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
-      Targets="Publish"
+      Targets="Restore;Publish"
       Properties="Configuration=$(Configuration);PublishDir=$(SemanticRefactoringPublishDir);SelfContained=false;RuntimeIdentifier=" />
   </Target>
 
