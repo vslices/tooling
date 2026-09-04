@@ -6,7 +6,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class RoslynSemanticRefactoringTests
 {
     [Fact]
-    public async Task Namespace_move_stages_only_references_that_stop_resolving()
+    public async Task Namespace_move_stages_only_references_that_stop_resolving_and_tolerates_prune_advisories()
     {
         using var fixture = new RoslynFixture();
         fixture.WriteProject();
@@ -46,7 +46,12 @@ public sealed class RoslynSemanticRefactoringTests
             }
             """);
 
-        Assert.Equal(0, (await fixture.Run("restore", fixture.ProjectPath)).ExitCode);
+        var restore = await fixture.Run("restore", fixture.SolutionPath);
+        Assert.Equal(0, restore.ExitCode);
+        Assert.Contains(
+            "will not be pruned",
+            restore.StandardOutput + restore.StandardError,
+            StringComparison.OrdinalIgnoreCase);
 
         var helper = fixture.HelperPath;
         var result = await fixture.Run(
@@ -101,6 +106,7 @@ public sealed class RoslynSemanticRefactoringTests
 
         public string Root { get; }
         public string ProjectPath => PathOf("Demo/Demo.csproj");
+        public string SolutionPath => PathOf("SemanticRefactor.slnx");
         public string HelperPath => System.IO.Path.Combine(
             _repositoryRoot,
             "src",
@@ -123,10 +129,24 @@ public sealed class RoslynSemanticRefactoringTests
                 </Project>
                 """);
             Write(
+                "PruningAdvisory/PruningAdvisory.csproj",
+                """
+                <Project Sdk="Microsoft.NET.Sdk.Razor">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                  <ItemGroup>
+                    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+                    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.11" />
+                  </ItemGroup>
+                </Project>
+                """);
+            Write(
                 "SemanticRefactor.slnx",
                 """
                 <Solution>
                   <Project Path="Demo/Demo.csproj" />
+                  <Project Path="PruningAdvisory/PruningAdvisory.csproj" />
                 </Solution>
                 """);
         }
