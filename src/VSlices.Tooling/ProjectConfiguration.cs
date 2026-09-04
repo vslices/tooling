@@ -9,13 +9,15 @@ internal sealed record ProjectConfiguration(
     string? RulesetRef,
     string? UpdateSource,
     string? UpdateChannel,
-    int? UpdatePullRequest = null)
+    int? UpdatePullRequest = null,
+    string? LineageBootstrapConvention = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
     public const string OfficialRulesetRef = "main";
     public const string OfficialToolingSource = "https://github.com/vslices/tooling";
     public const string DefaultUpdateChannel = "preview";
+    public const string DefaultLineageBootstrapConvention = "existing-materialization";
 
     public static ProjectConfiguration Default(string? target = "csharp") =>
         new(
@@ -25,7 +27,8 @@ internal sealed record ProjectConfiguration(
             OfficialRulesetRef,
             OfficialToolingSource,
             DefaultUpdateChannel,
-            null);
+            null,
+            DefaultLineageBootstrapConvention);
 
     public static ProjectConfiguration? LoadFromRulesetRoot(string rulesetRoot) =>
         LoadFromVslicesDirectory(Directory.GetParent(rulesetRoot)?.FullName);
@@ -75,6 +78,22 @@ internal sealed record ProjectConfiguration(
             ruleset.Add("ref", configuration.RulesetRef);
         root.Add("ruleset", ruleset);
 
+        if (!string.IsNullOrWhiteSpace(configuration.LineageBootstrapConvention))
+        {
+            root.Add(
+                "lineage",
+                new YamlMappingNode
+                {
+                    {
+                        "bootstrap",
+                        new YamlMappingNode
+                        {
+                            { "convention", configuration.LineageBootstrapConvention }
+                        }
+                    }
+                });
+        }
+
         var updates = new YamlMappingNode
         {
             { "source", configuration.UpdateSource ?? OfficialToolingSource },
@@ -123,7 +142,8 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "ruleset", "ref"),
             NestedScalar(root, "updates", "source"),
             NestedScalar(root, "updates", "channel"),
-            pullRequest);
+            pullRequest,
+            NestedScalar(root, "lineage", "bootstrap", "convention"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)
@@ -133,6 +153,23 @@ internal sealed record ProjectConfiguration(
             return null;
 
         return Scalar(mapping, key);
+    }
+
+    private static string? NestedScalar(
+        YamlMappingNode root,
+        string section,
+        string subsection,
+        string key)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode(section), out var sectionNode) ||
+            sectionNode is not YamlMappingNode sectionMapping ||
+            !sectionMapping.Children.TryGetValue(new YamlScalarNode(subsection), out var subsectionNode) ||
+            subsectionNode is not YamlMappingNode subsectionMapping)
+        {
+            return null;
+        }
+
+        return Scalar(subsectionMapping, key);
     }
 
     private static string? Scalar(YamlMappingNode mapping, string key)
