@@ -41,9 +41,19 @@ TicketCode.vsir
   -> deterministic witness reveals namespace Tickets.Domain
      while TicketCode.vsir lives under Aggregates/Tickets
 
-  -> next independent experiment
+  -> target-context experiment
      default namespace = evaluated RootNamespace
                        + full relative directory path from .csproj to .vsir
+     expected Tickets.Domain.Aggregates.Tickets
+
+  -> real consumer reruns lower with existing lineage
+  -> REB002
+     old insertion rebaser cannot explain the namespace conflict precisely
+
+  -> rebase conflict experiment
+     distinguish unlocatable ambiguity from concurrent human/deterministic insertion
+     expose baseline / human / next deterministic values
+     provide explicit CLI resolution
 ```
 
 ## Experimental prioritization
@@ -52,7 +62,7 @@ Evidence determines what the current machinery can justify and where the observe
 
 Human maintainer interest may therefore prioritize which evidence-compatible experiment is run next. That interest may order the research agenda, but it does not redefine consumer semantics, move a failure to a preferred layer, or justify implementation without discriminating evidence.
 
-`TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the namespace experiment is selected next because the successful deterministic witness made the previously deferred target-context gap concrete.
+`TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the namespace experiment followed because the successful deterministic witness made the previously deferred target-context gap concrete. The rebase conflict experiment then followed because the real consumer exposed `REB002` after target context changed.
 
 ## Confirmed normalization finding
 
@@ -113,7 +123,7 @@ The previous resolver delegated namespace discovery to `dotnet new class` in the
 Tickets.Domain
 ```
 
-The new experiment defines the default target namespace explicitly as:
+The target-context experiment defines the default target namespace explicitly as:
 
 ```text
 evaluated .csproj RootNamespace
@@ -167,6 +177,81 @@ Arbitrary.Project.csproj
 -> Company.Product.Features.Orders
 ```
 
+## Rebase conflict experiment
+
+The first real rerun after changing namespace derivation produced:
+
+```text
+REB002: Deterministic insertion anchor is missing or ambiguous in the human projection.
+```
+
+The underlying three-way state is more informative than that message:
+
+```text
+previous deterministic:
+  namespace Tickets.Domain;
+
+human materialization:
+  namespace Tickets.Domain.Aggregates;
+
+next deterministic:
+  namespace Tickets.Domain.Aggregates.Tickets;
+```
+
+Both the human and deterministic branches changed the same insertion point after `Tickets.Domain`. That is a genuine concurrent insertion conflict, not merely an unlocatable anchor.
+
+The rebaser now distinguishes:
+
+```text
+REB002
+  deterministic location itself cannot be established uniquely
+
+REB004
+  deterministic insertion point is known
+  human inserted one value there
+  next deterministic projection inserted a different value there
+```
+
+`REB004` reports the three values needed to understand the conflict:
+
+```text
+Baseline insertion: <empty>
+Human insertion: '.Aggregates'
+Next deterministic insertion: '.Aggregates.Tickets'
+```
+
+The default remains conservative: VSlices does not infer that the human intended the deterministic value merely because one string is a prefix of the other.
+
+## Explicit CLI resolution
+
+A maintainer who has inspected the conflict can resolve that exact region explicitly with:
+
+```text
+vslices lower TicketCode --resolve deterministic
+```
+
+The same strategy is available to explicit `rebase`.
+
+`--resolve deterministic` does **not** replace the complete human materialization. It replaces only the conflicting insertion region that was located through deterministic surrounding context, then preserves unrelated human edits and records the new deterministic lineage baseline after the write succeeds.
+
+Conceptually:
+
+```text
+human before:
+  namespace Tickets.Domain.Aggregates;
+  + human formatting/helpers/etc.
+
+--resolve deterministic
+
+human after:
+  namespace Tickets.Domain.Aggregates.Tickets;
+  + same unrelated human formatting/helpers/etc.
+```
+
+If the human projection already contains exactly the next deterministic insertion, rebase treats the requirement as already satisfied and preserves the file unchanged.
+
+Unknown resolution names fail explicitly; this experiment introduces only the `deterministic` strategy.
+
 ## Explicit next experiment / non-scope
 
 Folder exclusion is deliberately **not** part of this phase.
@@ -204,7 +289,7 @@ deterministic state construction
 ordinal equality
 ```
 
-The namespace phase now tests a separate target-context concern without changing VSIR semantics, Ruleset knowledge, or lineage policy.
+The namespace phase tests a separate target-context concern. The rebase phase now makes the resulting human/deterministic conflict explainable and explicitly resolvable without weakening the default conservative merge policy.
 
 ## Non-scope continuity
 
@@ -224,9 +309,10 @@ aggregate update semantics
 folder-ignore / namespace-exclusion patterns
 project-specific path-segment exclusions
 namespace rewriting beyond RootNamespace + full relative path
+additional automatic conflict-resolution strategies
+implicit preference for deterministic changes on conflict
 configurable terminal themes
-new lineage or rebase semantics
 normalization semantics beyond deterministic expression transforms demonstrated by TicketCode
 ```
 
-The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow, why `trim` belongs to external Ruleset knowledge, why default namespaces now include the complete project-relative directory path, and why folder-ignore policy remains a separate follow-up experiment.
+The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow, why `trim` belongs to external Ruleset knowledge, why default namespaces now include the complete project-relative directory path, why folder-ignore policy remains a separate follow-up experiment, and why concurrent human/deterministic insertions require explicit resolution rather than inference.
