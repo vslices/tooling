@@ -32,6 +32,52 @@ public sealed class SemanticRefactoringSafetyTests
         Assert.True(SemanticRefactoringAuthorization.Confirm(input, output));
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("\n")]
+    [InlineData("n\n")]
+    [InlineData("no\n")]
+    [InlineData("anything\n")]
+    public void Roslyn_analysis_authorization_defaults_to_no(string inputText)
+    {
+        using var input = new StringReader(inputText);
+        using var output = new StringWriter();
+
+        var approved = SemanticRefactoringAuthorization.ConfirmAnalysis(input, output);
+
+        Assert.False(approved);
+        Assert.Contains("Analyze semantic blast radius with Roslyn? [y/N]", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("y\n")]
+    [InlineData("Y\n")]
+    [InlineData("yes\n")]
+    [InlineData("YES\n")]
+    public void Roslyn_analysis_authorization_accepts_only_explicit_yes(string inputText)
+    {
+        using var input = new StringReader(inputText);
+        using var output = new StringWriter();
+
+        Assert.True(SemanticRefactoringAuthorization.ConfirmAnalysis(input, output));
+    }
+
+    [Fact]
+    public void Namespace_move_preflight_detects_only_file_scoped_namespace_changes()
+    {
+        var move = SemanticNamespaceMovePreflight.TryDetect(
+            "namespace Demo.Domain;\npublic sealed class TicketCode;\n",
+            "namespace Demo.Domain.Aggregates;\npublic sealed class TicketCode;\n");
+
+        Assert.NotNull(move);
+        Assert.Equal("Demo.Domain", move.PreviousNamespace);
+        Assert.Equal("Demo.Domain.Aggregates", move.NextNamespace);
+
+        Assert.Null(SemanticNamespaceMovePreflight.TryDetect(
+            "namespace Demo.Domain;\npublic sealed class TicketCode;\n",
+            "namespace Demo.Domain;\npublic sealed class TicketCode;\n"));
+    }
+
     [Fact]
     public async Task Transaction_aborts_before_writing_when_any_source_changed_after_planning()
     {
