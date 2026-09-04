@@ -122,7 +122,7 @@ internal static class RulesetCommands
                         : existingConfiguration?.RulesetSource ?? source,
                 official
                     ? ProjectConfiguration.OfficialRulesetRef
-                    : existingConfiguration?.RulesetRef,
+                    : null,
                 existingConfiguration?.UpdateSource ?? ProjectConfiguration.OfficialToolingSource,
                 existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel,
                 existingConfiguration?.UpdatePullRequest,
