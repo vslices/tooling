@@ -30,6 +30,13 @@ TicketCode.vsir
 
   -> vslices/ruleset#2
      adds only intrinsic.trim using the existing expression renderer
+
+  -> consumer updates Ruleset from experiment/ticket-code-lowering
+  -> vslices lower TicketCode
+  -> SUCCESS
+     deterministic witness computed
+     existing human materialization preserved
+     lowering lineage established
 ```
 
 ## Experimental prioritization
@@ -57,23 +64,23 @@ can be consumed by Tooling without a new renderer mode.
 
 Tooling processes construction steps in order and keeps a reference-to-expression environment. A successful normalize rule replaces the current expression for its target, and later ensures plus final state construction consume that updated expression.
 
-For `TicketCode`, a test-only trim rule therefore produces semantics equivalent to:
+For `TicketCode`, the deterministic witness contains semantics equivalent to:
 
 ```text
 ensure non-empty(input.Value.Trim())
 state.Value <- input.Value.Trim()
+ordinal equality over state.Value
 ```
 
-The real consumer subsequently confirmed the boundary. With Tooling `build5.264` and the production Ruleset still lacking `intrinsic.trim`, running:
+The real consumer confirmed both boundaries:
 
 ```text
-vslices lower TicketCode
-```
+without intrinsic.trim
+  -> CSL031
 
-returned:
-
-```text
-CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'.
+with intrinsic.trim from vslices/ruleset#2
+  -> deterministic lowering succeeds
+  -> existing human materialization is not rewritten during configured lineage bootstrap
 ```
 
 This demonstrates the ownership split:
@@ -83,22 +90,46 @@ normalization dataflow / execution mechanism -> Tooling
 trim realization knowledge                 -> Ruleset
 ```
 
-The corresponding Ruleset change is isolated in `vslices/ruleset#2` and adds only the demonstrated `intrinsic.trim` expression rule.
+## Human-editable materialization and deterministic witness
 
-## Next observation
+The successful consumer run also demonstrates the intended distinction between the deterministic witness and the existing human-editable materialization.
 
-After the consumer updates its local Ruleset snapshot from Ruleset PR #2:
+The lineage baseline contains the deterministic projection produced by Tooling, while the existing `TicketCode.vsir.cs` remains byte-for-byte human-owned during bootstrap. Human choices such as formatting, helper constants, static imports, `ToString()`, and other implementation freedoms are therefore not erased merely because Tooling can now produce a satisfying deterministic witness.
+
+## Independent target-context finding
+
+The deterministic lineage baseline currently uses:
 
 ```text
-vslices update
-vslices lower TicketCode
+namespace Tickets.Domain;
 ```
 
-The expected outcome is either a deterministic `TicketCode` witness or a new independent boundary. A new failure must remain an observation to classify rather than justification to expand this experiment preemptively.
+while the existing human materialization uses:
+
+```text
+namespace Tickets.Domain.Aggregates;
+```
+
+This does not invalidate the TicketCode normalization result: bootstrap stores the deterministic witness as lineage evidence and preserves the existing materialization unchanged.
+
+It is, however, concrete evidence for the target-context namespace question explicitly deferred by PR #4. That question remains independent from normalization and should be investigated separately before generalizing namespace/path policy.
+
+## Current status
+
+TicketCode lowering is now successful end-to-end for the semantic surface exercised by this experiment:
+
+```text
+normalize trim
+ensure non-empty
+deterministic state construction
+ordinal equality
+```
+
+The consumer has established lineage without destructive rewrite.
 
 ## Non-scope continuity
 
-All prior explicit non-scope remains inherited except for the narrow boundary moved by direct TicketCode evidence.
+All prior explicit non-scope remains inherited except for the narrow boundaries moved by direct TicketCode evidence.
 
 Still out of scope:
 
@@ -111,10 +142,10 @@ interpretate
 Git-history ancestry reconstruction
 general provenance graph
 aggregate update semantics
-namespace path policy
+namespace path policy beyond recording the observed target-context mismatch
 configurable terminal themes
 new lineage or rebase semantics
 normalization semantics beyond deterministic expression transforms demonstrated by TicketCode
 ```
 
-The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow while the actual `trim` realization remains external Ruleset knowledge.
+The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow, why `trim` belongs to external Ruleset knowledge, and why the namespace mismatch is a separate target-context experiment rather than a hidden part of normalization lowering.
