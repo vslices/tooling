@@ -67,6 +67,83 @@ public sealed class DotNetTargetContextResolverTests
     }
 
     [Fact]
+    public async Task Configured_folder_names_do_not_contribute_namespace_segments()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
+        var nested = Path.Combine(root, "Aggregates", "Tickets");
+        Directory.CreateDirectory(nested);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Tickets.Domain.csproj");
+            await File.WriteAllTextAsync(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var vsirPath = Path.Combine(nested, "TicketCode.vsir");
+            await File.WriteAllTextAsync(vsirPath, "vsir: 0.1");
+
+            var result = await DotNetTargetContextResolver.Resolve(
+                vsirPath,
+                null,
+                namespaceIgnoredFolders: ["Tickets"]);
+
+            Assert.Null(result.Diagnostic);
+            Assert.NotNull(result.Context);
+            Assert.Equal(projectPath, result.Context.ProjectPath);
+            Assert.Equal("Tickets.Domain.Aggregates", result.Context.Namespace);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Folder_exclusions_match_exact_path_segments_only()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
+        var nested = Path.Combine(root, "Aggregates", "TicketSupport");
+        Directory.CreateDirectory(nested);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Tickets.Domain.csproj");
+            await File.WriteAllTextAsync(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var vsirPath = Path.Combine(nested, "TicketCode.vsir");
+            await File.WriteAllTextAsync(vsirPath, "vsir: 0.1");
+
+            var result = await DotNetTargetContextResolver.Resolve(
+                vsirPath,
+                null,
+                namespaceIgnoredFolders: ["Ticket"]);
+
+            Assert.Null(result.Diagnostic);
+            Assert.NotNull(result.Context);
+            Assert.Equal("Tickets.Domain.Aggregates.TicketSupport", result.Context.Namespace);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Explicit_RootNamespace_is_used_instead_of_the_project_file_name()
     {
         var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
