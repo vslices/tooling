@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/VSlices.Vsir.CSharp.Tests/VSlices.Vsir.CSharp.Tests.csproj" />
+    <Project Path="tests/VSlices.Tooling.Tests/VSlices.Tooling.Tests.csproj" />
   </Folder>
   <Folder Name="/src/framework/" />
   <Folder Name="/src/framework/src/">

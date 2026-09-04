@@ -111,16 +111,7 @@ internal static class RulesetSourceMaterializer
         Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
         uri.Scheme is "http" or "https";
 
-    private static bool IsGitHubRepositoryUri(Uri uri)
-    {
-        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        var segments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
-        return segments.Length == 2 && !segments[1].EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static IEnumerable<string> GitHubArchiveCandidates(Uri repository, string reference)
+    internal static IReadOnlyList<string> GitHubArchiveCandidates(Uri repository, string reference)
     {
         var baseUri = repository.GetLeftPart(UriPartial.Authority) + repository.AbsolutePath.TrimEnd('/');
         if (baseUri.EndsWith(".git", StringComparison.OrdinalIgnoreCase))
@@ -130,9 +121,21 @@ internal static class RulesetSourceMaterializer
             "/",
             reference.Split('/', StringSplitOptions.RemoveEmptyEntries).Select(Uri.EscapeDataString));
 
-        yield return $"{baseUri}/archive/refs/heads/{escapedRef}.zip";
-        yield return $"{baseUri}/archive/refs/tags/{escapedRef}.zip";
-        yield return $"{baseUri}/archive/{Uri.EscapeDataString(reference)}.zip";
+        return
+        [
+            $"{baseUri}/archive/refs/heads/{escapedRef}.zip",
+            $"{baseUri}/archive/refs/tags/{escapedRef}.zip",
+            $"{baseUri}/archive/{Uri.EscapeDataString(reference)}.zip"
+        ];
+    }
+
+    private static bool IsGitHubRepositoryUri(Uri uri)
+    {
+        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var segments = uri.AbsolutePath.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 2 && !segments[1].EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
     }
 
     private static RulesetMaterializationResult ExtractArchive(
