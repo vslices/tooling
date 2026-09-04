@@ -217,16 +217,38 @@ internal static class VsirCommands
                     return 0;
                 }
 
-                Console.Error.WriteLine(
-                    "LOWER001: An existing materialization requires rebase, but no trustworthy deterministic baseline could be inferred. Run once with --from <previous-vsir> to establish lineage explicitly.");
-                return 1;
-            }
+                var configuredBaseline = await LoweringLineageBootstrap.TryResolveConfiguredBaseline(
+                    rulesetRoot,
+                    conventional,
+                    existing,
+                    source,
+                    cancellationToken);
 
-            rebased = await RebaseFromDeterministicBaseline(
-                next,
-                previousDeterministic,
-                existing,
-                cancellationToken);
+                if (configuredBaseline is null)
+                {
+                    Console.Error.WriteLine(
+                        "LOWER001: No trustworthy deterministic baseline could be inferred. Configure lineage.bootstrap.convention for the conventional materialization, or run once with --from <previous-vsir> to establish lineage explicitly.");
+                    return 1;
+                }
+
+                TerminalOutput.Detail(
+                    "Lineage bootstrap",
+                    ProjectConfiguration.DefaultLineageBootstrapConvention);
+
+                rebased = await RebaseFromDeterministicBaseline(
+                    next,
+                    configuredBaseline,
+                    existing,
+                    cancellationToken);
+            }
+            else
+            {
+                rebased = await RebaseFromDeterministicBaseline(
+                    next,
+                    previousDeterministic,
+                    existing,
+                    cancellationToken);
+            }
         }
 
         if (!rebased.IsSuccess)
