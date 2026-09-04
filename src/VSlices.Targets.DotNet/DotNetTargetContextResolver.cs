@@ -10,7 +10,8 @@ public static class DotNetTargetContextResolver
     public static async Task<(DotNetTargetContext? Context, VsirDiagnostic? Diagnostic)> Resolve(
         string vsirPath,
         string? namespaceOverride,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<string>? namespaceIgnoredFolders = null)
     {
         if (!string.IsNullOrWhiteSpace(namespaceOverride))
             return (new(null, namespaceOverride), null);
@@ -56,9 +57,16 @@ public static class DotNetTargetContextResolver
                 [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
                 StringSplitOptions.RemoveEmptyEntries);
 
-        var namespaceName = relativeSegments.Length == 0
+        var ignoredFolders = namespaceIgnoredFolders is null
+            ? null
+            : new HashSet<string>(namespaceIgnoredFolders, StringComparer.Ordinal);
+        var namespaceSegments = ignoredFolders is null || ignoredFolders.Count == 0
+            ? relativeSegments
+            : relativeSegments.Where(segment => !ignoredFolders.Contains(segment)).ToArray();
+
+        var namespaceName = namespaceSegments.Length == 0
             ? rootNamespace
-            : rootNamespace + "." + string.Join('.', relativeSegments);
+            : rootNamespace + "." + string.Join('.', namespaceSegments);
 
         return (new(project, namespaceName), null);
     }
