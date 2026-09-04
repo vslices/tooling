@@ -53,7 +53,7 @@ explicit CLI argument
 
 `targets.default` selects the normal target when `-to` is omitted. Explicit target arguments remain authoritative.
 
-C# namespace derivation can exclude exact directory segments from the project-relative VSIR path:
+C# namespace derivation can exclude directory segments from the project-relative VSIR path:
 
 ```yaml
 targets:
@@ -62,6 +62,9 @@ targets:
     namespace:
       ignore-folders:
         - Tickets
+        - Entities
+        - "*Internal"
+        - "Generated?"
 ```
 
 The normal namespace derivation remains:
@@ -71,15 +74,23 @@ evaluated RootNamespace
 + project-relative VSIR directory segments
 ```
 
-Configured `ignore-folders` entries are removed only when an entire path segment matches exactly. They do not use globbing, prefixes, suffixes, or regular expressions.
+Each `ignore-folders` entry is matched independently against each complete directory segment. Entries without wildcards are exact ordinal matches. Entries containing `*` or `?` use simple glob matching for that single segment. Patterns do not span path separators and are not regular expressions.
 
-Example:
+This makes project conventions reusable. For example, configuring `Entities` once excludes any directory segment named exactly `Entities`, regardless of which aggregate contains it:
 
 ```text
 RootNamespace: Tickets.Domain
-VSIR path:     Aggregates/Tickets/TicketCode.vsir
-ignore:        Tickets
-result:        Tickets.Domain.Aggregates
+VSIR path:     Aggregates/Orders/Entities/Address.vsir
+ignore:        Entities
+result:        Tickets.Domain.Aggregates.Orders
+```
+
+Likewise:
+
+```text
+ignore:        *Internal
+VSIR path:     Aggregates/Orders/EntitiesInternal/Address.vsir
+result:        Tickets.Domain.Aggregates.Orders
 ```
 
 An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
