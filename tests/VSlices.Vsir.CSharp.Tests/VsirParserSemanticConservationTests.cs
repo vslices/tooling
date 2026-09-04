@@ -92,6 +92,67 @@ public sealed class VsirParserSemanticConservationTests
     }
 
     [Fact]
+    public void Non_scalar_trait_entry_is_rejected_instead_of_disappearing()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Something
+            classification: value-object
+            shape: product
+            traits:
+              - transform
+              - imaginary:
+                  something: true
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR107");
+    }
+
+    [Fact]
+    public void Non_mapping_construction_step_is_rejected_instead_of_disappearing()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Something
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+              steps:
+                - ensure:
+                    condition:
+                      intrinsic: non-empty
+                      value: input.Value
+                    failure:
+                      message: required
+                - hey-I-am-semantics
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR108");
+    }
+
+    [Fact]
     public void Unsupported_root_semantics_are_rejected()
     {
         var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]") + "\nlifecycle:\n  imaginary: true\n");
