@@ -10,7 +10,11 @@ public static class DomainTypeValidator
         Require(document.Kind == "domain-type", "VSIR201", "Only kind 'domain-type' is supported.");
         Require(document.Classification == "value-object", "VSIR202", "Only classification 'value-object' is supported.");
         Require(document.Shape == "product", "VSIR203", "Only shape 'product' is supported.");
-        Require(document.Traits.SequenceEqual(["transform"]), "VSIR204", "The experimental lowering currently requires exactly trait 'transform'.");
+        Require(
+            document.Traits.SequenceEqual(["transform"]) ||
+            document.Traits.SequenceEqual(["identifier", "transform"]),
+            "VSIR204",
+            "The experimental model currently supports traits [transform] or [identifier, transform].");
         Require(document.State.Fields.Count > 0, "VSIR205", "State must contain at least one field.");
         Require(document.Representation.Fields.Count > 0, "VSIR206", "Representation must contain at least one field.");
         Require(document.Construction.Input.Fields.Count > 0, "VSIR207", "Construction input must contain at least one field.");
@@ -49,6 +53,28 @@ public static class DomainTypeValidator
                 var fieldName = value["input.".Length..];
                 Require(document.Construction.Input.Fields.Any(x => x.Name == fieldName), "VSIR212",
                     $"Condition references unknown input field '{fieldName}'.");
+            }
+        }
+
+        if (document.Equality is not null)
+        {
+            Require(
+                document.Equality.Intrinsic == "ordinal-equals",
+                "VSIR213",
+                $"Unsupported equality intrinsic '{document.Equality.Intrinsic}'.");
+
+            Require(
+                document.Equality.By.StartsWith("state.", StringComparison.Ordinal),
+                "VSIR214",
+                $"Equality currently requires a state reference, got '{document.Equality.By}'.");
+
+            if (document.Equality.By.StartsWith("state.", StringComparison.Ordinal))
+            {
+                var fieldName = document.Equality.By["state.".Length..];
+                Require(
+                    document.State.Fields.Any(x => x.Name == fieldName),
+                    "VSIR215",
+                    $"Equality references unknown state field '{fieldName}'.");
             }
         }
 
