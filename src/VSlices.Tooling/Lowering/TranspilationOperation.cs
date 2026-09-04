@@ -63,7 +63,8 @@ internal static class TranspilationOperation
                 lowered.Source!,
                 resolution.Path!,
                 target.Target!,
-                project)
+                project,
+                targetContext.Context!)
             : TranspilationResult.Failure(lowered.Diagnostics);
     }
 }
@@ -73,6 +74,7 @@ internal sealed record TranspilationResult(
     string? VsirPath,
     string? Target,
     VSlicesProjectContext? Project,
+    DotNetTargetContext? TargetContext,
     IReadOnlyList<VsirDiagnostic> Diagnostics)
 {
     public bool IsSuccess =>
@@ -80,15 +82,17 @@ internal sealed record TranspilationResult(
         VsirPath is not null &&
         Target is not null &&
         Project is not null &&
+        TargetContext is not null &&
         Diagnostics.Count == 0;
 
     public static TranspilationResult Success(
         string source,
         string path,
         string target,
-        VSlicesProjectContext project) =>
-        new(source, path, target, project, []);
+        VSlicesProjectContext project,
+        DotNetTargetContext targetContext) =>
+        new(source, path, target, project, targetContext, []);
 
     public static TranspilationResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
-        new(null, null, null, null, diagnostics.ToArray());
+        new(null, null, null, null, null, diagnostics.ToArray());
 }
