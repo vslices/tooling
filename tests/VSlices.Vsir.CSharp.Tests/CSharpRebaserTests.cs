@@ -122,6 +122,89 @@ public sealed class CSharpRebaserTests
     }
 
     [Fact]
+    public void Rebase_reports_baseline_human_and_next_for_a_concurrent_insertion()
+    {
+        const string previous = """
+            namespace Tickets.Domain;
+
+            public sealed class TicketCode;
+            """;
+        const string human = """
+            using static Something;
+
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketCode;
+
+            // human detail
+            """;
+        const string next = """
+            namespace Tickets.Domain.Aggregates.Tickets;
+
+            public sealed class TicketCode;
+            """;
+
+        var result = CSharpRebaser.Rebase(previous, human, next);
+
+        Assert.False(result.IsSuccess);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("REB004", diagnostic.Code);
+        Assert.Contains("Baseline insertion: <empty>", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Human insertion: '.Aggregates'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("Next deterministic insertion: '.Aggregates.Tickets'", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("--resolve deterministic", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rebase_can_resolve_only_the_conflicting_insertion_deterministically()
+    {
+        const string previous = """
+            namespace Tickets.Domain;
+
+            public sealed class TicketCode;
+            """;
+        const string human = """
+            using static Something;
+
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketCode;
+
+            // human detail
+            """;
+        const string next = """
+            namespace Tickets.Domain.Aggregates.Tickets;
+
+            public sealed class TicketCode;
+            """;
+
+        var result = CSharpRebaser.Rebase(
+            previous,
+            human,
+            next,
+            CSharpRebaseResolution.Deterministic);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Contains("namespace Tickets.Domain.Aggregates.Tickets;", result.Source, StringComparison.Ordinal);
+        Assert.Contains("using static Something;", result.Source, StringComparison.Ordinal);
+        Assert.Contains("// human detail", result.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Tickets.Domain.Aggregates;", result.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Rebase_accepts_an_insertion_that_the_human_projection_already_matches()
+    {
+        const string previous = "namespace Tickets.Domain;\nclass TicketCode;";
+        const string human = "namespace Tickets.Domain.Aggregates.Tickets;\nclass TicketCode;\n// human detail";
+        const string next = "namespace Tickets.Domain.Aggregates.Tickets;\nclass TicketCode;";
+
+        var result = CSharpRebaser.Rebase(previous, human, next);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Equal(human, result.Source);
+    }
+
+    [Fact]
     public void Rebase_is_identity_when_the_deterministic_projection_did_not_change()
     {
         const string baseline = "generated";
