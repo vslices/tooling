@@ -71,6 +71,54 @@ public sealed class LineageTests
     }
 
     [Fact]
+    public async Task Concurrent_namespace_insertion_reports_details_and_can_be_resolved_from_the_cli()
+    {
+        using var project = ReadyProject();
+        var vsir = project.WriteStreetName();
+        var materialization = vsir + ".cs";
+
+        var initial = await project.Run(project.Root,
+            "lower", vsir, "--namespace", "Tests.Domain");
+        Assert.Equal(0, initial.ExitCode);
+
+        var human = File.ReadAllText(materialization)
+            .Replace(
+                "namespace Tests.Domain;",
+                "namespace Tests.Domain.Aggregates;",
+                StringComparison.Ordinal);
+        File.WriteAllText(
+            materialization,
+            human + Environment.NewLine + "// human detail" + Environment.NewLine);
+
+        var conflict = await project.Run(project.Root,
+            "lower", vsir,
+            "--namespace", "Tests.Domain.Aggregates.Tickets");
+
+        Assert.Equal(1, conflict.ExitCode);
+        var conflictText = conflict.StandardError + conflict.StandardOutput;
+        Assert.Contains("REB004", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Baseline insertion: <empty>", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Human insertion: '.Aggregates'", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Next deterministic insertion: '.Aggregates.Tickets'", conflictText, StringComparison.Ordinal);
+        Assert.Contains("--resolve deterministic", conflictText, StringComparison.Ordinal);
+
+        var resolved = await project.Run(project.Root,
+            "lower", vsir,
+            "--namespace", "Tests.Domain.Aggregates.Tickets",
+            "--resolve", "deterministic");
+
+        Assert.Equal(0, resolved.ExitCode);
+        var source = File.ReadAllText(materialization);
+        Assert.Contains("namespace Tests.Domain.Aggregates.Tickets;", source, StringComparison.Ordinal);
+        Assert.Contains("// human detail", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("namespace Tests.Domain.Aggregates;", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "namespace Tests.Domain.Aggregates.Tickets;",
+            File.ReadAllText(project.BaselineFor(materialization)),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Source_override_does_not_receive_bootstrap_authority_without_ancestry()
     {
         using var project = ReadyProject();
