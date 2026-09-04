@@ -22,20 +22,6 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
-        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
-        {
-            diagnostics.Add(new(
-                "CSL020",
-                "No deterministic C# lowering mechanism is available yet for trait 'identifier'."));
-        }
-
-        if (document.Equality is not null)
-        {
-            diagnostics.Add(new(
-                "CSL021",
-                $"No deterministic C# lowering mechanism is available yet for equality '{document.Equality.Intrinsic}' by '{document.Equality.By}'."));
-        }
-
         foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
         {
             if (ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal) &&
@@ -55,6 +41,9 @@ public static class CSharpLowerer
             }
         }
 
+        if (document.Equality is not null)
+            ValidateEqualityRules(document.Equality, context.Rules, diagnostics);
+
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
@@ -62,12 +51,15 @@ public static class CSharpLowerer
         var inputFields = document.Construction.Input.Fields;
         var reprFields = document.Representation.Fields;
         var stateFields = document.State.Fields;
+        var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
 
         var source = new StringBuilder();
         source.AppendLine($"namespace {context.Namespace};");
         source.AppendLine();
         source.AppendLine($"public sealed class {typeName} :");
-        source.AppendLine($"    DomainType<{typeName}, {typeName}.Repr>,");
+        source.AppendLine(isIdentifier
+            ? $"    Identifier<{typeName}, {typeName}.Repr>,"
+            : $"    DomainType<{typeName}, {typeName}.Repr>,");
         source.AppendLine($"    Transform<{typeName}, {typeName}.Input>");
         source.AppendLine("{");
         source.AppendLine($"    public readonly record struct Repr({Parameters(reprFields)});");
@@ -85,16 +77,31 @@ public static class CSharpLowerer
         source.AppendLine($"    public static VSlices.Arrows.Req<Input, {typeName}>.Full Invariants =>");
 
         var ensures = document.Construction.Steps.OfType<EnsureStep>().ToArray();
-        for (var i = 0; i < ensures.Length; i++)
+        if (ensures.Length == 0)
         {
-            var prefix = i == 0 ? "        " : "        >> ";
-            source.AppendLine(prefix + RenderEnsure(typeName, ensures[i], context.Rules));
+            source.AppendLine($"        VSlices.Arrows.Req<Input, {typeName}>.Transform((Input input) => Instance(input));");
+        }
+        else
+        {
+            for (var i = 0; i < ensures.Length; i++)
+            {
+                var prefix = i == 0 ? "        " : "        >> ";
+                source.AppendLine(prefix + RenderEnsure(typeName, ensures[i], context.Rules));
+            }
+
+            source.AppendLine("        * Instance;");
         }
 
-        source.AppendLine("        * Instance;");
         source.AppendLine();
         source.AppendLine($"    private static {typeName} Instance(Input input) =>");
         source.AppendLine($"        new({string.Join(", ", stateFields.Select(x => "input." + x.Name))});");
+
+        if (document.Equality is not null)
+        {
+            source.AppendLine();
+            RenderEquality(source, typeName, document.Equality, context.Rules);
+        }
+
         source.AppendLine();
         source.AppendLine("    public Repr To() =>");
         source.AppendLine($"        new({string.Join(", ", reprFields.Select(x => "_" + Camel(x.Name)))});");
@@ -102,6 +109,96 @@ public static class CSharpLowerer
 
         return new(source.ToString(), []);
     }
+
+    private static void ValidateEqualityRules(
+        EqualitySemantics equality,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var field = EqualityStateField(equality);
+        var member = "_" + Camel(field);
+
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "equals"),
+                new Dictionary<string, string>
+                {
+                    ["left"] = member,
+                    ["right"] = "other." + member
+                },
+                out _))
+        {
+            diagnostics.Add(new(
+                "CSL021",
+                $"No deterministic C# equality rule is available for '{equality.Intrinsic}'."));
+        }
+
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "hash"),
+                new Dictionary<string, string>
+                {
+                    ["value"] = member
+                },
+                out _))
+        {
+            diagnostics.Add(new(
+                "CSL022",
+                $"No deterministic C# hash rule is available for equality '{equality.Intrinsic}'."));
+        }
+    }
+
+    private static void RenderEquality(
+        StringBuilder source,
+        string typeName,
+        EqualitySemantics equality,
+        CSharpLoweringRuleSet rules)
+    {
+        var field = EqualityStateField(equality);
+        var member = "_" + Camel(field);
+
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "equals"),
+                new Dictionary<string, string>
+                {
+                    ["left"] = member,
+                    ["right"] = "other." + member
+                },
+                out var equalsExpression))
+        {
+            throw new InvalidOperationException("Validated equality rule became unavailable.");
+        }
+
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "hash"),
+                new Dictionary<string, string>
+                {
+                    ["value"] = member
+                },
+                out var hashExpression))
+        {
+            throw new InvalidOperationException("Validated equality hash rule became unavailable.");
+        }
+
+        source.AppendLine($"    public bool Equals({typeName}? other) =>");
+        source.AppendLine($"        other is not null && {equalsExpression};");
+        source.AppendLine();
+        source.AppendLine("    public override bool Equals(object? obj) =>");
+        source.AppendLine($"        Equals(obj as {typeName});");
+        source.AppendLine();
+        source.AppendLine("    public override int GetHashCode() =>");
+        source.AppendLine($"        {hashExpression};");
+        source.AppendLine();
+        source.AppendLine($"    public static bool operator ==({typeName}? left, {typeName}? right) =>");
+        source.AppendLine("        Equals(left, right);");
+        source.AppendLine();
+        source.AppendLine($"    public static bool operator !=({typeName}? left, {typeName}? right) =>");
+        source.AppendLine("        !(left == right);");
+    }
+
+    private static string EqualityNode(EqualitySemantics equality, string operation) =>
+        $"equality.{equality.Intrinsic}.{operation}";
+
+    private static string EqualityStateField(EqualitySemantics equality) =>
+        equality.By["state.".Length..];
 
     private static string RenderEnsure(
         string typeName,
