@@ -22,6 +22,20 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
+        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            diagnostics.Add(new(
+                "CSL020",
+                "No deterministic C# lowering mechanism is available yet for trait 'identifier'."));
+        }
+
+        if (document.Equality is not null)
+        {
+            diagnostics.Add(new(
+                "CSL021",
+                $"No deterministic C# lowering mechanism is available yet for equality '{document.Equality.Intrinsic}' by '{document.Equality.By}'."));
+        }
+
         foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
         {
             if (ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal) &&
