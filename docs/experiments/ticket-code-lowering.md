@@ -30,7 +30,7 @@ Human maintainer interest may therefore prioritize which evidence-compatible exp
 
 ## Current experiment
 
-The next question is whether normalization needs a new Ruleset execution primitive or whether the existing deterministic `expression` renderer is already sufficient once Tooling provides reusable normalization dataflow.
+The current question is whether normalization needs a new Ruleset execution primitive or whether the existing deterministic `expression` renderer is already sufficient once Tooling provides reusable normalization dataflow.
 
 Tooling now processes construction steps in order and carries a reference-to-expression environment through the lowering pipeline.
 
@@ -50,7 +50,7 @@ bindings:
   value: <current expression for input.Value>
 ```
 
-If the rule exists, the returned expression becomes the new expression for that target and is used by later ensures and final state construction.
+If the rule exists, the returned expression becomes the new expression for that target and is used by later ensures and final state construction. This preserves the ordering of the construction steps without encoding `Trim()` or another target-specific operation directly in Tooling.
 
 A test-only Ruleset rule:
 
@@ -61,9 +61,9 @@ A test-only Ruleset rule:
   template: "{value}.Trim()"
 ```
 
-demonstrates that no new renderer or execution primitive is required for the current TicketCode semantics: the existing expression renderer can produce both the normalized validation expression and normalized state construction.
+demonstrates that the existing rule primitive is sufficient for the currently observed TicketCode semantics. With only that test rule added, the generated witness applies the normalized expression both to the following `non-empty` ensure and to final state construction.
 
-The repository Ruleset intentionally still does **not** contain `intrinsic.trim`.
+No new renderer mode is introduced, and the repository Ruleset intentionally still does **not** contain `intrinsic.trim`.
 
 ## Expected next observation
 
@@ -82,7 +82,7 @@ CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'
 If that occurs, the experiment has discriminated the two layers:
 
 ```text
-normalization dataflow / execution mechanism -> Tooling, now demonstrated
+normalization dataflow / execution mechanism -> Tooling, demonstrated
 trim realization knowledge                 -> Ruleset, still missing
 ```
 
