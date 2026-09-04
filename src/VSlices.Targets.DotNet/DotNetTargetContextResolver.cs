@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Enumeration;
 using VSlices.Vsir;
 
 namespace VSlices.Targets.DotNet;
@@ -57,12 +58,15 @@ public static class DotNetTargetContextResolver
                 [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
                 StringSplitOptions.RemoveEmptyEntries);
 
-        var ignoredFolders = namespaceIgnoredFolders is null
-            ? null
-            : new HashSet<string>(namespaceIgnoredFolders, StringComparer.Ordinal);
-        var namespaceSegments = ignoredFolders is null || ignoredFolders.Count == 0
+        var ignorePatterns = namespaceIgnoredFolders?
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToArray() ?? [];
+
+        var namespaceSegments = ignorePatterns.Length == 0
             ? relativeSegments
-            : relativeSegments.Where(segment => !ignoredFolders.Contains(segment)).ToArray();
+            : relativeSegments
+                .Where(segment => !MatchesAnyFolderPattern(segment, ignorePatterns))
+                .ToArray();
 
         var namespaceName = namespaceSegments.Length == 0
             ? rootNamespace
@@ -70,6 +74,15 @@ public static class DotNetTargetContextResolver
 
         return (new(project, namespaceName), null);
     }
+
+    private static bool MatchesAnyFolderPattern(string segment, IReadOnlyList<string> patterns) =>
+        patterns.Any(pattern =>
+            pattern.IndexOfAny(['*', '?']) < 0
+                ? segment.Equals(pattern, StringComparison.Ordinal)
+                : FileSystemName.MatchesSimpleExpression(
+                    pattern,
+                    segment,
+                    ignoreCase: false));
 
     private static string? FindProject(string startDirectory)
     {
