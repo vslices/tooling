@@ -325,7 +325,7 @@ Developers may follow the newest successful build of a pull request:
 updates:
   source: https://github.com/vslices/tooling
   channel: build
-  pull-request: 3
+  pull-request: 4
 ```
 
 The updater resolves the newest successful run automatically. CLI flags for channel or pull request are overrides for diagnostics, CI, experiments or recovery rather than the preferred daily workflow.
