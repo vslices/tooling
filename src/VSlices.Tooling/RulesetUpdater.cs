@@ -128,8 +128,12 @@ internal static class RulesetUpdater
 
     private static string ResolveSource(string source, string? reference)
     {
-        if (Directory.Exists(Path.GetFullPath(source, Environment.CurrentDirectory)))
-            return source;
+        if (!IsRemoteSource(source))
+        {
+            var local = Path.GetFullPath(source, Environment.CurrentDirectory);
+            if (Directory.Exists(local))
+                return source;
+        }
 
         if (source.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(reference))
@@ -157,9 +161,12 @@ internal static class RulesetUpdater
         string staging,
         CancellationToken cancellationToken)
     {
-        var local = Path.GetFullPath(source, Environment.CurrentDirectory);
-        if (Directory.Exists(local))
-            return local;
+        if (!IsRemoteSource(source))
+        {
+            var local = Path.GetFullPath(source, Environment.CurrentDirectory);
+            if (Directory.Exists(local))
+                return local;
+        }
 
         if (!Uri.TryCreate(source, UriKind.Absolute, out var uri) ||
             uri.Scheme is not ("http" or "https"))
