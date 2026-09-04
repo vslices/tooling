@@ -8,6 +8,12 @@
 
     <AssemblyName>vslices</AssemblyName>
     <PublishAot>true</PublishAot>
+    <!--
+      The managed semantic-refactoring companion participates in the restore/build
+      graph only; it is not linked into the Native AOT executable. Allow that
+      intentional self-contained -> framework-dependent executable project edge.
+    -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
 
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>vslices</ToolCommandName>
