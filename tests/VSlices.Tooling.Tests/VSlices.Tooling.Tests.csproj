@@ -11,9 +11,12 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4">
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
+    <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticNamespaceMovePreflight.cs" Link="Linked/SemanticNamespaceMovePreflight.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticRefactoringAuthorization.cs" Link="Linked/SemanticRefactoringAuthorization.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/TransactionalFileWriter.cs" Link="Linked/TransactionalFileWriter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Updates/SemanticRefactoringCompanionHealth.cs" Link="Linked/SemanticRefactoringCompanionHealth.cs" />
