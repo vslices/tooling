@@ -53,6 +53,37 @@ explicit CLI argument
 
 `targets.default` selects the normal target when `-to` is omitted. Explicit target arguments remain authoritative.
 
+C# namespace derivation can exclude exact directory segments from the project-relative VSIR path:
+
+```yaml
+targets:
+  default: csharp
+  csharp:
+    namespace:
+      ignore-folders:
+        - Tickets
+```
+
+The normal namespace derivation remains:
+
+```text
+evaluated RootNamespace
++ project-relative VSIR directory segments
+```
+
+Configured `ignore-folders` entries are removed only when an entire path segment matches exactly. They do not use globbing, prefixes, suffixes, or regular expressions.
+
+Example:
+
+```text
+RootNamespace: Tickets.Domain
+VSIR path:     Aggregates/Tickets/TicketCode.vsir
+ignore:        Tickets
+result:        Tickets.Domain.Aggregates
+```
+
+An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
+
 ## Ruleset provenance
 
 `ruleset.source` records where the project-local snapshot is acquired from.
