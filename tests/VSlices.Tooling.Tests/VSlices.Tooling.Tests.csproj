@@ -16,5 +16,6 @@
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticRefactoringAuthorization.cs" Link="Linked/SemanticRefactoringAuthorization.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/TransactionalFileWriter.cs" Link="Linked/TransactionalFileWriter.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Updates/SemanticRefactoringCompanionHealth.cs" Link="Linked/SemanticRefactoringCompanionHealth.cs" />
   </ItemGroup>
 </Project>
