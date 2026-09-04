@@ -42,7 +42,8 @@ internal static class TranspilationOperation
         var targetContext = await DotNetTargetContextResolver.Resolve(
             resolution.Path!,
             namespaceOverride,
-            cancellationToken);
+            cancellationToken,
+            project.Configuration.CSharpNamespaceIgnoredFolders);
 
         if (targetContext.Diagnostic is not null)
             return TranspilationResult.Failure([targetContext.Diagnostic]);
