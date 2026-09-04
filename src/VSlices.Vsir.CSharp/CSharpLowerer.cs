@@ -22,6 +22,13 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
+        foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
+        {
+            diagnostics.Add(new(
+                "CSL030",
+                $"Construction step 'normalize' is represented but not supported by the current C# lowerer (intrinsic '{normalize.Intrinsic}', target '{normalize.Target}')."));
+        }
+
         foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
         {
             if (ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal) &&
