@@ -78,6 +78,14 @@ public static class DomainTypeValidator
             }
         }
 
+        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            Require(
+                document.Equality is not null,
+                "VSIR216",
+                "Trait 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
+        }
+
         return diagnostics;
 
         void Require(bool condition, string code, string message)
