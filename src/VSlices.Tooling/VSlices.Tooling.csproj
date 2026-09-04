@@ -34,6 +34,16 @@
     <ProjectReference Include="..\VSlices.Targets.DotNet\VSlices.Targets.DotNet.csproj" />
     <ProjectReference Include="..\VSlices.Vsir\VSlices.Vsir.csproj" />
     <ProjectReference Include="..\VSlices.Vsir.CSharp\VSlices.Vsir.CSharp.csproj" />
+    <!--
+      Keep the managed Roslyn companion in the restore/build graph without linking it
+      into the Native AOT executable. Its package-generated content files (notably
+      MSBuildWorkspace BuildHost-netcore) must exist before the post-publish helper
+      invocation is evaluated on a clean machine.
+    -->
+    <ProjectReference
+      Include="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
+      ReferenceOutputAssembly="false"
+      PrivateAssets="all" />
   </ItemGroup>
 
   <Target Name="PublishSemanticRefactoringHelper" AfterTargets="Publish">
@@ -42,7 +52,7 @@
     </PropertyGroup>
     <MSBuild
       Projects="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
-      Targets="Restore;Publish"
+      Targets="Publish"
       Properties="Configuration=$(Configuration);PublishDir=$(SemanticRefactoringPublishDir);SelfContained=false;RuntimeIdentifier=" />
     <Error
       Condition="!Exists('$(SemanticRefactoringPublishDir)VSlices.Targets.DotNet.Refactor.dll')"
