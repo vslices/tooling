@@ -10,7 +10,7 @@ internal sealed record ProjectConfiguration(
     string? UpdateSource,
     string? UpdateChannel,
     int? UpdatePullRequest = null,
-    string? LineageBootstrapConvention = null)
+    string? LineageBootstrapConvention = "existing-materialization")
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
