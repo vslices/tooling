@@ -137,7 +137,7 @@ internal static class LoweringCoordinator
             humanBefore,
             rebased.Source!);
 
-        if (semanticMove is not null)
+        if (semanticMove is not null && next.TargetContext?.ProjectPath is not null)
         {
             if (stdout || output == "-" || !string.IsNullOrWhiteSpace(output))
             {
