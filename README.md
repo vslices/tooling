@@ -52,7 +52,7 @@ vslices/ruleset
 target-native tooling
 ```
 
-When work begins from a consumer repository such as `atom-dev-serviu/account-management-product`, inspect its concrete `.vsir`, `.vsir.cs`, `.vslices/config.yaml`, local `.vslices/ruleset`, surrounding source/tests and target context before deciding that Tooling or the official ruleset must change.
+When work begins from a consumer repository such as `atom-dev-serviu/access-management-product`, inspect its concrete `.vsir`, `.vsir.cs`, `.vslices/config.yaml`, local `.vslices/ruleset`, surrounding source/tests and target context before deciding that Tooling or the official ruleset must change.
 
 The intended causal chain is:
 
@@ -190,7 +190,7 @@ By default it writes the sibling materialization and refuses to overwrite an exi
 
 `rebase` reconstructs the previous deterministic projection, compares it with the human-edited materialization, and applies a compatible deterministic VSIR change conservatively.
 
-The previous VSIR baseline is currently explicit through `--from`; automatic provenance reconstruction remains future work.
+The previous VSIR baseline may be explicit through `--from`. Normal `lower` usage now records project-local deterministic baselines under `.vslices/lineage/` and reuses them when available; explicit `--from` remains the recovery path when trustworthy ancestry cannot otherwise be established.
 
 ### `lower`
 
@@ -201,13 +201,21 @@ The current conservative behavior is:
 ```text
 no materialization
   -> transpile
+  -> record deterministic baseline
 
-existing materialization + explicit previous baseline
-  -> rebase
+existing materialization + recorded deterministic baseline
+  -> rebase automatically
+  -> update deterministic baseline
+
+existing materialization + no recorded baseline + exact current deterministic match
+  -> establish lineage without rewriting the materialization
 
 existing materialization + unknown ancestry
   -> stop
+  -> allow explicit --from to establish the missing baseline
 ```
+
+The lineage store is operational evidence for rebase. It is not semantic authority and must not be used to repair or reinterpret `.vsir` semantics.
 
 It must not invent ancestry merely to keep the command moving.
 
@@ -354,6 +362,8 @@ rebase/provenance gap
 presentation-only gap
 no gap
 ```
+
+The Ticket Support `TicketId.vsir` case is the current concrete semantic-boundary example. It declares `traits: [identifier, transform]` and `equality: { intrinsic: ordinal-equals, by: state.Value }`. Tooling now represents and validates those semantics rather than silently discarding or rejecting them as structurally unknown. C# lowering still rejects them explicitly until a deterministic identifier/equality lowering mechanism is justified. This preserves the distinction between semantic validity and target lowering knowledge.
 
 This classification is especially important when analyzing a consumer repository and coordinating changes between that repository, `vslices/tooling`, and `vslices/ruleset`.
 
