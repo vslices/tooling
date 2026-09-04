@@ -22,29 +22,45 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
-        foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
+        var validationReferences = InitialInputReferences(document.Construction.Input.Fields);
+        foreach (var step in document.Construction.Steps)
         {
-            diagnostics.Add(new(
-                "CSL030",
-                $"Construction step 'normalize' is represented but not supported by the current C# lowerer (intrinsic '{normalize.Intrinsic}', target '{normalize.Target}')."));
-        }
-
-        foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
-        {
-            if (ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal) &&
-                ensure.Condition is not LengthAtMostCondition)
+            switch (step)
             {
-                diagnostics.Add(new(
-                    "CSL001",
-                    "Placeholder '{length}' is currently only defined for length-at-most failures."));
-            }
+                case NormalizeStep normalize:
+                {
+                    var (node, bindings) = DescribeNormalization(normalize, validationReferences);
+                    if (!context.Rules.TryRenderDeterministicExpression(node, bindings, out var normalizedExpression))
+                    {
+                        diagnostics.Add(new(
+                            "CSL031",
+                            $"No deterministic C# normalization rule is available for '{node}'."));
+                        break;
+                    }
 
-            var (node, bindings) = DescribeCondition(ensure.Condition);
-            if (!context.Rules.TryRenderDeterministicExpression(node, bindings, out _))
-            {
-                diagnostics.Add(new(
-                    "CSL010",
-                    $"No deterministic C# lowering rule is available for '{node}'."));
+                    validationReferences[normalize.Target] = normalizedExpression;
+                    break;
+                }
+                case EnsureStep ensure:
+                {
+                    if (ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal) &&
+                        ensure.Condition is not LengthAtMostCondition)
+                    {
+                        diagnostics.Add(new(
+                            "CSL001",
+                            "Placeholder '{length}' is currently only defined for length-at-most failures."));
+                    }
+
+                    var (node, bindings) = DescribeCondition(ensure.Condition, validationReferences);
+                    if (!context.Rules.TryRenderDeterministicExpression(node, bindings, out _))
+                    {
+                        diagnostics.Add(new(
+                            "CSL010",
+                            $"No deterministic C# lowering rule is available for '{node}'."));
+                    }
+
+                    break;
+                }
             }
         }
 
@@ -59,6 +75,27 @@ public static class CSharpLowerer
         var reprFields = document.Representation.Fields;
         var stateFields = document.State.Fields;
         var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
+        var renderedReferences = InitialInputReferences(inputFields);
+        var renderedEnsures = new List<string>();
+
+        foreach (var step in document.Construction.Steps)
+        {
+            switch (step)
+            {
+                case NormalizeStep normalize:
+                {
+                    var (node, bindings) = DescribeNormalization(normalize, renderedReferences);
+                    if (!context.Rules.TryRenderDeterministicExpression(node, bindings, out var normalizedExpression))
+                        throw new InvalidOperationException($"Validated normalization rule '{node}' became unavailable.");
+
+                    renderedReferences[normalize.Target] = normalizedExpression;
+                    break;
+                }
+                case EnsureStep ensure:
+                    renderedEnsures.Add(RenderEnsure(typeName, ensure, context.Rules, renderedReferences));
+                    break;
+            }
+        }
 
         var source = new StringBuilder();
         source.AppendLine($"namespace {context.Namespace};");
@@ -83,17 +120,16 @@ public static class CSharpLowerer
         source.AppendLine();
         source.AppendLine($"    public static VSlices.Arrows.Req<Input, {typeName}>.Full Invariants =>");
 
-        var ensures = document.Construction.Steps.OfType<EnsureStep>().ToArray();
-        if (ensures.Length == 0)
+        if (renderedEnsures.Count == 0)
         {
             source.AppendLine($"        VSlices.Arrows.Req<Input, {typeName}>.Transform((Input input) => Instance(input));");
         }
         else
         {
-            for (var i = 0; i < ensures.Length; i++)
+            for (var i = 0; i < renderedEnsures.Count; i++)
             {
                 var prefix = i == 0 ? "        " : "        >> ";
-                source.AppendLine(prefix + RenderEnsure(typeName, ensures[i], context.Rules));
+                source.AppendLine(prefix + renderedEnsures[i]);
             }
 
             source.AppendLine("        * Instance;");
@@ -101,7 +137,7 @@ public static class CSharpLowerer
 
         source.AppendLine();
         source.AppendLine($"    private static {typeName} Instance(Input input) =>");
-        source.AppendLine($"        new({string.Join(", ", stateFields.Select(x => "input." + x.Name))});");
+        source.AppendLine($"        new({string.Join(", ", stateFields.Select(x => ResolveReference("input." + x.Name, renderedReferences)))});");
 
         if (document.Equality is not null)
         {
@@ -210,44 +246,70 @@ public static class CSharpLowerer
     private static string RenderEnsure(
         string typeName,
         EnsureStep ensure,
-        CSharpLoweringRuleSet rules)
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> references)
     {
-        var (node, bindings) = DescribeCondition(ensure.Condition);
+        var (node, bindings) = DescribeCondition(ensure.Condition, references);
         if (!rules.TryRenderDeterministicExpression(node, bindings, out var expression))
             throw new InvalidOperationException($"Validated lowering rule '{node}' became unavailable.");
 
         var predicate =
             $"VSlices.Arrows.Req<Input, {typeName}>.Ensure((Input input) => {expression}";
 
-        return $"{predicate}, Fail: {RenderFailure(ensure)})";
+        return $"{predicate}, Fail: {RenderFailure(ensure, references)})";
     }
 
-    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeCondition(Condition condition) =>
+    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeNormalization(
+        NormalizeStep normalize,
+        IReadOnlyDictionary<string, string> references) =>
+        ($"intrinsic.{normalize.Intrinsic}", new Dictionary<string, string>
+        {
+            ["value"] = ResolveReference(normalize.Target, references)
+        });
+
+    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeCondition(
+        Condition condition,
+        IReadOnlyDictionary<string, string> references) =>
         condition switch
         {
             NonEmptyCondition x =>
                 ("intrinsic.non-empty", new Dictionary<string, string>
                 {
-                    ["value"] = Reference(x.Value)
+                    ["value"] = ResolveReference(x.Value, references)
                 }),
             LengthAtMostCondition x =>
                 ("intrinsic.length-at-most", new Dictionary<string, string>
                 {
-                    ["value"] = Reference(x.Value),
+                    ["value"] = ResolveReference(x.Value, references),
                     ["max"] = x.Max.ToString()
                 }),
             _ => throw new InvalidOperationException("Unsupported condition reached C# lowering.")
         };
 
-    private static string RenderFailure(EnsureStep ensure)
+    private static string RenderFailure(
+        EnsureStep ensure,
+        IReadOnlyDictionary<string, string> references)
     {
         var literal = Quote(ensure.FailureMessage);
         if (!ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal))
             return literal;
 
         var condition = (LengthAtMostCondition)ensure.Condition;
-        return $"(Input input) => {literal}.Replace(\"{{length}}\", {Reference(condition.Value)}.Length.ToString())";
+        return $"(Input input) => {literal}.Replace(\"{{length}}\", {ResolveReference(condition.Value, references)}.Length.ToString())";
     }
+
+    private static Dictionary<string, string> InitialInputReferences(IReadOnlyList<Field> fields) =>
+        fields.ToDictionary(
+            field => "input." + field.Name,
+            field => "input." + field.Name,
+            StringComparer.Ordinal);
+
+    private static string ResolveReference(
+        string reference,
+        IReadOnlyDictionary<string, string> references) =>
+        references.TryGetValue(reference, out var expression)
+            ? expression
+            : reference;
 
     private static string ConstructorAssignment(IReadOnlyList<Field> fields)
     {
@@ -261,8 +323,6 @@ public static class CSharpLowerer
         var right = string.Join(", ", fields.Select(x => Camel(x.Name)));
         return $"({left}) = ({right})";
     }
-
-    private static string Reference(string value) => value;
 
     private static string Parameters(IReadOnlyList<Field> fields, bool camelNames = false) =>
         string.Join(", ", fields.Select(field =>
