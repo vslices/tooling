@@ -117,7 +117,9 @@ internal static class SelfUpdater
 
         var currentVersion = CurrentVersion();
         var releaseVersion = NormalizeVersion(release.TagName);
-        if (NormalizeVersion(currentVersion) == releaseVersion)
+        var sameVersion = NormalizeVersion(currentVersion) == releaseVersion;
+        var needsCompanionRepair = sameVersion && !SemanticRefactoringCompanionInstalled();
+        if (sameVersion && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentVersion, release.TagName, rid);
             TerminalOutput.BlankLine();
@@ -142,9 +144,14 @@ internal static class SelfUpdater
 
         if (checkOnly)
         {
-            TerminalOutput.Info($"→ {release.TagName} is available");
+            TerminalOutput.Info(needsCompanionRepair
+                ? "→ The current VSlices version is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                : $"→ {release.TagName} is available");
             return 0;
         }
+
+        if (needsCompanionRepair)
+            TerminalOutput.Info("→ Repairing the semantic-refactoring companion for the current VSlices version");
 
         return await InstallArchivePair(
             http,
@@ -179,8 +186,11 @@ internal static class SelfUpdater
         }
 
         var buildIdentity = $"build{pullRequest}.{run.RunNumber}";
-        var currentIdentity = CurrentBuildIdentity() ?? CurrentVersion();
-        if (CurrentBuildIdentity() == buildIdentity)
+        var currentBuildIdentity = CurrentBuildIdentity();
+        var currentIdentity = currentBuildIdentity ?? CurrentVersion();
+        var sameBuild = currentBuildIdentity == buildIdentity;
+        var needsCompanionRepair = sameBuild && !SemanticRefactoringCompanionInstalled();
+        if (sameBuild && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
             TerminalOutput.BlankLine();
@@ -209,9 +219,14 @@ internal static class SelfUpdater
 
         if (checkOnly)
         {
-            TerminalOutput.Info($"→ {buildIdentity} is available");
+            TerminalOutput.Info(needsCompanionRepair
+                ? "→ The current PR build is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                : $"→ {buildIdentity} is available");
             return 0;
         }
+
+        if (needsCompanionRepair)
+            TerminalOutput.Info("→ Repairing the semantic-refactoring companion for the current PR build");
 
         var staging = Path.Combine(Path.GetTempPath(), "vslices-build-update-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -439,6 +454,12 @@ internal static class SelfUpdater
         }
     }
 
+    private static bool SemanticRefactoringCompanionInstalled() =>
+        File.Exists(Path.Combine(
+            AppContext.BaseDirectory,
+            "refactor",
+            "VSlices.Targets.DotNet.Refactor.dll"));
+
     private static void ShowResolvedUpdate(string current, string latest, string rid)
     {
         TerminalOutput.Detail("Current", current);
@@ -501,7 +522,7 @@ internal static class SelfUpdater
         CancellationToken cancellationToken)
     {
         var url = $"https://api.github.com/repos/{owner}/{repository}/actions/workflows/ci.yml/runs?event=pull_request&status=success&per_page=100";
-        await using var stream = await http.GetStreamAsync(url, cancellationToken);
+        await using var stream = await http.GetStreamAsync(url, cancellationToken: cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("workflow_runs", out var runs))
@@ -536,7 +557,7 @@ internal static class SelfUpdater
         CancellationToken cancellationToken)
     {
         var url = $"https://api.github.com/repos/{owner}/{repository}/actions/runs/{runId}/artifacts?per_page=100";
-        await using var stream = await http.GetStreamAsync(url, cancellationToken);
+        await using var stream = await http.GetStreamAsync(url, cancellationToken: cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("artifacts", out var artifacts))
