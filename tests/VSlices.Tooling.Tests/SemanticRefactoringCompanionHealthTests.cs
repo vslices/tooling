@@ -16,13 +16,35 @@ public sealed class SemanticRefactoringCompanionHealthTests
     }
 
     [Fact]
-    public void Installed_companion_suppresses_notification()
+    public void Root_companion_without_msbuild_build_host_is_still_incomplete()
     {
         using var temp = TempDirectory.Create();
         var refactor = Path.Combine(temp.Path, "refactor");
         Directory.CreateDirectory(refactor);
         File.WriteAllText(
             Path.Combine(refactor, "VSlices.Targets.DotNet.Refactor.dll"),
+            "test");
+
+        var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
+            ["--version"],
+            Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
+            temp.Path);
+
+        Assert.True(shouldNotify);
+    }
+
+    [Fact]
+    public void Complete_companion_suppresses_notification()
+    {
+        using var temp = TempDirectory.Create();
+        var refactor = Path.Combine(temp.Path, "refactor");
+        var buildHost = Path.Combine(refactor, "BuildHost-netcore");
+        Directory.CreateDirectory(buildHost);
+        File.WriteAllText(
+            Path.Combine(refactor, "VSlices.Targets.DotNet.Refactor.dll"),
+            "test");
+        File.WriteAllText(
+            Path.Combine(buildHost, "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll"),
             "test");
 
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
