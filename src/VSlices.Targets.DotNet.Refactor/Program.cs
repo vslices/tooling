@@ -93,8 +93,11 @@ internal static class NamespaceMovePlanner
 #pragma warning disable CS0618
         workspace.WorkspaceFailed += (_, eventArgs) =>
         {
-            if (eventArgs.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure)
+            if (eventArgs.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure &&
+                !IsNuGetPruneAdvisory(eventArgs.Diagnostic.Message))
+            {
                 workspaceFailures.Add(eventArgs.Diagnostic.Message);
+            }
         };
 #pragma warning restore CS0618
 
@@ -532,6 +535,10 @@ internal static class NamespaceMovePlanner
         }
         return null;
     }
+
+    private static bool IsNuGetPruneAdvisory(string message) =>
+        message.Contains("will not be pruned", StringComparison.OrdinalIgnoreCase) ||
+        message.Contains("prune package", StringComparison.OrdinalIgnoreCase);
 
     private static bool PathEquals(string? left, string right) =>
         left is not null &&
