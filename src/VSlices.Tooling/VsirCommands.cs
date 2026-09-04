@@ -59,7 +59,7 @@ internal static class VsirCommands
         if (string.IsNullOrWhiteSpace(from))
         {
             Console.Error.WriteLine(
-                "CLI040: Rebase needs the previous VSIR baseline. Specify --from <previous-vsir>. Automatic provenance is not implemented yet.");
+                "CLI040: Rebase needs the previous VSIR baseline. Specify --from <previous-vsir>. Automatic provenance is currently orchestrated by 'vslices lower'.");
             return 2;
         }
 
@@ -89,7 +89,7 @@ internal static class VsirCommands
     /// <summary>Lowers a VSIR artifact using the least powerful currently available mechanism.</summary>
     /// <param name="subject">VSIR symbol or path.</param>
     /// <param name="to">-to, Optional target language. Inferred when exactly one supported target is installed.</param>
-    /// <param name="from">Previous VSIR baseline when an existing materialization requires rebase.</param>
+    /// <param name="from">Previous VSIR baseline override when automatic lineage cannot be established.</param>
     /// <param name="source">Existing human-edited materialization override.</param>
     /// <param name="output">-o, Optional output path.</param>
     /// <param name="stdout">Write the result to standard output instead of a file. Equivalent to -o -.</param>
@@ -149,28 +149,85 @@ internal static class VsirCommands
                 return 1;
             }
 
-            return await WriteLoweredResult(
+            var exitCode = await WriteLoweredResult(
                 lowered,
                 output,
                 stdout,
                 overwrite: false,
                 cancellationToken);
+
+            if (exitCode == 0 && TryResolveWrittenPath(conventional, output, stdout, out var writtenPath))
+            {
+                await LoweringLineageStore.TryWrite(
+                    rulesetRoot,
+                    writtenPath!,
+                    target.Target!,
+                    lowered.Source!,
+                    cancellationToken);
+            }
+
+            return exitCode;
         }
 
-        if (string.IsNullOrWhiteSpace(from))
+        RebaseCommandResult rebased;
+
+        if (!string.IsNullOrWhiteSpace(from))
         {
-            Console.Error.WriteLine(
-                "LOWER001: An existing materialization requires rebase, but no previous deterministic baseline can be established yet. Specify --from <previous-vsir>.");
-            return 1;
+            rebased = await RebaseCore(
+                subject,
+                CommandInfrastructure.DisplayTarget(target.Target!),
+                from,
+                existing,
+                @namespace,
+                cancellationToken);
         }
+        else
+        {
+            var next = await TranspileCore(
+                subject,
+                CommandInfrastructure.DisplayTarget(target.Target!),
+                @namespace,
+                cancellationToken);
 
-        var rebased = await RebaseCore(
-            subject,
-            CommandInfrastructure.DisplayTarget(target.Target!),
-            from,
-            existing,
-            @namespace,
-            cancellationToken);
+            if (!next.IsSuccess)
+            {
+                CommandInfrastructure.WriteDiagnostics(next.Diagnostics);
+                return 1;
+            }
+
+            var previousDeterministic = await LoweringLineageStore.TryRead(
+                rulesetRoot,
+                existing,
+                target.Target!,
+                cancellationToken);
+
+            if (previousDeterministic is null)
+            {
+                var human = await File.ReadAllTextAsync(existing, cancellationToken);
+                if (string.Equals(human, next.Source, StringComparison.Ordinal))
+                {
+                    await LoweringLineageStore.TryWrite(
+                        rulesetRoot,
+                        existing,
+                        target.Target!,
+                        next.Source!,
+                        cancellationToken);
+
+                    Console.WriteLine($"Established lowering lineage for '{existing}'.");
+                    return 0;
+                }
+
+                Console.Error.WriteLine(
+                    "LOWER001: An existing materialization requires rebase, but no trustworthy deterministic baseline could be inferred. Run once with --from <previous-vsir> to establish lineage explicitly.");
+                return 1;
+            }
+
+            rebased = await RebaseFromDeterministicBaseline(
+                next,
+                previousDeterministic,
+                existing,
+                cancellationToken);
+        }
 
         if (!rebased.IsSuccess)
         {
@@ -178,13 +235,26 @@ internal static class VsirCommands
             return 1;
         }
 
-        return await CommandInfrastructure.WriteResult(
+        var writeExitCode = await CommandInfrastructure.WriteResult(
             rebased.Source!,
             rebased.SourcePath!,
             output,
             stdout,
             overwrite: true,
             cancellationToken);
+
+        if (writeExitCode == 0 &&
+            TryResolveWrittenPath(rebased.SourcePath!, output, stdout, out var rebasedPath))
+        {
+            await LoweringLineageStore.TryWrite(
+                rulesetRoot,
+                rebasedPath!,
+                target.Target!,
+                rebased.DeterministicSource!,
+                cancellationToken);
+        }
+
+        return writeExitCode;
     }
 
     private static async Task<int> WriteLoweredResult(
@@ -236,19 +306,50 @@ internal static class VsirCommands
             ? conventionalSource
             : Path.GetFullPath(source, Environment.CurrentDirectory);
 
-        if (!File.Exists(resolvedHuman))
+        return await RebaseFromDeterministicBaseline(
+            next,
+            previous.Source!,
+            resolvedHuman,
+            cancellationToken);
+    }
+
+    private static async Task<RebaseCommandResult> RebaseFromDeterministicBaseline(
+        LoweringCommandResult next,
+        string previousDeterministic,
+        string humanPath,
+        CancellationToken cancellationToken)
+    {
+        if (!File.Exists(humanPath))
         {
             return RebaseCommandResult.Failure([new(
                 "CLI003",
-                $"Could not resolve human projection '{resolvedHuman}'.")]);
+                $"Could not resolve human projection '{humanPath}'.")]);
         }
 
-        var human = await File.ReadAllTextAsync(resolvedHuman, cancellationToken);
-        var rebased = CSharpRebaser.Rebase(previous.Source!, human, next.Source!);
+        var human = await File.ReadAllTextAsync(humanPath, cancellationToken);
+        var rebased = CSharpRebaser.Rebase(previousDeterministic, human, next.Source!);
 
         return rebased.IsSuccess
-            ? RebaseCommandResult.Success(rebased.Source!, resolvedHuman)
+            ? RebaseCommandResult.Success(rebased.Source!, humanPath, next.Source!)
             : RebaseCommandResult.Failure(rebased.Diagnostics);
+    }
+
+    private static bool TryResolveWrittenPath(
+        string defaultPath,
+        string? output,
+        bool stdout,
+        out string? resolved)
+    {
+        if (stdout || output == "-")
+        {
+            resolved = null;
+            return false;
+        }
+
+        resolved = string.IsNullOrWhiteSpace(output)
+            ? defaultPath
+            : Path.GetFullPath(output, Environment.CurrentDirectory);
+        return true;
     }
 
     private static async Task<LoweringCommandResult> TranspileCore(
@@ -326,14 +427,22 @@ internal static class VsirCommands
     private sealed record RebaseCommandResult(
         string? Source,
         string? SourcePath,
+        string? DeterministicSource,
         IReadOnlyList<VsirDiagnostic> Diagnostics)
     {
-        public bool IsSuccess => Source is not null && SourcePath is not null && Diagnostics.Count == 0;
+        public bool IsSuccess =>
+            Source is not null &&
+            SourcePath is not null &&
+            DeterministicSource is not null &&
+            Diagnostics.Count == 0;
 
-        public static RebaseCommandResult Success(string source, string sourcePath) =>
-            new(source, sourcePath, []);
+        public static RebaseCommandResult Success(
+            string source,
+            string sourcePath,
+            string deterministicSource) =>
+            new(source, sourcePath, deterministicSource, []);
 
         public static RebaseCommandResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
-            new(null, null, diagnostics.ToArray());
+            new(null, null, null, diagnostics.ToArray());
     }
 }
