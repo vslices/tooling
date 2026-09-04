@@ -20,6 +20,14 @@ CSL030: Construction step 'normalize' is represented but not supported by the cu
 
 That moved the boundary from VSIR representation into C# lowering mechanics.
 
+## Experimental prioritization
+
+Evidence determines what the current machinery can justify and where the observed boundary lies. It does not uniquely determine which unresolved boundary must be investigated next.
+
+Human maintainer interest may therefore prioritize which evidence-compatible experiment is run next. That interest may order the research agenda, but it does not redefine consumer semantics, move a failure to a preferred layer, or justify implementation without discriminating evidence.
+
+`TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the `VSIR100` and `CSL030` observations themselves still come from the real consumer executions.
+
 ## Current experiment
 
 The next question is whether normalization needs a new Ruleset execution primitive or whether the existing deterministic `expression` renderer is already sufficient once Tooling provides reusable normalization dataflow.
@@ -99,5 +107,3 @@ configurable terminal themes
 new lineage or rebase semantics
 normalization semantics beyond deterministic expression transforms demonstrated by TicketCode
 ```
-
-Human maintainer interest may prioritize which unresolved boundary is investigated next, but it does not redefine consumer semantics or move the observed technical boundary.
