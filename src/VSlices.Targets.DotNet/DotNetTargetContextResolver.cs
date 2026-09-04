@@ -24,61 +24,43 @@ public static class DotNetTargetContextResolver
                 $"Could not find a unique .csproj for '{vsirPath}'. Pass --namespace to override target context explicitly."));
         }
 
-        var probeName = "__VSlicesNamespaceProbe_" + Guid.NewGuid().ToString("N");
-        var probePath = Path.Combine(directory, probeName + ".cs");
+        var result = await RunDotNet(
+            directory,
+            cancellationToken,
+            "msbuild",
+            project,
+            "-nologo",
+            "-getProperty:RootNamespace");
 
-        try
+        if (result.ExitCode != 0)
         {
-            var result = await RunDotNet(
-                directory,
-                cancellationToken,
-                "new",
-                "class",
-                "--name", probeName,
-                "--output", directory,
-                "--project", project,
-                "--no-update-check");
-
-            if (result.ExitCode != 0 || !File.Exists(probePath))
-            {
-                return (null, new(
-                    "DOTNET002",
-                    "dotnet new class could not resolve a C# item context for this VSIR. " +
-                    "Pass --namespace to override it explicitly. " + result.StandardError.Trim()));
-            }
-
-            var source = await File.ReadAllTextAsync(probePath, cancellationToken);
-            var namespaceLine = source
-                .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
-                .Select(x => x.Trim())
-                .FirstOrDefault(x => x.StartsWith("namespace ", StringComparison.Ordinal));
-
-            if (namespaceLine is null)
-            {
-                return (null, new(
-                    "DOTNET003",
-                    "The .NET item template produced no namespace that VSlices could reuse. Pass --namespace explicitly."));
-            }
-
-            var namespaceName = namespaceLine["namespace ".Length..]
-                .Trim()
-                .TrimEnd(';')
-                .Trim();
-
-            if (namespaceName.Length == 0)
-            {
-                return (null, new(
-                    "DOTNET003",
-                    "The .NET item template produced an empty namespace. Pass --namespace explicitly."));
-            }
-
-            return (new(project, namespaceName), null);
+            return (null, new(
+                "DOTNET002",
+                "dotnet msbuild could not resolve the evaluated RootNamespace for this VSIR. " +
+                "Pass --namespace to override it explicitly. " + result.StandardError.Trim()));
         }
-        finally
+
+        var rootNamespace = result.StandardOutput.Trim();
+        if (rootNamespace.Length == 0)
         {
-            if (File.Exists(probePath))
-                File.Delete(probePath);
+            return (null, new(
+                "DOTNET003",
+                "The related .csproj evaluated an empty RootNamespace. Pass --namespace explicitly."));
         }
+
+        var projectDirectory = Path.GetDirectoryName(project)!;
+        var relativeDirectory = Path.GetRelativePath(projectDirectory, directory);
+        var relativeSegments = relativeDirectory == "."
+            ? []
+            : relativeDirectory.Split(
+                [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
+                StringSplitOptions.RemoveEmptyEntries);
+
+        var namespaceName = relativeSegments.Length == 0
+            ? rootNamespace
+            : rootNamespace + "." + string.Join('.', relativeSegments);
+
+        return (new(project, namespaceName), null);
     }
 
     private static string? FindProject(string startDirectory)
