@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class ProjectConfigurationTests
 {
     [Fact]
-    public void Loads_CSharp_namespace_ignored_folders()
+    public void Loads_CSharp_namespace_ignored_folders_and_patterns()
     {
         var root = Path.Combine(
             Path.GetTempPath(),
@@ -22,15 +22,18 @@ public sealed class ProjectConfigurationTests
                   csharp:
                     namespace:
                       ignore-folders:
-                        - Tickets
-                        - Generated
-                        - Tickets
+                        - Entities
+                        - "*Internal"
+                        - "Generated?"
+                        - Entities
                 """);
 
             var configuration = ProjectConfiguration.LoadFromProjectRoot(root);
 
             Assert.NotNull(configuration);
-            Assert.Equal(["Tickets", "Generated"], configuration.CSharpNamespaceIgnoredFolders);
+            Assert.Equal(
+                ["Entities", "*Internal", "Generated?"],
+                configuration.CSharpNamespaceIgnoredFolders);
         }
         finally
         {
@@ -50,7 +53,7 @@ public sealed class ProjectConfigurationTests
         {
             var configuration = ProjectConfiguration.Default() with
             {
-                CSharpNamespaceIgnoredFolders = ["Tickets"]
+                CSharpNamespaceIgnoredFolders = ["Entities", "*Internal"]
             };
 
             await ProjectConfiguration.WriteAsync(root, configuration, CancellationToken.None);
@@ -59,7 +62,8 @@ public sealed class ProjectConfigurationTests
             Assert.Contains("csharp:", text, StringComparison.Ordinal);
             Assert.Contains("namespace:", text, StringComparison.Ordinal);
             Assert.Contains("ignore-folders:", text, StringComparison.Ordinal);
-            Assert.Contains("Tickets", text, StringComparison.Ordinal);
+            Assert.Contains("Entities", text, StringComparison.Ordinal);
+            Assert.Contains("*Internal", text, StringComparison.Ordinal);
         }
         finally
         {
