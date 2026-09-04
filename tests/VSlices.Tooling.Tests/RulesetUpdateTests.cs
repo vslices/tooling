@@ -22,6 +22,30 @@ public sealed class RulesetUpdateTests
             path => Path.GetFileName(path).StartsWith(".ruleset-", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task Force_init_with_local_source_clears_stale_git_ref_and_remains_updatable()
+    {
+        using var project = new ToolingTestProject();
+        var localSource = Path.Combine(project.Root, "local-ruleset");
+        ToolingTestProject.WriteValidRuleset(localSource, "local.marker");
+        ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
+        project.WriteConfiguration("https://github.com/vslices/ruleset", "main");
+
+        var initialized = await project.Run(
+            project.Root,
+            "init", "--force", "--from", localSource, "--target", "C#");
+
+        Assert.Equal(0, initialized.ExitCode);
+        var configuration = File.ReadAllText(Path.Combine(project.VslicesRoot, "config.yaml"));
+        Assert.Contains($"source: {localSource}", configuration, StringComparison.Ordinal);
+        Assert.DoesNotContain("ref:", configuration, StringComparison.Ordinal);
+
+        var updated = await project.Run(project.Root, "update", "--ruleset");
+
+        Assert.Equal(0, updated.ExitCode);
+        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "local.marker")));
+    }
+
     [Theory]
     [InlineData("missing-manifest")]
     [InlineData("missing-target")]
