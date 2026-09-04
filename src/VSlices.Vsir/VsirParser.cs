@@ -4,6 +4,19 @@ namespace VSlices.Vsir;
 
 public static class VsirParser
 {
+    private static readonly HashSet<string> SupportedRootKeys =
+    [
+        "vsir",
+        "kind",
+        "name",
+        "classification",
+        "shape",
+        "traits",
+        "state",
+        "representation",
+        "construction"
+    ];
+
     public static VsirParseResult Parse(string text)
     {
         var diagnostics = new List<VsirDiagnostic>();
@@ -15,6 +28,8 @@ public static class VsirParser
 
             if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
                 return Failure("VSIR001", "Expected one YAML mapping document.");
+
+            diagnostics.AddRange(UnsupportedRootSemantics(root));
 
             var version = Scalar(root, "vsir");
             var kind = Scalar(root, "kind");
@@ -89,6 +104,16 @@ public static class VsirParser
         catch (Exception ex)
         {
             return Failure("VSIR000", ex.Message);
+        }
+    }
+
+    private static IEnumerable<VsirDiagnostic> UnsupportedRootSemantics(YamlMappingNode root)
+    {
+        foreach (var keyNode in root.Children.Keys.OfType<YamlScalarNode>())
+        {
+            var key = keyNode.Value ?? string.Empty;
+            if (!SupportedRootKeys.Contains(key))
+                yield return new("VSIR104", $"Unsupported root semantic '{key}'.");
         }
     }
 
