@@ -3,12 +3,14 @@ namespace VSlices.Tooling;
 internal static class SemanticRefactoringCompanionHealth
 {
     private const string CompanionAssembly = "VSlices.Targets.DotNet.Refactor.dll";
+    private const string BuildHostAssembly = "Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll";
 
-    public static bool IsInstalled(string? baseDirectory = null) =>
-        File.Exists(Path.Combine(
-            baseDirectory ?? AppContext.BaseDirectory,
-            "refactor",
-            CompanionAssembly));
+    public static bool IsInstalled(string? baseDirectory = null)
+    {
+        var root = Path.Combine(baseDirectory ?? AppContext.BaseDirectory, "refactor");
+        return File.Exists(Path.Combine(root, CompanionAssembly)) &&
+               File.Exists(Path.Combine(root, "BuildHost-netcore", BuildHostAssembly));
+    }
 
     public static bool ShouldNotify(
         IReadOnlyList<string> args,
