@@ -74,8 +74,8 @@ public static class VsirParser
                         diagnostics);
 
                     var target = Scalar(normalize, "target");
-                    var intrinsic = Scalar(normalize, "intrinsic");
-                    if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(intrinsic))
+                    var normalizeIntrinsic = Scalar(normalize, "intrinsic");
+                    if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(normalizeIntrinsic))
                     {
                         diagnostics.Add(new(
                             "VSIR109",
@@ -83,7 +83,7 @@ public static class VsirParser
                         continue;
                     }
 
-                    steps.Add(new NormalizeStep(target, intrinsic));
+                    steps.Add(new NormalizeStep(target, normalizeIntrinsic));
                     continue;
                 }
 
