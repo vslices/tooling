@@ -3,7 +3,7 @@ namespace VSlices.Tooling;
 internal static class LoweringLineageBootstrap
 {
     public static bool IsConfiguredFor(
-        string rulesetRoot,
+        VSlicesProjectContext project,
         string conventionalMaterializationPath,
         string existingMaterializationPath,
         string? sourceOverride)
@@ -14,9 +14,8 @@ internal static class LoweringLineageBootstrap
         if (!PathsEqual(conventionalMaterializationPath, existingMaterializationPath))
             return false;
 
-        var configuration = ProjectConfiguration.LoadFromRulesetRoot(rulesetRoot);
         return string.Equals(
-            configuration?.LineageBootstrapConvention,
+            project.Configuration.LineageBootstrapConvention,
             ProjectConfiguration.DefaultLineageBootstrapConvention,
             StringComparison.OrdinalIgnoreCase);
     }

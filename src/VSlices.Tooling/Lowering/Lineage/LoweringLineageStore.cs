@@ -3,43 +3,30 @@ namespace VSlices.Tooling;
 internal static class LoweringLineageStore
 {
     public static string? ResolveBaselinePath(
-        string rulesetRoot,
+        VSlicesProjectContext project,
         string materializationPath,
         string target)
     {
-        var rulesetDirectory = new DirectoryInfo(Path.GetFullPath(rulesetRoot));
-        var vslicesDirectory = rulesetDirectory.Parent;
-        var projectDirectory = vslicesDirectory?.Parent;
-
-        if (vslicesDirectory is null || projectDirectory is null)
+        if (!project.Contains(materializationPath))
             return null;
 
         var relative = Path.GetRelativePath(
-            projectDirectory.FullName,
+            project.ProjectRoot,
             Path.GetFullPath(materializationPath));
 
-        if (Path.IsPathRooted(relative) ||
-            relative.Equals("..", StringComparison.Ordinal) ||
-            relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal) ||
-            relative.StartsWith(".." + Path.AltDirectorySeparatorChar, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
         return Path.Combine(
-            vslicesDirectory.FullName,
-            "lineage",
+            project.LineageRoot,
             CommandInfrastructure.NormalizeTarget(target),
             relative + ".baseline");
     }
 
     public static async Task<string?> TryRead(
-        string rulesetRoot,
+        VSlicesProjectContext project,
         string materializationPath,
         string target,
         CancellationToken cancellationToken)
     {
-        var path = ResolveBaselinePath(rulesetRoot, materializationPath, target);
+        var path = ResolveBaselinePath(project, materializationPath, target);
         if (path is null || !File.Exists(path))
             return null;
 
@@ -47,13 +34,13 @@ internal static class LoweringLineageStore
     }
 
     public static async Task<bool> TryWrite(
-        string rulesetRoot,
+        VSlicesProjectContext project,
         string materializationPath,
         string target,
         string deterministicSource,
         CancellationToken cancellationToken)
     {
-        var path = ResolveBaselinePath(rulesetRoot, materializationPath, target);
+        var path = ResolveBaselinePath(project, materializationPath, target);
         if (path is null)
             return false;
 
