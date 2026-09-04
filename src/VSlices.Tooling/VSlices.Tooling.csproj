@@ -44,6 +44,12 @@
       Projects="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
       Targets="Restore;Publish"
       Properties="Configuration=$(Configuration);PublishDir=$(SemanticRefactoringPublishDir);SelfContained=false;RuntimeIdentifier=" />
+    <Error
+      Condition="!Exists('$(SemanticRefactoringPublishDir)VSlices.Targets.DotNet.Refactor.dll')"
+      Text="Roslyn semantic-refactoring companion helper was not published." />
+    <Error
+      Condition="!Exists('$(SemanticRefactoringPublishDir)BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll')"
+      Text="Roslyn MSBuildWorkspace BuildHost-netcore runtime was not published." />
   </Target>
 
 </Project>
