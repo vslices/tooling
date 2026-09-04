@@ -20,8 +20,16 @@ TicketCode.vsir
 
   -> test-only intrinsic.trim rule proves the current renderer is sufficient
 
-  -> real Ruleset still has no intrinsic.trim
-  -> expected next consumer boundary: CSL031
+  -> real consumer on build5.264 with production Ruleset
+  -> CSL031
+     No deterministic C# normalization rule is available for 'intrinsic.trim'
+
+  -> ownership boundary confirmed
+     normalization mechanism -> Tooling
+     trim realization        -> Ruleset
+
+  -> vslices/ruleset#2
+     adds only intrinsic.trim using the existing expression renderer
 ```
 
 ## Experimental prioritization
@@ -32,7 +40,7 @@ Human maintainer interest may therefore prioritize which evidence-compatible exp
 
 `TicketCode` was selected partly because normalization is an interesting next boundary after `TicketId`; the observed failures themselves still come from real consumer executions.
 
-## Current finding
+## Confirmed finding
 
 The current Ruleset primitive is already expressive enough for the observed normalization.
 
@@ -47,7 +55,7 @@ A deterministic expression rule of the form:
 
 can be consumed by Tooling without a new renderer mode.
 
-Tooling now processes construction steps in order and keeps a reference-to-expression environment. A successful normalize rule replaces the current expression for its target, and later ensures plus final state construction consume that updated expression.
+Tooling processes construction steps in order and keeps a reference-to-expression environment. A successful normalize rule replaces the current expression for its target, and later ensures plus final state construction consume that updated expression.
 
 For `TicketCode`, a test-only trim rule therefore produces semantics equivalent to:
 
@@ -56,23 +64,37 @@ ensure non-empty(input.Value.Trim())
 state.Value <- input.Value.Trim()
 ```
 
-The production Ruleset remains intentionally unchanged so the next real consumer execution can test whether the boundary has moved cleanly into Ruleset knowledge.
-
-## Expected next observation
+The real consumer subsequently confirmed the boundary. With Tooling `build5.264` and the production Ruleset still lacking `intrinsic.trim`, running:
 
 ```text
 vslices lower TicketCode
-  -> CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'.
 ```
 
-If observed, the ownership split is demonstrated as:
+returned:
+
+```text
+CSL031: No deterministic C# normalization rule is available for 'intrinsic.trim'.
+```
+
+This demonstrates the ownership split:
 
 ```text
 normalization dataflow / execution mechanism -> Tooling
 trim realization knowledge                 -> Ruleset
 ```
 
-Only then should the existing `vslices/ruleset:experiment/ticket-code-lowering` branch receive `intrinsic.trim`.
+The corresponding Ruleset change is isolated in `vslices/ruleset#2` and adds only the demonstrated `intrinsic.trim` expression rule.
+
+## Next observation
+
+After the consumer updates its local Ruleset snapshot from Ruleset PR #2:
+
+```text
+vslices update
+vslices lower TicketCode
+```
+
+The expected outcome is either a deterministic `TicketCode` witness or a new independent boundary. A new failure must remain an observation to classify rather than justification to expand this experiment preemptively.
 
 ## Non-scope continuity
 
@@ -83,6 +105,7 @@ Still out of scope:
 ```text
 new VSIR concepts or classifications beyond the observed normalize semantic
 new Ruleset renderer modes
+additional normalization intrinsics
 new target languages
 interpretate
 Git-history ancestry reconstruction
