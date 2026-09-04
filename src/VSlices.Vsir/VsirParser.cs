@@ -4,7 +4,7 @@ namespace VSlices.Vsir;
 
 public static class VsirParser
 {
-    private static readonly HashSet<string> SupportedRootKeys =
+    private static readonly string[] SupportedRootKeys =
     [
         "vsir",
         "kind",
@@ -30,7 +30,7 @@ public static class VsirParser
             if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
                 return Failure("VSIR001", "Expected one YAML mapping document.");
 
-            diagnostics.AddRange(UnsupportedRootSemantics(root));
+            RejectUnknownKeys(root, SupportedRootKeys, "root", diagnostics, rootDiagnostic: true);
 
             var version = Scalar(root, "vsir");
             var kind = Scalar(root, "kind");
@@ -45,6 +45,12 @@ public static class VsirParser
             if (!TryMapping(root, "construction", out var constructionNode))
                 return Failure("VSIR002", "Missing construction mapping.");
 
+            RejectUnknownKeys(
+                constructionNode,
+                ["input", "steps"],
+                "construction",
+                diagnostics);
+
             var input = Product(constructionNode, "input");
             var steps = new List<ConstructionStep>();
 
@@ -58,6 +64,17 @@ public static class VsirParser
                         continue;
                     }
 
+                    RejectUnknownKeys(
+                        stepNode,
+                        ["ensure"],
+                        "construction.steps[]",
+                        diagnostics);
+                    RejectUnknownKeys(
+                        ensure,
+                        ["condition", "failure"],
+                        "construction.steps[].ensure",
+                        diagnostics);
+
                     if (!TryMapping(ensure, "condition", out var conditionNode))
                     {
                         diagnostics.Add(new("VSIR101", "Ensure step requires condition."));
@@ -65,6 +82,14 @@ public static class VsirParser
                     }
 
                     var intrinsic = Scalar(conditionNode, "intrinsic");
+                    RejectUnknownKeys(
+                        conditionNode,
+                        intrinsic == "length-at-most"
+                            ? ["intrinsic", "value", "max"]
+                            : ["intrinsic", "value"],
+                        "construction.steps[].ensure.condition",
+                        diagnostics);
+
                     var value = Scalar(conditionNode, "value");
                     Condition? condition = intrinsic switch
                     {
@@ -84,6 +109,12 @@ public static class VsirParser
                         diagnostics.Add(new("VSIR103", "Ensure step requires failure."));
                         continue;
                     }
+
+                    RejectUnknownKeys(
+                        failure,
+                        ["message"],
+                        "construction.steps[].ensure.failure",
+                        diagnostics);
 
                     steps.Add(new EnsureStep(condition, Scalar(failure, "message")));
                 }
@@ -123,6 +154,12 @@ public static class VsirParser
             return null;
         }
 
+        RejectUnknownKeys(
+            equalityNode,
+            ["intrinsic", "by"],
+            "equality",
+            diagnostics);
+
         var intrinsic = Scalar(equalityNode, "intrinsic");
         var by = Scalar(equalityNode, "by");
 
@@ -135,13 +172,25 @@ public static class VsirParser
         return new(intrinsic, by);
     }
 
-    private static IEnumerable<VsirDiagnostic> UnsupportedRootSemantics(YamlMappingNode root)
+    private static void RejectUnknownKeys(
+        YamlMappingNode mapping,
+        IEnumerable<string> allowedKeys,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics,
+        bool rootDiagnostic = false)
     {
-        foreach (var keyNode in root.Children.Keys.OfType<YamlScalarNode>())
+        var allowed = allowedKeys.ToHashSet(StringComparer.Ordinal);
+        foreach (var keyNode in mapping.Children.Keys.OfType<YamlScalarNode>())
         {
             var key = keyNode.Value ?? string.Empty;
-            if (!SupportedRootKeys.Contains(key))
-                yield return new("VSIR104", $"Unsupported root semantic '{key}'.");
+            if (allowed.Contains(key))
+                continue;
+
+            diagnostics.Add(new(
+                "VSIR104",
+                rootDiagnostic
+                    ? $"Unsupported root semantic '{key}'."
+                    : $"Unsupported semantic '{semanticPath}.{key}'."));
         }
     }
 

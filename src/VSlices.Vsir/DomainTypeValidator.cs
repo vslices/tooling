@@ -2,6 +2,9 @@ namespace VSlices.Vsir;
 
 public static class DomainTypeValidator
 {
+    private static readonly HashSet<string> SupportedTraits =
+        new(["transform", "identifier"], StringComparer.Ordinal);
+
     public static IReadOnlyList<VsirDiagnostic> Validate(DomainTypeVsir document)
     {
         var diagnostics = new List<VsirDiagnostic>();
@@ -10,11 +13,27 @@ public static class DomainTypeValidator
         Require(document.Kind == "domain-type", "VSIR201", "Only kind 'domain-type' is supported.");
         Require(document.Classification == "value-object", "VSIR202", "Only classification 'value-object' is supported.");
         Require(document.Shape == "product", "VSIR203", "Only shape 'product' is supported.");
+
+        var duplicateTraits = document.Traits
+            .GroupBy(x => x, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+        foreach (var duplicate in duplicateTraits)
+            diagnostics.Add(new("VSIR217", $"Trait '{duplicate}' is declared more than once. Traits are an unordered set of capabilities."));
+
+        foreach (var trait in document.Traits.Distinct(StringComparer.Ordinal))
+        {
+            Require(
+                SupportedTraits.Contains(trait),
+                "VSIR218",
+                $"Unsupported trait '{trait}'.");
+        }
+
         Require(
-            document.Traits.SequenceEqual(["transform"]) ||
-            document.Traits.SequenceEqual(["identifier", "transform"]),
+            document.Traits.Contains("transform", StringComparer.Ordinal),
             "VSIR204",
-            "The experimental model currently supports traits [transform] or [identifier, transform].");
+            "The experimental domain-type model currently requires trait 'transform'.");
         Require(document.State.Fields.Count > 0, "VSIR205", "State must contain at least one field.");
         Require(document.Representation.Fields.Count > 0, "VSIR206", "Representation must contain at least one field.");
         Require(document.Construction.Input.Fields.Count > 0, "VSIR207", "Construction input must contain at least one field.");
