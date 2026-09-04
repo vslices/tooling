@@ -50,7 +50,7 @@ bindings:
   value: <current expression for input.Value>
 ```
 
-If the rule exists, the returned expression becomes the new expression for that target and is used by later ensures and final state construction. This preserves the ordering of the construction steps without encoding `Trim()` or another target-specific operation directly in Tooling.
+If the rule exists, the returned expression becomes the new expression for that target and is used by later ensures and final state construction. This preserves construction ordering without encoding `Trim()` or another target-specific operation directly in Tooling.
 
 A test-only Ruleset rule:
 
@@ -86,7 +86,7 @@ normalization dataflow / execution mechanism -> Tooling, demonstrated
 trim realization knowledge                 -> Ruleset, still missing
 ```
 
-Only after that consumer observation should `intrinsic.trim` be added to the real Ruleset branch.
+At that point the next justified repository change belongs to the existing `vslices/ruleset:experiment/ticket-code-lowering` branch: add only the demonstrated `intrinsic.trim` target knowledge, then re-run the real consumer again.
 
 ## Non-scope continuity
 
