@@ -117,7 +117,7 @@ jobs:
           test -f many/folders/StreetName.vsir.cs
           grep -q "sealed class StreetName" many/folders/StreetName.vsir.cs
 
-      - name: Smoke test .NET target context delegation
+      - name: Smoke test .NET target context derivation
         run: |
           mkdir -p target-context/ValueObjects
           cat > target-context/Demo.Identity.csproj <<'EOF'
@@ -134,8 +134,7 @@ jobs:
             transpile target-context/ValueObjects/StreetName.vsir \
             --stdout \
             > delegated.cs
-          grep -q "namespace Demo.Identity" delegated.cs
-          test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
+          grep -q "namespace Demo.Identity.ValueObjects" delegated.cs
 
       - name: Publish Native AOT CLI
         shell: bash
