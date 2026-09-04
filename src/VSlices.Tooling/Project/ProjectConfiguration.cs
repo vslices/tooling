@@ -30,26 +30,8 @@ internal sealed record ProjectConfiguration(
             null,
             DefaultLineageBootstrapConvention);
 
-    public static ProjectConfiguration? LoadFromRulesetRoot(string rulesetRoot) =>
-        LoadFromVslicesDirectory(Directory.GetParent(rulesetRoot)?.FullName);
-
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
-
-    public static ProjectConfiguration? LoadNearest(string start)
-    {
-        var current = new DirectoryInfo(Path.GetFullPath(start));
-        while (current is not null)
-        {
-            var config = LoadFromProjectRoot(current.FullName);
-            if (config is not null)
-                return config;
-
-            current = current.Parent;
-        }
-
-        return null;
-    }
 
     public static async Task WriteAsync(
         string projectRoot,
@@ -113,11 +95,8 @@ internal sealed record ProjectConfiguration(
             cancellationToken);
     }
 
-    private static ProjectConfiguration? LoadFromVslicesDirectory(string? vslicesDirectory)
+    private static ProjectConfiguration? LoadFromVslicesDirectory(string vslicesDirectory)
     {
-        if (string.IsNullOrWhiteSpace(vslicesDirectory))
-            return null;
-
         var path = Path.Combine(vslicesDirectory, "config.yaml");
         if (!File.Exists(path))
             return null;
@@ -172,11 +151,9 @@ internal sealed record ProjectConfiguration(
         return Scalar(subsectionMapping, key);
     }
 
-    private static string? Scalar(YamlMappingNode mapping, string key)
-    {
-        return mapping.Children.TryGetValue(new YamlScalarNode(key), out var node) &&
-               node is YamlScalarNode scalar
+    private static string? Scalar(YamlMappingNode mapping, string key) =>
+        mapping.Children.TryGetValue(new YamlScalarNode(key), out var node) &&
+        node is YamlScalarNode scalar
             ? scalar.Value
             : null;
-    }
 }

@@ -24,7 +24,7 @@ internal static class TranspilationOperation
                 "No project-local VSlices project/ruleset was found. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the VSIR path ancestry. Run 'vslices init'.")]);
         }
 
-        var target = CommandInfrastructure.ResolveTarget(requestedTarget, project.RulesetRoot);
+        var target = CommandInfrastructure.ResolveTarget(requestedTarget, project);
         if (target.Diagnostic is not null)
             return TranspilationResult.Failure([target.Diagnostic]);
 

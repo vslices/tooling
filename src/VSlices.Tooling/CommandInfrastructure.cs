@@ -40,26 +40,25 @@ internal static class CommandInfrastructure
 
     public static (string? Target, VsirDiagnostic? Diagnostic) ResolveTarget(
         string? requested,
-        string rulesetRoot)
+        VSlicesProjectContext project)
     {
         if (!string.IsNullOrWhiteSpace(requested))
-            return ValidateTarget(requested, rulesetRoot);
+            return ValidateTarget(requested, project.RulesetRoot);
 
-        var configuration = ProjectConfiguration.LoadFromRulesetRoot(rulesetRoot);
-        if (!string.IsNullOrWhiteSpace(configuration?.DefaultTarget))
+        if (!string.IsNullOrWhiteSpace(project.Configuration.DefaultTarget))
         {
-            var configured = ValidateTarget(configuration.DefaultTarget, rulesetRoot);
+            var configured = ValidateTarget(project.Configuration.DefaultTarget, project.RulesetRoot);
             if (configured.Diagnostic is not null)
             {
                 return (null, new(
                     "CLI023",
-                    $"Configured default target '{configuration.DefaultTarget}' is not available in the project-local ruleset."));
+                    $"Configured default target '{project.Configuration.DefaultTarget}' is not available in the project-local ruleset."));
             }
 
             return configured;
         }
 
-        var installed = InstalledTargets(rulesetRoot);
+        var installed = InstalledTargets(project.RulesetRoot);
         return installed.Count switch
         {
             1 => (installed[0], null),
