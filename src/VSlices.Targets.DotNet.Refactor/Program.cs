@@ -1,5 +1,5 @@
-using System.Security.Cryptography;
 using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.Build.Locator;
@@ -90,11 +90,13 @@ internal static class NamespaceMovePlanner
 
         var workspaceFailures = new List<string>();
         using var workspace = MSBuildWorkspace.Create();
+#pragma warning disable CS0618
         workspace.WorkspaceFailed += (_, eventArgs) =>
         {
             if (eventArgs.Diagnostic.Kind == WorkspaceDiagnosticKind.Failure)
                 workspaceFailures.Add(eventArgs.Diagnostic.Message);
         };
+#pragma warning restore CS0618
 
         var solution = await workspace.OpenSolutionAsync(
             solutionPath,
@@ -203,7 +205,7 @@ internal static class NamespaceMovePlanner
             .Where(x => x.Location.IsInSource && !x.IsImplicit)
             .ToArray();
 
-        var spansByDocument = new Dictionary<DocumentId, HashSet<TextSpan>>();
+        var referenceSites = new List<ReferenceSite>();
         foreach (var location in locations)
         {
             var referenceDocument = location.Document;
@@ -245,62 +247,108 @@ internal static class NamespaceMovePlanner
                 return 1;
             }
 
-            if (!spansByDocument.TryGetValue(referenceDocument.Id, out var spans))
-            {
-                spans = [];
-                spansByDocument.Add(referenceDocument.Id, spans);
-            }
-            spans.Add(name.Span);
+            referenceSites.Add(new(referenceDocument.Id, name.Span));
         }
 
         var oldText = await document.GetTextAsync(cancellationToken);
+        var candidateSourceText = SourceText.From(
+            candidateText,
+            oldText.Encoding ?? new UTF8Encoding(false));
+        var candidateSolution = solution.WithDocumentText(
+            document.Id,
+            candidateSourceText,
+            PreservationMode.PreserveIdentity);
+        var candidateDocument = candidateSolution.GetDocument(document.Id)!;
+        var candidateSemanticModel = await candidateDocument.GetSemanticModelAsync(cancellationToken);
+        var loadedCandidateRoot = await candidateDocument.GetSyntaxRootAsync(cancellationToken);
+        if (candidateSemanticModel is null || loadedCandidateRoot is null)
+        {
+            await RefactorManifest.WriteFailure(
+                options.ManifestPath,
+                "DOTNET032",
+                "Roslyn could not bind the candidate materialization after the namespace move.");
+            return 1;
+        }
+
+        var loadedCandidateDeclarations = loadedCandidateRoot.DescendantNodes()
+            .OfType<TypeDeclarationSyntax>()
+            .Where(x => x.Identifier.ValueText.Equals(options.SymbolName, StringComparison.Ordinal))
+            .ToArray();
+        var movedSymbol = loadedCandidateDeclarations.Length == 1
+            ? candidateSemanticModel.GetDeclaredSymbol(loadedCandidateDeclarations[0], cancellationToken) as INamedTypeSymbol
+            : null;
+        if (movedSymbol is null)
+        {
+            await RefactorManifest.WriteFailure(
+                options.ManifestPath,
+                "DOTNET032",
+                "Roslyn could not resolve the moved symbol in the candidate materialization.");
+            return 1;
+        }
+
+        var requiredSpansByDocument = new Dictionary<DocumentId, HashSet<TextSpan>>();
+        foreach (var site in referenceSites)
+        {
+            var mappedSpan = site.Span;
+            if (site.DocumentId == document.Id &&
+                !TryMapSpan(oldText.ToString(), candidateText, site.Span, out mappedSpan))
+            {
+                await RefactorManifest.WriteFailure(
+                    options.ManifestPath,
+                    "DOTNET032",
+                    "A semantic reference overlaps the deterministic rebase delta in the materialization. No automatic refactoring was attempted.");
+                return 1;
+            }
+
+            var reboundDocument = candidateSolution.GetDocument(site.DocumentId)!;
+            var reboundRoot = await reboundDocument.GetSyntaxRootAsync(cancellationToken);
+            var reboundModel = await reboundDocument.GetSemanticModelAsync(cancellationToken);
+            if (reboundRoot is null || reboundModel is null)
+            {
+                await RefactorManifest.WriteFailure(
+                    options.ManifestPath,
+                    "DOTNET030",
+                    $"Could not rebind semantic reference in '{reboundDocument.FilePath}'.");
+                return 1;
+            }
+
+            var reboundNode = reboundRoot.FindNode(
+                mappedSpan,
+                getInnermostNodeForTie: true,
+                findInsideTrivia: true);
+            var stillResolves = reboundNode.AncestorsAndSelf()
+                .OfType<NameSyntax>()
+                .Any(x => ResolvesTo(reboundModel, x, movedSymbol, cancellationToken));
+            if (stillResolves)
+                continue;
+
+            if (!requiredSpansByDocument.TryGetValue(site.DocumentId, out var spans))
+            {
+                spans = [];
+                requiredSpansByDocument.Add(site.DocumentId, spans);
+            }
+            spans.Add(mappedSpan);
+        }
+
         var replacement = FullyQualified(newNamespace, symbol.Name);
         var proposedTexts = new Dictionary<DocumentId, SourceText>();
         var referenceCounts = new Dictionary<DocumentId, int>();
 
-        foreach (var pair in spansByDocument)
+        foreach (var pair in requiredSpansByDocument)
         {
-            var referenceDocument = solution.GetDocument(pair.Key)!;
+            var referenceDocument = candidateSolution.GetDocument(pair.Key)!;
             var sourceText = await referenceDocument.GetTextAsync(cancellationToken);
-            SourceText baseText;
-            IEnumerable<TextSpan> targetSpans;
-
-            if (pair.Key == document.Id)
-            {
-                baseText = SourceText.From(candidateText, oldText.Encoding ?? new UTF8Encoding(false));
-                var mapped = new List<TextSpan>();
-                foreach (var span in pair.Value.OrderBy(x => x.Start))
-                {
-                    if (!TryMapSpan(oldText.ToString(), candidateText, span, out var mappedSpan))
-                    {
-                        await RefactorManifest.WriteFailure(
-                            options.ManifestPath,
-                            "DOTNET032",
-                            "A semantic reference overlaps the deterministic rebase delta in the materialization. No automatic refactoring was attempted.");
-                        return 1;
-                    }
-                    mapped.Add(mappedSpan);
-                }
-                targetSpans = mapped;
-            }
-            else
-            {
-                baseText = sourceText;
-                targetSpans = pair.Value.OrderBy(x => x.Start);
-            }
-
-            var changes = targetSpans
+            var changes = pair.Value
+                .OrderBy(x => x.Start)
                 .Select(span => new TextChange(span, replacement))
                 .ToArray();
-            proposedTexts[pair.Key] = baseText.WithChanges(changes);
+            proposedTexts[pair.Key] = sourceText.WithChanges(changes);
             referenceCounts[pair.Key] = changes.Length;
         }
 
         if (!proposedTexts.ContainsKey(document.Id))
         {
-            proposedTexts[document.Id] = SourceText.From(
-                candidateText,
-                oldText.Encoding ?? new UTF8Encoding(false));
+            proposedTexts[document.Id] = candidateSourceText;
             referenceCounts[document.Id] = 0;
         }
 
@@ -329,7 +377,7 @@ internal static class NamespaceMovePlanner
             }
         }
 
-        var updatedSolution = solution;
+        var updatedSolution = candidateSolution;
         foreach (var pair in proposedTexts)
             updatedSolution = updatedSolution.WithDocumentText(pair.Key, pair.Value, PreservationMode.PreserveIdentity);
 
@@ -376,6 +424,7 @@ internal static class NamespaceMovePlanner
                 referenceCounts.GetValueOrDefault(pair.Key)));
         }
 
+        var requiredReferenceCount = referenceCounts.Values.Sum();
         var oldDisplay = FullyQualified(oldNamespace, symbol.Name).Replace("global::", string.Empty, StringComparison.Ordinal);
         var newDisplay = replacement.Replace("global::", string.Empty, StringComparison.Ordinal);
         await RefactorManifest.Write(
@@ -383,10 +432,10 @@ internal static class NamespaceMovePlanner
             new(
                 true,
                 true,
-                locations.Length > 0,
+                requiredReferenceCount > 0,
                 oldDisplay,
                 newDisplay,
-                locations.Length,
+                requiredReferenceCount,
                 files,
                 []));
         return 0;
@@ -500,6 +549,8 @@ internal static class NamespaceMovePlanner
             : "<project>";
         return $"{diagnostic.Id} {location} {diagnostic.GetMessage()}";
     }
+
+    private sealed record ReferenceSite(DocumentId DocumentId, TextSpan Span);
 }
 
 internal sealed record RefactorFile(
