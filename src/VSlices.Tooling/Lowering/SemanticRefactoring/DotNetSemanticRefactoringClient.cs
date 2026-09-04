@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using VSlices.Vsir;
 
 namespace VSlices.Tooling;
@@ -103,9 +104,9 @@ internal static class DotNetSemanticRefactoringClient
             }
 
             var manifestText = await File.ReadAllTextAsync(manifestPath, cancellationToken);
-            var manifest = JsonSerializer.Deserialize<RefactorManifest>(
+            var manifest = JsonSerializer.Deserialize(
                 manifestText,
-                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                SemanticRefactorJsonContext.Default.SemanticRefactorManifest);
             if (manifest is null)
             {
                 Directory.Delete(transactionRoot, recursive: true);
@@ -198,25 +199,29 @@ internal static class DotNetSemanticRefactoringClient
 
         return null;
     }
-
-    private sealed record RefactorManifest(
-        bool Success,
-        bool NamespaceChanged,
-        bool RequiresAuthorization,
-        string? PreviousSymbol,
-        string? NextSymbol,
-        int ReferenceCount,
-        IReadOnlyList<RefactorFileManifest> Files,
-        IReadOnlyList<RefactorDiagnosticManifest> Diagnostics);
-
-    private sealed record RefactorFileManifest(
-        string Path,
-        string StagedPath,
-        string OriginalSha256,
-        int ReferenceCount);
-
-    private sealed record RefactorDiagnosticManifest(string Code, string Message);
 }
+
+internal sealed record SemanticRefactorManifest(
+    bool Success,
+    bool NamespaceChanged,
+    bool RequiresAuthorization,
+    string? PreviousSymbol,
+    string? NextSymbol,
+    int ReferenceCount,
+    IReadOnlyList<SemanticRefactorFileManifest> Files,
+    IReadOnlyList<SemanticRefactorDiagnosticManifest> Diagnostics);
+
+internal sealed record SemanticRefactorFileManifest(
+    string Path,
+    string StagedPath,
+    string OriginalSha256,
+    int ReferenceCount);
+
+internal sealed record SemanticRefactorDiagnosticManifest(string Code, string Message);
+
+[JsonSourceGenerationOptions(PropertyNameCaseInsensitive = true)]
+[JsonSerializable(typeof(SemanticRefactorManifest))]
+internal partial class SemanticRefactorJsonContext : JsonSerializerContext;
 
 internal sealed record DotNetSemanticRefactoringFile(
     string Path,
