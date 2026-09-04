@@ -1,3 +1,5 @@
+using VSlices.Vsir.CSharp;
+
 namespace VSlices.Tooling;
 
 internal static class LoweringCoordinator
@@ -10,6 +12,7 @@ internal static class LoweringCoordinator
         string? output,
         bool stdout,
         string? namespaceOverride,
+        CSharpRebaseResolution resolution,
         CancellationToken cancellationToken)
     {
         var next = await TranspilationOperation.Execute(
@@ -63,6 +66,7 @@ internal static class LoweringCoordinator
                 from,
                 existing,
                 namespaceOverride,
+                resolution,
                 cancellationToken);
         }
         else
@@ -118,6 +122,7 @@ internal static class LoweringCoordinator
                 next,
                 previousDeterministic,
                 existing,
+                resolution,
                 cancellationToken);
         }
 
