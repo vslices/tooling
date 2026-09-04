@@ -133,6 +133,28 @@ internal static class LoweringCoordinator
         }
 
         var humanBefore = await File.ReadAllTextAsync(rebased.SourcePath!, cancellationToken);
+        var semanticMove = SemanticNamespaceMovePreflight.TryDetect(
+            humanBefore,
+            rebased.Source!);
+
+        if (semanticMove is not null)
+        {
+            if (stdout || output == "-" || !string.IsNullOrWhiteSpace(output))
+            {
+                Console.Error.WriteLine(
+                    "DOTNET035: A namespace move requires a transactional semantic refactoring over the real project files. --stdout and redirected --output are not supported for this operation.");
+                return 1;
+            }
+
+            ShowSemanticAnalysisPreflight(semanticMove);
+            if (!SemanticRefactoringAuthorization.ConfirmAnalysis(Console.In, Console.Out))
+            {
+                TerminalOutput.BlankLine();
+                TerminalOutput.Muted("Semantic analysis was not started. No files were modified. Lowering lineage was not advanced.");
+                return 1;
+            }
+        }
+
         using var semanticPlan = await DotNetSemanticRefactoringClient.TryPlanNamespaceMove(
             next,
             rebased.SourcePath!,
@@ -145,13 +167,6 @@ internal static class LoweringCoordinator
             if (!semanticPlan.IsSuccess)
             {
                 CommandInfrastructure.WriteDiagnostics(semanticPlan.Diagnostics);
-                return 1;
-            }
-
-            if (stdout || output == "-" || !string.IsNullOrWhiteSpace(output))
-            {
-                Console.Error.WriteLine(
-                    "DOTNET035: A namespace move requires a transactional semantic refactoring over the real project files. --stdout and redirected --output are not supported for this operation.");
                 return 1;
             }
 
@@ -233,6 +248,20 @@ internal static class LoweringCoordinator
         }
 
         return writeExitCode;
+    }
+
+    private static void ShowSemanticAnalysisPreflight(
+        SemanticNamespaceMoveCandidate move)
+    {
+        TerminalOutput.BlankLine();
+        TerminalOutput.Info("Semantic namespace change detected");
+        TerminalOutput.Detail("From", move.PreviousNamespace);
+        TerminalOutput.Detail("To", move.NextNamespace);
+        TerminalOutput.BlankLine();
+        TerminalOutput.Muted(
+            "Discovering the blast radius requires loading the related .NET solution with Roslyn and may take some time.");
+        TerminalOutput.Muted(
+            "This analysis does not modify files; applying any discovered human-code refactoring requires a separate authorization.");
     }
 
     private static void ShowBlastRadius(
