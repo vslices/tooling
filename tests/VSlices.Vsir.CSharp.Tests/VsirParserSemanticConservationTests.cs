@@ -109,24 +109,9 @@ public sealed class VsirParserSemanticConservationTests
     }
 
     [Fact]
-    public void Unknown_condition_semantics_are_rejected() => AssertUnknownNested("condition", "retry: true");
-
-    [Fact]
-    public void Unknown_failure_semantics_are_rejected() => AssertUnknownNested("failure", "retry: true");
-
-    [Fact]
-    public void Equality_must_reference_known_state()
+    public void Unknown_condition_semantics_are_rejected()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
-        Assert.False(parsed.IsSuccess);
-        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR215");
-    }
-
-    private static void AssertUnknownNested(string location, string addition)
-    {
-        var conditionExtra = location == "condition" ? $"\n          {addition}" : string.Empty;
-        var failureExtra = location == "failure" ? $"\n        {addition}" : string.Empty;
-        var source = $"""
+        const string source = """
             vsir: 0.1
             kind: domain-type
             name: Something
@@ -144,13 +129,61 @@ public sealed class VsirParserSemanticConservationTests
                 - ensure:
                     condition:
                       intrinsic: non-empty
-                      value: input.Value{conditionExtra}
+                      value: input.Value
+                      retry: true
                     failure:
-                      message: required{failureExtra}
+                      message: required
             """;
+
         var parsed = VsirParser.Parse(source);
+
         Assert.False(parsed.IsSuccess);
-        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR104" && d.Message.Contains(location, StringComparison.Ordinal));
+        Assert.Contains(parsed.Diagnostics, d =>
+            d.Code == "VSIR104" &&
+            d.Message.Contains("construction.steps[].ensure.condition.retry", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Unknown_failure_semantics_are_rejected()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Something
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+              steps:
+                - ensure:
+                    condition:
+                      intrinsic: non-empty
+                      value: input.Value
+                    failure:
+                      message: required
+                      retry: true
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d =>
+            d.Code == "VSIR104" &&
+            d.Message.Contains("construction.steps[].ensure.failure.retry", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Equality_must_reference_known_state()
+    {
+        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR215");
     }
 
     private static string TicketIdLike(string traits) => $$"""
