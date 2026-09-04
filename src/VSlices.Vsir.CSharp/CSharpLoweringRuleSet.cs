@@ -163,7 +163,10 @@ public sealed class CSharpLoweringRuleSet
     private static bool IsWithin(string root, string path)
     {
         var normalizedRoot = Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar;
-        return path.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase);
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return path.StartsWith(normalizedRoot, comparison);
     }
 }
 
