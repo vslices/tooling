@@ -2,32 +2,23 @@ namespace VSlices.Tooling;
 
 internal static class LoweringLineageBootstrap
 {
-    public static async Task<string?> TryResolveConfiguredBaseline(
+    public static bool IsConfiguredFor(
         string rulesetRoot,
         string conventionalMaterializationPath,
         string existingMaterializationPath,
-        string? sourceOverride,
-        CancellationToken cancellationToken)
+        string? sourceOverride)
     {
         if (!string.IsNullOrWhiteSpace(sourceOverride))
-            return null;
+            return false;
 
         if (!PathsEqual(conventionalMaterializationPath, existingMaterializationPath))
-            return null;
+            return false;
 
         var configuration = ProjectConfiguration.LoadFromRulesetRoot(rulesetRoot);
-        if (!string.Equals(
-                configuration?.LineageBootstrapConvention,
-                ProjectConfiguration.DefaultLineageBootstrapConvention,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        if (!File.Exists(existingMaterializationPath))
-            return null;
-
-        return await File.ReadAllTextAsync(existingMaterializationPath, cancellationToken);
+        return string.Equals(
+            configuration?.LineageBootstrapConvention,
+            ProjectConfiguration.DefaultLineageBootstrapConvention,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool PathsEqual(string left, string right) =>
