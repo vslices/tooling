@@ -23,7 +23,7 @@ semantic capability
      -> discover interpretive work only when a concrete case requires it
 ```
 
-The currently implemented command surface remains:
+The currently implemented command surface includes:
 
 ```text
 vslices init
@@ -31,9 +31,12 @@ vslices lower
 vslices transpile
 vslices rebase
 vslices update --self
+vslices update --ruleset
 vslices --version
 vslices -v
 ```
+
+Plain `vslices update` is intentionally not defined yet. The two atomic update surfaces are being exercised independently before aggregate ordering and partial-failure semantics are adopted.
 
 `interpretate` is a defined hypothesis for interpretive lowering, not a mandatory roadmap checkbox. A `vslices interpretate` command should emerge only if a real case remains genuinely underdetermined but sufficiently constrained after VSIR semantics, ruleset knowledge, project evidence and target-native authority have all been considered.
 
@@ -77,6 +80,8 @@ The repository currently contains mechanisms for:
 - shared project-aware VSIR artifact discovery;
 - .NET target-context delegation and explicit namespace override;
 - project-local configuration and ruleset initialization;
+- project-local ruleset updates from configured source/ref;
+- project-local lowering lineage and explicit lineage bootstrap policy;
 - a centralized static terminal presentation boundary for interactive CLI output;
 - Native AOT distribution;
 - verified Windows bootstrap installation;
@@ -99,6 +104,9 @@ project/.vslices/config.yaml
 
 project/.vslices/.ignore
   = project-specific discovery exclusions
+
+project/.vslices/lineage
+  = operational lowering ancestry evidence
 
 vslices/ruleset
   = official revisable lowering knowledge
@@ -190,7 +198,7 @@ By default it writes the sibling materialization and refuses to overwrite an exi
 
 `rebase` reconstructs the previous deterministic projection, compares it with the human-edited materialization, and applies a compatible deterministic VSIR change conservatively.
 
-The previous VSIR baseline may be explicit through `--from`. Normal `lower` usage now records project-local deterministic baselines under `.vslices/lineage/` and reuses them when available; explicit `--from` remains the recovery path when trustworthy ancestry cannot otherwise be established.
+The previous VSIR baseline may be explicit through `--from`. Normal `lower` usage records project-local deterministic baselines under `.vslices/lineage/` and reuses them when available; explicit `--from` remains the recovery path when trustworthy ancestry cannot otherwise be established.
 
 ### `lower`
 
@@ -210,10 +218,27 @@ existing materialization + recorded deterministic baseline
 existing materialization + no recorded baseline + exact current deterministic match
   -> establish lineage without rewriting the materialization
 
-existing materialization + unknown ancestry
+existing conventional materialization + configured bootstrap convention
+  -> use the authorized convention as a lineage starting point
+  -> rebase
+  -> record the new deterministic baseline
+
+no trustworthy lineage and no applicable convention
   -> stop
   -> allow explicit --from to establish the missing baseline
 ```
+
+The first supported bootstrap convention is:
+
+```yaml
+lineage:
+  bootstrap:
+    convention: existing-materialization
+```
+
+Its meaning is intentionally narrow. For the conventional sibling materialization inferred by the CLI, the existing materialization may be accepted as the project-authorized starting baseline from this point forward. This does not reconstruct historical provenance.
+
+The convention does not apply to explicit `--source` overrides or arbitrary materialization paths. Those still require trustworthy recorded lineage or an explicit `--from`.
 
 The lineage store is operational evidence for rebase. It is not semantic authority and must not be used to repair or reinterpret `.vsir` semantics.
 
@@ -234,7 +259,7 @@ If an interpretive mechanism is eventually adopted, `lower` should continue to c
 
 Plain `vslices init` uses the official `vslices/ruleset` as the normal bootstrap source, while explicit local directories or HTTP(S) ZIP sources remain supported.
 
-The default configuration is release-oriented:
+The default configuration is release-oriented and includes the current lineage bootstrap convention:
 
 ```yaml
 version: 0.1
@@ -245,6 +270,10 @@ targets:
 ruleset:
   source: https://github.com/vslices/ruleset
   ref: main
+
+lineage:
+  bootstrap:
+    convention: existing-materialization
 
 updates:
   source: https://github.com/vslices/tooling
@@ -280,7 +309,7 @@ build<pr-number>.<run-number>
 
 The internal .NET assembly representation is an implementation detail and should not leak into normal CLI output.
 
-Interactive `--version`, `init`, and `update --self` use the shared terminal presentation boundary and VSlices branding. Redirected/machine-consumable output remains plain and safe to script against.
+Interactive identity, initialization and update flows use the shared terminal presentation boundary and VSlices branding where adopted. Redirected/machine-consumable output remains plain and safe to script against.
 
 Presentation may decorate output. It must not change command semantics.
 
@@ -298,7 +327,7 @@ The bootstrap supports Windows x64 and ARM64, verifies the downloaded archive, a
 
 For specific versions, custom install paths, PATH behavior, self-update, and installable pull-request builds, see [`docs/how-to-install-on-windows.md`](docs/how-to-install-on-windows.md).
 
-## Distribution and self-update
+## Distribution and updates
 
 Release automation targets:
 
@@ -310,14 +339,17 @@ linux-x64
 
 Each published release artifact has a separate SHA-256 file.
 
-The self-update surface is:
+The two current atomic update surfaces are:
 
 ```text
 vslices update --self
 vslices update --self --check
+vslices update --ruleset
 ```
 
-Normal usage keeps update policy in `.vslices/config.yaml` and invokes `vslices update --self` without repeating that policy on every command.
+`update --self` updates the standalone CLI according to the configured tooling update policy. `update --ruleset` replaces the project-local `.vslices/ruleset` snapshot from the configured `ruleset.source` and `ruleset.ref`.
+
+Normal usage keeps update policy in `.vslices/config.yaml` rather than repeating it on every command.
 
 Developers may follow the newest successful build of a pull request:
 
@@ -328,13 +360,23 @@ updates:
   pull-request: 4
 ```
 
-The updater resolves the newest successful run automatically. CLI flags for channel or pull request are overrides for diagnostics, CI, experiments or recovery rather than the preferred daily workflow.
+For experiments, the project may independently point the Ruleset at a concrete branch:
+
+```yaml
+ruleset:
+  source: https://github.com/vslices/ruleset
+  ref: <experiment-branch>
+```
+
+The updater resolves the newest successful CLI PR build automatically. CLI flags for channel or pull request are overrides for diagnostics, CI, experiments or recovery rather than the preferred daily workflow.
 
 GitHub Actions build artifact downloads use `GH_TOKEN`, `GITHUB_TOKEN`, or an authenticated `gh` CLI session. Release and preview downloads remain based on public GitHub Releases.
 
-The archive checksum is verified before replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
+The archive checksum is verified before CLI replacement. Windows uses a temporary helper after the running executable exits; Unix-like systems may replace the standalone executable directly.
 
-CLI version and ruleset version remain independent. `vslices update --ruleset` is future scope.
+CLI version and ruleset version remain independent even when an experiment deliberately evolves them together.
+
+Plain `vslices update` is still future scope. Its aggregate ordering, failure reporting and partial-success behavior should be defined only after the two atomic update paths have sufficient usage evidence.
 
 ## Evidence-driven VSIR development
 
@@ -363,9 +405,20 @@ presentation-only gap
 no gap
 ```
 
-The Ticket Support `TicketId.vsir` case is the current concrete semantic-boundary example. It declares `traits: [identifier, transform]` and `equality: { intrinsic: ordinal-equals, by: state.Value }`. Tooling now represents and validates those semantics rather than silently discarding or rejecting them as structurally unknown. C# lowering still rejects them explicitly until a deterministic identifier/equality lowering mechanism is justified. This preserves the distinction between semantic validity and target lowering knowledge.
+The Ticket Support `TicketId.vsir` case is the current concrete evidence chain. It exposed semantic conservation, identifier/equality representation, deterministic C# identifier/equality lowering, external Ruleset knowledge, project-local Ruleset updating, and lineage bootstrap behavior in succession. Each resulting change was adopted only after the previous boundary was exercised from the consumer project.
 
 This classification is especially important when analyzing a consumer repository and coordinating changes between that repository, `vslices/tooling`, and `vslices/ruleset`.
+
+## Next exploration / explicit future scope
+
+The current experiment deliberately leaves the following directions unresolved rather than expanding scope further:
+
+- **Convention selection according to availability.** `existing-materialization` is currently one explicit bootstrap convention. A later iteration should explore a selector capable of presenting or choosing among conventions that are actually available in the current project/context instead of assuming a universal convention.
+- **Ruleset-owned convention configuration.** Explore whether lineage/bootstrap conventions, or at least their available definitions and target-specific applicability, belong partly in `vslices/ruleset` rather than entirely in project-local Tooling configuration. This must preserve the distinction between project operating policy, lowering knowledge and historical evidence.
+- **Aggregate `vslices update`.** Define plain `vslices update` only after the behavior of `update --self` and `update --ruleset` has been exercised independently. The design must make ordering, partial failure, partial success and reporting explicit rather than accidental.
+- **Consistent styles for lowering commands.** Extend the shared static presentation layer to `vslices transpile`, `vslices rebase` and `vslices lower`, preserving redirected/machine-safe output and keeping presentation separate from command semantics.
+
+These are recorded as future exploration points, not commitments to a particular implementation.
 
 ## Validation strategy
 
@@ -396,6 +449,6 @@ This does not imply generating every line of Tooling. The goal is semantic self-
 
 ## Status
 
-VSIR lowering, rulesets, configuration, installation, rebase, presentation and self-update remain preview-quality and experimental.
+VSIR lowering, rulesets, configuration, installation, rebase, presentation and updates remain preview-quality and experimental.
 
 The repository prefers small evidence-driven extensions over speculative generalization. Material decisions should be made reconstructible in repository artifacts so future human or AI-assisted sessions can continue from current evidence instead of recreating the design from conversation history.
