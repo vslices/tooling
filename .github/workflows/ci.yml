@@ -29,6 +29,69 @@ jobs:
       - run: dotnet build tooling.slnx --configuration Release
       - run: dotnet test tooling.slnx --configuration Release --no-build
 
+      - name: Smoke test Roslyn semantic namespace blast radius
+        shell: bash
+        run: |
+          mkdir -p semantic-refactor-context/Demo
+          cat > semantic-refactor-context/Demo/Demo.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+            </PropertyGroup>
+          </Project>
+          EOF
+          cat > semantic-refactor-context/Demo/TicketCode.cs <<'EOF'
+          namespace Demo.Domain;
+
+          public sealed class TicketCode
+          {
+              public sealed class Input;
+          }
+          EOF
+          cat > semantic-refactor-context/Demo/Consumer.cs <<'EOF'
+          using static Demo.Domain.TicketCode;
+
+          namespace Demo.Consumer;
+
+          public sealed class Consumer
+          {
+              private readonly Demo.Domain.TicketCode _code = new();
+              private readonly Input _input = new();
+          }
+          EOF
+          cat > semantic-refactor-context/TicketCode.candidate.cs <<'EOF'
+          namespace Demo.Domain.Aggregates;
+
+          public sealed class TicketCode
+          {
+              public sealed class Input;
+          }
+          EOF
+          dotnet new sln --format slnx -n SemanticRefactor -o semantic-refactor-context
+          dotnet sln semantic-refactor-context/SemanticRefactor.slnx add semantic-refactor-context/Demo/Demo.csproj
+          dotnet build semantic-refactor-context/SemanticRefactor.slnx --configuration Release
+
+          BEFORE_TICKET="$(sha256sum semantic-refactor-context/Demo/TicketCode.cs | awk '{print $1}')"
+          BEFORE_CONSUMER="$(sha256sum semantic-refactor-context/Demo/Consumer.cs | awk '{print $1}')"
+          mkdir -p semantic-refactor-context/staged
+          dotnet src/VSlices.Targets.DotNet.Refactor/bin/Release/net10.0/VSlices.Targets.DotNet.Refactor.dll \
+            --project semantic-refactor-context/Demo/Demo.csproj \
+            --document semantic-refactor-context/Demo/TicketCode.cs \
+            --candidate semantic-refactor-context/TicketCode.candidate.cs \
+            --symbol TicketCode \
+            --staging semantic-refactor-context/staged \
+            --manifest semantic-refactor-context/manifest.json
+
+          jq -e '.Success == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.NamespaceChanged == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.RequiresAuthorization == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.ReferenceCount >= 2' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.PreviousSymbol == "Demo.Domain.TicketCode"' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.NextSymbol == "Demo.Domain.Aggregates.TicketCode"' semantic-refactor-context/manifest.json >/dev/null
+          grep -R -q 'global::Demo.Domain.Aggregates.TicketCode' semantic-refactor-context/staged
+          test "$BEFORE_TICKET" = "$(sha256sum semantic-refactor-context/Demo/TicketCode.cs | awk '{print $1}')"
+          test "$BEFORE_CONSUMER" = "$(sha256sum semantic-refactor-context/Demo/Consumer.cs | awk '{print $1}')"
+
       - name: Validate Windows bootstrap script syntax
         shell: pwsh
         run: '[scriptblock]::Create((Get-Content ./install.ps1 -Raw)) | Out-Null'
@@ -148,10 +211,12 @@ jobs:
             --runtime linux-x64 \
             "${VERSION_ARGS[@]}"
 
-      - name: Smoke test Native AOT executable, version, init, and config
+      - name: Smoke test Native AOT executable, version, init, config, and companion helper
         shell: bash
         run: |
-          VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish"
+          VSLICES="$PUBLISH/vslices"
+          test -f "$PUBLISH/refactor/VSlices.Targets.DotNet.Refactor.dll"
           "$VSLICES" --help | grep -q "init"
           "$VSLICES" --help | grep -q "lower"
           "$VSLICES" --help | grep -q "transpile"
@@ -190,7 +255,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p pr-build/linux-x64
-          zip -j pr-build/linux-x64/vslices-linux-x64.zip src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish"
+          (
+            cd "$PUBLISH"
+            zip -r "$GITHUB_WORKSPACE/pr-build/linux-x64/vslices-linux-x64.zip" vslices refactor
+          )
           sha256sum pr-build/linux-x64/vslices-linux-x64.zip | awk '{print $1}' > pr-build/linux-x64/vslices-linux-x64.zip.sha256
 
       - name: Upload linux-x64 PR build
@@ -225,6 +294,11 @@ jobs:
             --runtime ${{ matrix.rid }} `
             @versionArgs
 
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          if (-not (Test-Path "$publish/refactor/VSlices.Targets.DotNet.Refactor.dll")) {
+            throw 'Roslyn semantic-refactoring companion helper was not published.'
+          }
+
       - name: Package ${{ matrix.rid }} PR build
         if: github.event_name == 'pull_request'
         shell: pwsh
@@ -233,8 +307,9 @@ jobs:
           $directory = "pr-build/$rid"
           New-Item -ItemType Directory -Force $directory | Out-Null
           $archive = "$directory/vslices-$rid.zip"
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish"
           Compress-Archive `
-            -Path "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish/vslices.exe" `
+            -Path "$publish/vslices.exe", "$publish/refactor" `
             -DestinationPath $archive
           (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() |
             Set-Content -NoNewline "$archive.sha256"
@@ -278,5 +353,6 @@ jobs:
             done <<< "$ARTIFACTS"
 
             echo
-            echo "After bootstrapping one PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
+            echo "Artifacts now contain the Native AOT CLI plus its managed Roslyn refactoring companion under \`refactor/\`."
+            echo "After bootstrapping one helper-aware PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
           } >> "$GITHUB_STEP_SUMMARY"
