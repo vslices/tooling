@@ -36,4 +36,14 @@
     <ProjectReference Include="..\VSlices.Vsir.CSharp\VSlices.Vsir.CSharp.csproj" />
   </ItemGroup>
 
+  <Target Name="PublishSemanticRefactoringHelper" AfterTargets="Publish">
+    <PropertyGroup>
+      <SemanticRefactoringPublishDir>$([System.IO.Path]::GetFullPath('$(PublishDir)refactor'))</SemanticRefactoringPublishDir>
+    </PropertyGroup>
+    <MSBuild
+      Projects="..\VSlices.Targets.DotNet.Refactor\VSlices.Targets.DotNet.Refactor.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);PublishDir=$(SemanticRefactoringPublishDir);SelfContained=false;RuntimeIdentifier=" />
+  </Target>
+
 </Project>
