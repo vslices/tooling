@@ -6,14 +6,10 @@ internal sealed record CliResult(int ExitCode, string StandardOutput, string Sta
 
 internal sealed class ToolingTestProject : IDisposable
 {
-    private readonly string _previousCurrentDirectory;
-
     public ToolingTestProject()
     {
         Root = Path.Combine(Path.GetTempPath(), "vslices-tooling-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root);
-        _previousCurrentDirectory = Environment.CurrentDirectory;
-        Environment.CurrentDirectory = Root;
     }
 
     public string Root { get; }
@@ -164,7 +160,6 @@ internal sealed class ToolingTestProject : IDisposable
 
     public void Dispose()
     {
-        Environment.CurrentDirectory = _previousCurrentDirectory;
         if (Directory.Exists(Root))
             Directory.Delete(Root, recursive: true);
     }
