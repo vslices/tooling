@@ -133,9 +133,19 @@ try {
         throw "Release archive does not contain vslices.exe."
     }
 
+    $sourceHelper = Join-Path $extractPath 'refactor\VSlices.Targets.DotNet.Refactor.dll'
+    if (-not (Test-Path $sourceHelper)) {
+        throw "Release archive does not contain the Roslyn semantic-refactoring helper."
+    }
+
     New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
+    $refactorDestination = Join-Path $InstallPath 'refactor'
+    if (Test-Path $refactorDestination) {
+        Remove-Item -Recurse -Force $refactorDestination
+    }
+
+    Copy-Item -Path (Join-Path $extractPath '*') -Destination $InstallPath -Recurse -Force
     $destination = Join-Path $InstallPath 'vslices.exe'
-    Copy-Item -Path $sourceExecutable -Destination $destination -Force
 
     if (-not $SkipPath) {
         Add-ToUserPath -Entry $InstallPath
