@@ -6,6 +6,9 @@ namespace VSlices.Tooling;
 
 internal static class TerminalOutput
 {
+    private const int DetailLabelWidth = 14;
+    private const string DetailGutter = "  ";
+
     private static readonly AnsiStyle BrandStyle = Chalk.Rgb(156, 47, 160);
 
     public static void Brand(string? context = null, bool trailingBlankLine = true)
@@ -59,7 +62,8 @@ internal static class TerminalOutput
         Console.Error.WriteLine(Chalk.Red[text]);
 
     public static void Detail(string label, string value) =>
-        Console.WriteLine($"  {Chalk.Gray[label.PadRight(13)]}{Chalk.Bold[value]}");
+        Console.WriteLine(
+            $"  {Chalk.Gray[label.PadRight(DetailLabelWidth)]}{DetailGutter}{Chalk.Bold[value]}");
 
     public static void BlankLine() =>
         Console.WriteLine();
