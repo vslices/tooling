@@ -64,22 +64,45 @@ public static class CSharpRebaser
                 return new(resolved, []);
             }
 
-            return new(null, [new(
+            return new(null, [CreateConflictDiagnostic(
                 "REB004",
-                "Human and deterministic projections both changed the same insertion point." + Environment.NewLine +
+                "Human and deterministic projections both changed the same insertion point.",
+                $"Baseline insertion:{Environment.NewLine}{DisplayFull(string.Empty)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Human insertion:{Environment.NewLine}{DisplayFull(humanInserted)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic insertion:{Environment.NewLine}{DisplayFull(nextChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.",
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged,
+                    humanInsertionStart,
+                    humanInsertionLength),
                 $"  Baseline insertion: {DisplaySnippet(string.Empty)}" + Environment.NewLine +
                 $"  Human insertion: {DisplaySnippet(humanInserted)}" + Environment.NewLine +
-                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
-                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
-                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.")]);
+                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}")]);
         }
 
         var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
         if (directIndex < 0)
         {
-            return new(null, [new(
+            return new(null, [CreateConflictDiagnostic(
                 "REB001",
-                "The VSIR-generated region changed in the human projection and cannot be rebased deterministically." + Environment.NewLine +
+                "The VSIR-generated region changed in the human projection and cannot be rebased deterministically.",
+                $"Previous deterministic region:{Environment.NewLine}{DisplayFull(previousChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}",
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged),
                 $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
                 $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
         }
@@ -99,9 +122,19 @@ public static class CSharpRebaser
                 previousChanged.Length,
                 out var contextualIndex))
         {
-            return new(null, [new(
+            return new(null, [CreateConflictDiagnostic(
                 "REB002",
-                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically." + Environment.NewLine +
+                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically.",
+                $"Previous deterministic region:{Environment.NewLine}{DisplayFull(previousChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}",
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged),
                 $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
                 $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
         }
@@ -110,6 +143,41 @@ public static class CSharpRebaser
             .Remove(contextualIndex, previousChanged.Length)
             .Insert(contextualIndex, nextChanged);
         return new(rebased, []);
+    }
+
+    private static VsirDiagnostic CreateConflictDiagnostic(
+        string code,
+        string message,
+        string details,
+        string trace,
+        string compactDetails) =>
+        new(code, message + Environment.NewLine + compactDetails, details, trace);
+
+    private static string BuildTrace(
+        string previousDeterministicSource,
+        string humanSource,
+        string nextDeterministicSource,
+        int prefixLength,
+        int suffixLength,
+        string previousChanged,
+        string nextChanged,
+        int? humanInsertionStart = null,
+        int? humanInsertionLength = null)
+    {
+        var insertion = humanInsertionStart is null
+            ? string.Empty
+            : Environment.NewLine +
+              $"Human insertion start: {humanInsertionStart}{Environment.NewLine}" +
+              $"Human insertion length: {humanInsertionLength}";
+
+        return
+            $"Common prefix length: {prefixLength}{Environment.NewLine}" +
+            $"Common suffix length: {suffixLength}{Environment.NewLine}" +
+            $"Previous changed length: {previousChanged.Length}{Environment.NewLine}" +
+            $"Next changed length: {nextChanged.Length}" + insertion + Environment.NewLine + Environment.NewLine +
+            $"Previous deterministic source:{Environment.NewLine}{DisplayFull(previousDeterministicSource)}{Environment.NewLine}{Environment.NewLine}" +
+            $"Human source:{Environment.NewLine}{DisplayFull(humanSource)}{Environment.NewLine}{Environment.NewLine}" +
+            $"Next deterministic source:{Environment.NewLine}{DisplayFull(nextDeterministicSource)}";
     }
 
     private static bool TryLocateInsertionSlot(
@@ -264,6 +332,9 @@ public static class CSharpRebaser
 
         return $"'{escaped}'";
     }
+
+    private static string DisplayFull(string value) =>
+        value.Length == 0 ? "<empty>" : value;
 
     private static int CommonPrefixLength(string left, string right)
     {
