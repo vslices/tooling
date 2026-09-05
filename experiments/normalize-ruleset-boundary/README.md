@@ -225,6 +225,43 @@ VSlices.Vsir.CSharp
 - exercise all four states through the real CLI command path;
 - keep synthetic experiment knowledge outside the production/core Ruleset surface.
 
+## Downstream project-scoped lowering contract
+
+The current CLI experiment lowers one VSIR artifact at a time, but the extension model exposes a requirement for any future project-scoped lowering operation.
+
+The minimal conceptual shape to carry forward is:
+
+```text
+Lower(Target, Scope?)
+
+Target =
+    VsirArtifact
+  | Project
+
+Scope =
+    ProjectRelativePath
+```
+
+`Scope` is valid only when `Target` is a project. A project-relative path narrows the set of VSIR artifacts selected for lowering; it does not become an independent semantic or target context.
+
+This implies several downstream laws:
+
+1. A project-scoped lowering operation establishes project context once and applies one coherent Ruleset / extension-catalog / target context to every selected artifact.
+2. Batch selection must not alter per-artifact semantic ordering. For example, `normalize -> ensure` remains local to the artifact and must validate the normalized value.
+3. Project-relative scope is a selection concern, not a third lowering target alongside VSIR artifact and project.
+4. A future batch operation should be atomic with respect to materialization and lineage: either all selected artifacts are valid/lowerable and their materializations are committed, or no partial batch should be written.
+5. Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, multi-path selection, aggregate diagnostics, and staging mechanics are separate CLI concerns and are not implemented by this PR.
+
+Illustrative future command shapes are therefore intentionally non-normative here:
+
+```text
+vslices lower Risk.vsir
+vslices lower Identities.Domain.csproj
+vslices lower Identities.Domain --path Aggregates
+```
+
+The important architectural point for this PR is narrower: extension catalogs are resolved from project context rather than per-artifact renderer lookup, so future project-scoped lowering must preserve one coherent semantic authority across the selected set.
+
 ## Pending impact review — next exploration step
 
 This refinement changes more than the syntax of the current experiment. Before generalizing semantic extensions beyond `normalize`, the next exploration should explicitly review how the extension-catalog model changes assumptions already introduced by PR #4, PR #5, and this PR.
@@ -241,6 +278,7 @@ Questions to carry forward:
 8. **Existing core intrinsics** — should core operations such as `trim` remain split between VSIR vocabulary and target Ruleset knowledge, or does the extension shape reveal a more uniform representation worth exploring later?
 9. **Future extension kinds** — only after real `ensure`, equality, invariant, feature, or other consumer boundaries reproduce this pattern should a generic extension abstraction be considered.
 10. **Semantic properties** — purity, determinism, idempotence, input/output contracts, and single-evaluation requirements remain deferred until a concrete lowering case demands them.
+11. **Project-scoped lowering** — when lowering several artifacts, which project-context elements are established once, which diagnostics stay per-artifact, and what atomicity guarantees are required for materialization and lineage?
 
 The next experiment after closing the current C# path should therefore be an impact audit, not an immediate generalization.
 
@@ -252,6 +290,7 @@ The next experiment after closing the current C# path should therefore be an imp
 - generalize extension declarations to `ensure`, equality, invariants, features, or other kinds in this PR;
 - claim multi-target behavioral equivalence merely because multiple renderers can be declared;
 - add purity/determinism/idempotence metadata before lowering evidence needs it;
+- implement project/folder/batch lowering, project-name resolution, `--path`, `--ir`, or `--proj` in this PR;
 - weaken fail-closed behavior for malformed or undeclared semantic input.
 
 ## Evidence source
