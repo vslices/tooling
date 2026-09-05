@@ -134,8 +134,9 @@ try {
     }
 
     $sourceHelper = Join-Path $extractPath 'refactor\VSlices.Targets.DotNet.Refactor.dll'
-    if (-not (Test-Path $sourceHelper)) {
-        throw "Release archive does not contain the Roslyn semantic-refactoring helper."
+    $sourceBuildHost = Join-Path $extractPath 'refactor\BuildHost-netcore\Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll'
+    if (-not (Test-Path $sourceHelper) -or -not (Test-Path $sourceBuildHost)) {
+        throw "Release archive does not contain a complete Roslyn semantic-refactoring companion with BuildHost-netcore."
     }
 
     New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
