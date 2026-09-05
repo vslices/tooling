@@ -29,23 +29,15 @@ internal static class LoweringSubjectResolver
             };
         }
 
-        if (Path.HasExtension(value))
-        {
-            var requestedExtension = Path.GetExtension(value);
-            if (!requestedExtension.Equals(".vsir", StringComparison.OrdinalIgnoreCase) &&
-                !requestedExtension.Equals(".csproj", StringComparison.OrdinalIgnoreCase))
-            {
-                return (null, new("CLI003", $"Lowering subject '{value}' must resolve to a .vsir or .csproj file."));
-            }
+        var requestedExtension = Path.GetExtension(value);
+        if (requestedExtension.Equals(".vsir", StringComparison.OrdinalIgnoreCase))
+            return ResolveVsir(value, cwd, explicitlyTyped: true);
+        if (requestedExtension.Equals(".csproj", StringComparison.OrdinalIgnoreCase))
+            return ResolveProject(value, cwd, explicitlyTyped: true);
 
-            return requestedExtension.Equals(".vsir", StringComparison.OrdinalIgnoreCase)
-                ? FromVsirResolution(CommandInfrastructure.ResolveVsir(value, cwd))
-                : ResolveProject(value, cwd);
-        }
-
-        var vsir = CommandInfrastructure.ResolveVsir(value, cwd);
-        var project = ResolveProject(value, cwd);
-        var hasVsir = vsir.Path is not null;
+        var vsir = ResolveVsir(value, cwd, explicitlyTyped: false);
+        var project = ResolveProject(value, cwd, explicitlyTyped: false);
+        var hasVsir = vsir.Subject is not null;
         var hasProject = project.Subject is not null;
 
         if (hasVsir && hasProject)
@@ -56,32 +48,63 @@ internal static class LoweringSubjectResolver
         }
 
         if (hasVsir)
-            return (new(LoweringSubjectKind.VsirArtifact, vsir.Path!), null);
+            return vsir;
         if (hasProject)
             return project;
 
         if (vsir.Diagnostic?.Code == "CLI002")
-            return (null, vsir.Diagnostic);
+            return vsir;
         if (project.Diagnostic?.Code == "CLI005")
             return project;
 
         return (null, new("CLI001", $"Could not resolve lowering subject '{value}' as a VSIR artifact or .NET project."));
     }
 
-    private static (LoweringSubject? Subject, VsirDiagnostic? Diagnostic) FromVsirResolution(
-        (string? Path, VsirDiagnostic? Diagnostic) resolution) =>
-        resolution.Diagnostic is null
-            ? (new(LoweringSubjectKind.VsirArtifact, resolution.Path!), null)
-            : (null, resolution.Diagnostic);
+    private static (LoweringSubject? Subject, VsirDiagnostic? Diagnostic) ResolveVsir(
+        string value,
+        string cwd,
+        bool explicitlyTyped)
+    {
+        var symbol = explicitlyTyped
+            ? Path.GetFileNameWithoutExtension(value)
+            : Path.GetFileName(value);
+
+        var directValue = explicitlyTyped ? value : value + ".vsir";
+        var direct = Path.GetFullPath(directValue, cwd);
+        if (File.Exists(direct))
+            return (new(LoweringSubjectKind.VsirArtifact, direct), null);
+
+        var searchRoot = VSlicesProjectContext.FindFrom(cwd)?.ProjectRoot ?? Path.GetFullPath(cwd);
+        var policy = ArtifactDiscoveryPolicy.Load(searchRoot);
+        var matches = EnumerateFiles(searchRoot, symbol + ".vsir", policy)
+            .Take(3)
+            .ToArray();
+
+        return matches.Length switch
+        {
+            1 => (new(LoweringSubjectKind.VsirArtifact, matches[0]), null),
+            0 => (null, null),
+            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+        };
+    }
 
     private static (LoweringSubject? Subject, VsirDiagnostic? Diagnostic) ResolveProject(
         string value,
-        string cwd)
+        string cwd,
+        bool explicitlyTyped)
     {
-        var symbol = Path.GetFileNameWithoutExtension(value);
+        var symbol = explicitlyTyped
+            ? Path.GetFileNameWithoutExtension(value)
+            : Path.GetFileName(value);
+
+        var directValue = explicitlyTyped ? value : value + ".csproj";
+        var direct = Path.GetFullPath(directValue, cwd);
+        if (File.Exists(direct))
+            return (new(LoweringSubjectKind.DotNetProject, direct), null);
+
         var searchRoot = VSlicesProjectContext.FindFrom(cwd)?.ProjectRoot ?? Path.GetFullPath(cwd);
         var policy = ArtifactDiscoveryPolicy.Load(searchRoot);
-        var matches = EnumerateProjects(searchRoot, symbol + ".csproj", policy)
+        var matches = EnumerateFiles(searchRoot, symbol + ".csproj", policy)
             .Take(3)
             .ToArray();
 
@@ -99,12 +122,6 @@ internal static class LoweringSubjectResolver
         var policy = ArtifactDiscoveryPolicy.Load(root);
         return EnumerateFiles(root, "*.vsir", policy);
     }
-
-    private static IEnumerable<string> EnumerateProjects(
-        string root,
-        string searchPattern,
-        ArtifactDiscoveryPolicy policy) =>
-        EnumerateFiles(root, searchPattern, policy);
 
     private static IEnumerable<string> EnumerateFiles(
         string root,
