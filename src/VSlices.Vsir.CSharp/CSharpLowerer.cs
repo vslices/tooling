@@ -349,12 +349,12 @@ public static class CSharpLowerer
     }
 
     private static string EqualityDescription(EqualitySemantics equality) =>
-        equality.Intrinsic ?? "domain:" + equality.Domain;
+        equality.Intrinsic ?? "over:" + equality.Over;
 
     private static string EqualityNode(EqualitySemantics equality, string operation) =>
         equality.Intrinsic is not null
             ? $"equality.{equality.Intrinsic}.{operation}"
-            : $"equality.domain.{operation}";
+            : $"equality.over.{operation}";
 
     private static string EqualityStateField(EqualitySemantics equality) =>
         equality.By["state.".Length..];
