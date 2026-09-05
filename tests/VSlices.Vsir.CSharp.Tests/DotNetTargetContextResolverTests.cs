@@ -144,6 +144,120 @@ public sealed class DotNetTargetContextResolverTests
     }
 
     [Fact]
+    public async Task Path_pattern_ignores_only_the_terminal_matching_segment()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
+        var nested = Path.Combine(root, "Aggregates", "Tickets");
+        Directory.CreateDirectory(nested);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Tickets.Domain.csproj");
+            await File.WriteAllTextAsync(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var vsirPath = Path.Combine(nested, "TicketCode.vsir");
+            await File.WriteAllTextAsync(vsirPath, "vsir: 0.1");
+
+            var result = await DotNetTargetContextResolver.Resolve(
+                vsirPath,
+                null,
+                namespaceIgnoredFolders: ["Aggregates/*"]);
+
+            Assert.Null(result.Diagnostic);
+            Assert.NotNull(result.Context);
+            Assert.Equal("Tickets.Domain.Aggregates", result.Context.Namespace);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Path_pattern_is_segment_aware_and_does_not_match_deeper_paths()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
+        var nested = Path.Combine(root, "Aggregates", "Orders", "Entities");
+        Directory.CreateDirectory(nested);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Tickets.Domain.csproj");
+            await File.WriteAllTextAsync(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var vsirPath = Path.Combine(nested, "Address.vsir");
+            await File.WriteAllTextAsync(vsirPath, "vsir: 0.1");
+
+            var result = await DotNetTargetContextResolver.Resolve(
+                vsirPath,
+                null,
+                namespaceIgnoredFolders: ["Aggregates/*"]);
+
+            Assert.Null(result.Diagnostic);
+            Assert.NotNull(result.Context);
+            Assert.Equal("Tickets.Domain.Aggregates.Entities", result.Context.Namespace);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Path_and_exact_segment_patterns_can_be_combined()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
+        var nested = Path.Combine(root, "Aggregates", "Orders", "Entities");
+        Directory.CreateDirectory(nested);
+
+        try
+        {
+            var projectPath = Path.Combine(root, "Tickets.Domain.csproj");
+            await File.WriteAllTextAsync(
+                projectPath,
+                """
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <TargetFramework>net10.0</TargetFramework>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            var vsirPath = Path.Combine(nested, "Address.vsir");
+            await File.WriteAllTextAsync(vsirPath, "vsir: 0.1");
+
+            var result = await DotNetTargetContextResolver.Resolve(
+                vsirPath,
+                null,
+                namespaceIgnoredFolders: ["Aggregates/*", "Entities"]);
+
+            Assert.Null(result.Diagnostic);
+            Assert.NotNull(result.Context);
+            Assert.Equal("Tickets.Domain.Aggregates", result.Context.Namespace);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Exact_folder_exclusions_do_not_match_prefixes()
     {
         var root = Path.Combine(Path.GetTempPath(), "vslices-target-context-" + Guid.NewGuid().ToString("N"));
