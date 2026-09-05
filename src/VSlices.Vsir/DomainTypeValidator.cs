@@ -10,9 +10,10 @@ public static class DomainTypeValidator
 
     public static IReadOnlyList<VsirDiagnostic> Validate(
         DomainTypeVsir document,
-        VsirSemanticExtensions? semanticExtensions = null)
+        VsirValidationContext? validationContext = null)
     {
-        semanticExtensions ??= document.SemanticExtensions;
+        validationContext ??= VsirValidationContext.Empty;
+        var semanticExtensions = validationContext.SemanticExtensions;
         var diagnostics = new List<VsirDiagnostic>();
 
         Require(document.Version == "0.1", "VSIR200", "Only VSIR 0.1 is supported.");
@@ -29,17 +30,9 @@ public static class DomainTypeValidator
             diagnostics.Add(new("VSIR217", $"Trait '{duplicate}' is declared more than once. Traits are an unordered set of capabilities."));
 
         foreach (var trait in document.Traits.Distinct(StringComparer.Ordinal))
-        {
-            Require(
-                SupportedTraits.Contains(trait),
-                "VSIR218",
-                $"Unsupported trait '{trait}'.");
-        }
+            Require(SupportedTraits.Contains(trait), "VSIR218", $"Unsupported trait '{trait}'.");
 
-        Require(
-            document.Traits.Contains("transform", StringComparer.Ordinal),
-            "VSIR204",
-            "The experimental domain-type model currently requires trait 'transform'.");
+        Require(document.Traits.Contains("transform", StringComparer.Ordinal), "VSIR204", "The experimental domain-type model currently requires trait 'transform'.");
         Require(document.State.Fields.Count > 0, "VSIR205", "State must contain at least one field.");
         Require(document.Representation.Fields.Count > 0, "VSIR206", "Representation must contain at least one field.");
         Require(document.Construction.Input.Fields.Count > 0, "VSIR207", "Construction input must contain at least one field.");
@@ -68,17 +61,13 @@ public static class DomainTypeValidator
                 "VSIR221",
                 $"Unsupported normalize intrinsic '{normalize.Intrinsic}'.");
 
-            Require(
-                normalize.Target.StartsWith("input.", StringComparison.Ordinal),
-                "VSIR219",
+            Require(normalize.Target.StartsWith("input.", StringComparison.Ordinal), "VSIR219",
                 $"Normalize currently requires a construction input target, got '{normalize.Target}'.");
 
             if (normalize.Target.StartsWith("input.", StringComparison.Ordinal))
             {
                 var fieldName = normalize.Target["input.".Length..];
-                Require(
-                    document.Construction.Input.Fields.Any(x => x.Name == fieldName),
-                    "VSIR220",
+                Require(document.Construction.Input.Fields.Any(x => x.Name == fieldName), "VSIR220",
                     $"Normalize references unknown input field '{fieldName}'.");
             }
         }
@@ -106,33 +95,22 @@ public static class DomainTypeValidator
 
         if (document.Equality is not null)
         {
-            Require(
-                document.Equality.Intrinsic == "ordinal-equals",
-                "VSIR213",
+            Require(document.Equality.Intrinsic == "ordinal-equals", "VSIR213",
                 $"Unsupported equality intrinsic '{document.Equality.Intrinsic}'.");
-
-            Require(
-                document.Equality.By.StartsWith("state.", StringComparison.Ordinal),
-                "VSIR214",
+            Require(document.Equality.By.StartsWith("state.", StringComparison.Ordinal), "VSIR214",
                 $"Equality currently requires a state reference, got '{document.Equality.By}'.");
 
             if (document.Equality.By.StartsWith("state.", StringComparison.Ordinal))
             {
                 var fieldName = document.Equality.By["state.".Length..];
-                Require(
-                    document.State.Fields.Any(x => x.Name == fieldName),
-                    "VSIR215",
+                Require(document.State.Fields.Any(x => x.Name == fieldName), "VSIR215",
                     $"Equality references unknown state field '{fieldName}'.");
             }
         }
 
         if (document.Traits.Contains("identifier", StringComparer.Ordinal))
-        {
-            Require(
-                document.Equality is not null,
-                "VSIR216",
+            Require(document.Equality is not null, "VSIR216",
                 "Trait 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
-        }
 
         return diagnostics;
 

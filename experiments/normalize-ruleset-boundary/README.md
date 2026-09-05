@@ -2,7 +2,7 @@
 
 ## Summary
 
-This experiment began as a negative control for the boundary established by the TicketCode work:
+This experiment began from the TicketCode boundary:
 
 ```text
 VSIR
@@ -15,85 +15,52 @@ Ruleset
   -> realizes already-recognized semantics for a target
 ```
 
-The first real consumer probe confirmed the current boundary: an intentionally unknown normalize intrinsic (`normalize-boundary-probe`) is rejected as `VSIR221` before target lowering can make it executable.
-
-That observation is correct for semantic integrity, but it exposed a second question that changes the scope of the experiment:
-
-> Can a custom Ruleset explicitly declare a new normalization semantic so the CLI can use it without requiring a new `VSlices.Vsir` release, while still preventing target renderers from implicitly inventing semantic vocabulary?
-
-The working hypothesis remains:
-
-> VSIR should remain closed to implicit semantics, but open to explicitly declared semantic extensions.
-
-The experiment is still deliberately limited to `normalize`.
-
-## Observation chain
+An intentionally unknown normalize intrinsic (`normalize-boundary-probe`) first established the fail-closed negative control:
 
 ```text
-TicketCode.vsir
-  -> normalize: trim
-  -> VSIR recognizes trim
-  -> Tooling preserves ordered normalization dataflow
-  -> missing target rule produces CSL031
-  -> vslices/ruleset supplies intrinsic.trim
-  -> deterministic C# lowering succeeds
-
-normalize boundary probe
-  -> intrinsic: normalize-boundary-probe
-  -> VSIR221
-  -> semantic validity stops before target realization
-
-case B
-  -> semantic extension is explicitly declared
-  -> VSIR221 disappears
-  -> missing C# realization becomes CSL031
-
-configuration review
-  -> declaring semantic identity in the manifest and renderer elsewhere is valid but too ceremonial
-  -> the common case is one project with one primary target
-  -> multi-target projects are more likely during migration, compatibility, or interoperability work
-
-current refinement
-  -> manifest references extension catalogs
-  -> one extension entry owns semantic identity
-  -> the same entry may optionally carry one or more target realizations
-  -> semantic admission and renderer authority remain logically separate even when authored together
+undeclared normalize semantic
+-> VSIR221
 ```
 
-## Intended authority split
+The experiment then asked whether a project can explicitly admit a new normalization semantic without waiting for a new `VSlices.Vsir` release, while still preventing target renderers from inventing vocabulary implicitly.
 
-The experiment preserves three independent questions:
+The resulting rule is:
+
+> VSIR remains closed to implicit semantics and open to explicitly declared project semantic extensions.
+
+The experiment remains deliberately limited to `normalize`.
+
+## Review-driven lifecycle refinement
+
+The first extension-catalog shape placed project-owned catalogs below `.vslices/ruleset`. Review exposed a lifecycle contradiction: `.vslices/ruleset` is the replaceable snapshot owned by `init --force` and `update --ruleset`, so project semantics stored below it could be destroyed by a normal Ruleset refresh.
+
+The ownership model is now explicit:
 
 ```text
-1. Is this semantic operation known or explicitly declared?
-        -> VSIR semantic validity
+.vslices/ruleset/
+  source-owned installed lowering knowledge
+  replaceable by Ruleset lifecycle
 
-2. Is the operation structurally valid in this position?
-        -> normalize contract / validation
-
-3. Can this target materialize it?
-        -> Ruleset target realization
+.vslices/extensions/
+  project-owned semantic extension overlay
+  preserved by Ruleset lifecycle
 ```
 
-A renderer alone must not answer question 1.
+Project extensions therefore no longer appear in the Ruleset manifest.
 
-## Current extension shape under test
-
-The manifest now treats extension files the same way it already treats target rule files: as references maintained by the project Ruleset.
+Their own project manifest references catalogs:
 
 ```yaml
-extensions:
-  - extensions/ticketing.yaml
-
-targets:
-  csharp:
-    rules:
-      - csharp/intrinsics.yaml
+# .vslices/extensions/manifest.yaml
+version: 0.1
+catalogs:
+  - ticketing.yaml
 ```
 
-An extension catalog keeps semantic identity and its target realizations together:
+A referenced catalog keeps one semantic identity and optional target realizations together:
 
 ```yaml
+# .vslices/extensions/ticketing.yaml
 extensions:
   - node: intrinsic.normalize-boundary-probe
     semantic:
@@ -105,44 +72,64 @@ extensions:
         template: "{value}.Trim()"
 ```
 
-The `semantic` block grants semantic admission. The `targets.csharp` block grants C# realization. They are co-located for ergonomics, but they remain different authorities inside Tooling.
+The two blocks still have different authority:
 
-A declared semantic without a C# realization is therefore valid and should reach `CSL031`:
+```text
+semantic.kind
+  -> semantic admission
 
-```yaml
-extensions:
-  - node: intrinsic.normalize-boundary-probe
-    semantic:
-      kind: normalize
+targets.csharp
+  -> realization of that already-valid semantic in C#
 ```
 
-A renderer placed only in `targets.csharp.rules` without any semantic declaration must still leave the VSIR rejected as `VSIR221`.
+Physical co-location is an authoring convenience, not an authority collapse.
 
-## Why co-locate semantic identity and realizations?
+## One loaded project-extension model
 
-The common configuration is expected to have one primary language target. Requiring a semantic catalog plus a separate per-language declaration for every custom operation would optimize the common path for a relatively rare multi-target case.
+The earlier implementation made semantic admission and C# lowering parse the same extension YAML independently. The refined implementation loads `.vslices/extensions` once into a project-owned model that supplies:
 
-Keeping realizations under one extension instead makes the simple case small while still scaling naturally when a second target is genuinely needed:
+```text
+ProjectExtensionCatalogs
+  -> referenced catalog graph
+  -> path containment
+  -> structural validation
+  -> semantic declarations
+  -> C# realization declarations
 
-```yaml
-extensions:
-  - node: intrinsic.normalize-rut
-    semantic:
-      kind: normalize
-    targets:
-      csharp:
-        mode: deterministic
-        renderer: expression
-        template: "Rut.Normalize({value})"
-      typescript:
-        mode: deterministic
-        renderer: expression
-        template: "normalizeRut({value})"
+VsirValidationContext
+  <- semantic declaration view
+
+CSharpLoweringRuleSet additional rules
+  <- C# realization view
 ```
 
-That shape is particularly useful for language migrations, compatibility periods, and service interoperability because both realizations remain visibly attached to one semantic identity.
+This is not a universal plugin abstraction. It is one representation for one concept that already had multiple consumers.
 
-This PR only executes the C# branch of that model. The multi-target shape is recorded as the next exploration boundary, not claimed as fully implemented.
+The installed Ruleset remains independently loaded and validated. Its manifest is no longer allowed to declare project `extensions`.
+
+## Document versus validation environment
+
+Project extension authority is no longer attached to `DomainTypeVsir`.
+
+```text
+DomainTypeVsir
+  = what the .vsir document says
+
+VsirValidationContext
+  = vocabulary explicitly admitted by the current project environment
+```
+
+The same document can therefore be evaluated under different validation contexts without pretending that environmental authority is part of the parsed semantic document.
+
+## Fail-closed structural conservation
+
+The extension model and C# Ruleset loader no longer use type-filtering iteration that can silently discard malformed YAML nodes.
+
+The current rule is:
+
+> if a semantic/configuration node is present with the wrong structural type, it produces a diagnostic; it never disappears from processing.
+
+This applies to catalog references, extension entries, semantic metadata, target realization mappings, Ruleset rule-file references and Ruleset rule entries.
 
 ## Experiment sequence
 
@@ -156,7 +143,7 @@ unknown normalize intrinsic
 ### B. Declared semantic without C# realization
 
 ```text
-referenced extension catalog
+.vslices/extensions manifest references catalog
 + semantic.kind: normalize
 + no targets.csharp realization
 -> semantic validation succeeds
@@ -166,7 +153,7 @@ referenced extension catalog
 ### C. Declared semantic with co-located C# realization
 
 ```text
-referenced extension catalog
+same project extension entry
 + semantic.kind: normalize
 + targets.csharp renderer
 -> semantic validation succeeds
@@ -176,60 +163,88 @@ referenced extension catalog
 ### D. Renderer without declaration
 
 ```text
-renderer exists in targets.csharp.rules
-+ no referenced semantic extension declaration
+standalone renderer exists in installed Ruleset
++ no project semantic declaration
 -> VSIR221
 ```
 
-This final case keeps the original authority boundary intact.
+The renderer still cannot grant semantic validity.
 
-## Invariants
+## Acceptance evidence — TicketCode vs Risk
 
-1. Unknown and undeclared normalize semantics still fail closed.
-2. A target renderer never grants semantic validity by itself.
-3. A semantic extension must be explicitly declared from a referenced extension catalog.
-4. Extension identity survives independently of a particular target realization.
-5. Core semantics such as `trim` remain valid without external extension declaration.
-6. Declared extensions still satisfy the structural laws of the `normalize` position.
-7. Missing C# realization for a valid extension remains distinguishable from unknown semantics (`CSL031` vs `VSIR221`).
-8. Co-location is an authoring convenience, not a collapse of semantic and target authority.
-9. This PR executes only the `normalize` + C# path; no generic plugin model is assumed.
+The original discriminating pair is complete.
 
-## Architectural boundary under test
+`TicketCode` exercises:
 
 ```text
-Ruleset manifest
-  -> references extension catalogs
-
-extension catalog entry
-  -> semantic identity / kind
-  -> optional target realizations
-
-VSlices.Vsir
-  -> core normalize vocabulary
-  -> normalize structural contract
-  -> extension-aware semantic validation
-
-VSlices.Vsir.CSharp
-  -> ordered normalization dataflow
-  -> consumes only the C# realization for an already-valid semantic identity
+normalize: trim
+-> ensure: non-empty
 ```
 
-## Acceptance criteria
+`Risk` exercises:
 
-- preserve `VSIR221` for an undeclared normalize semantic;
-- load semantic extension identities through referenced catalog files;
-- show a declared normalize extension reaches `CSL031` without a C# realization;
-- show the same extension lowers successfully when a C# realization is co-located under `targets.csharp`;
-- show a standalone C# renderer still cannot create semantic validity;
-- exercise all four states through the real CLI command path;
-- keep synthetic experiment knowledge outside the production/core Ruleset surface.
+```text
+normalize: trim
+-> ensure: not-whitespace
+```
+
+The real Risk lowering produced the relevant shape:
+
+```csharp
+VSlices.Arrows.Req<Input, Risk>.Ensure(
+    (Input input) => !string.IsNullOrWhiteSpace(input.Value.Trim()),
+    Fail: "Debes especificar el riesgo")
+* Instance;
+
+private static Risk Instance(Input input) =>
+    new(input.Value.Trim());
+```
+
+This establishes that the generic lowering mechanism preserves:
+
+```text
+input.Value
+  -> Trim()
+  -> not-whitespace validation
+  -> construct from normalized value
+```
+
+`not-whitespace` is core VSIR semantics justified by real consumer evidence, with its C# realization in the installed Ruleset. It is not a project extension.
+
+The repeated `.Trim()` remains a future watchpoint for single-evaluation/purity/determinism; it is acceptable for the current core `trim` intrinsic and is not a failure of this experiment.
+
+## Lifecycle acceptance criteria
+
+The refinement adds lifecycle requirements to A/B/C/D:
+
+- `.vslices/extensions` survives `vslices update --ruleset`;
+- `.vslices/extensions` survives `vslices init --force`;
+- an installed Ruleset manifest cannot claim ownership of project extensions;
+- a missing referenced project catalog fails closed;
+- wrong YAML node types fail closed rather than being filtered away;
+- a target realization without semantic metadata is invalid;
+- the VSIR document remains independent of its validation context.
+
+## Review invariants
+
+1. Unknown and undeclared normalize semantics fail closed.
+2. A target renderer never grants semantic validity by itself.
+3. Custom semantic validity requires an explicitly referenced project declaration.
+4. Extension identity remains distinct from a target realization.
+5. Core semantics such as `trim` remain valid without project extension declaration.
+6. Declared extensions still obey the structural laws of `normalize`.
+7. Missing target realization remains distinguishable from unknown semantics (`CSL031` vs `VSIR221`).
+8. Co-location does not collapse semantic and target authority.
+9. Project extensions live under `.vslices/extensions`, not the replaceable Ruleset snapshot.
+10. Ruleset lifecycle never destroys the project extension overlay.
+11. Malformed semantic/configuration nodes never disappear silently.
+12. This PR implements only project `normalize` admission and C# realization.
+13. Synthetic experiment semantics do not leak into the production/core Ruleset.
+14. Ordered normalize -> ensure composition validates the normalized value, not the raw input.
 
 ## Downstream project-scoped lowering contract
 
-The extension model exposes a requirement for future lowering across several VSIR artifacts, but this PR does not implement that CLI feature.
-
-The minimal conceptual shape to carry forward is:
+The extension model also exposes a requirement for future lowering across several VSIR artifacts, but this PR does not implement that CLI feature.
 
 ```text
 Lower(Target, Scope?)
@@ -242,15 +257,15 @@ Scope =
     ProjectRelativePath
 ```
 
-`Scope` is valid only when `Target` is a project. A project-relative path narrows the selected VSIR set; it does not create a third target/context kind.
+`Scope` is valid only for a project target. A project-relative path narrows the selected VSIR set; it does not create a third context kind.
 
-A future project-scoped operation should therefore satisfy these laws:
+A future project-scoped operation should:
 
 1. establish project context once;
-2. apply one coherent Ruleset / extension-catalog / target context to every selected artifact;
+2. load one coherent Ruleset + project extension overlay + target context for the selected operation;
 3. preserve each artifact's local semantic ordering;
 4. treat scope as selection only;
-5. commit materialization/lineage atomically for the selected batch rather than leaving a partial result.
+5. commit materialization/lineage atomically rather than leaving a partial result.
 
 Illustrative future syntax:
 
@@ -260,41 +275,28 @@ vslices lower Identities.Domain.csproj
 vslices lower Identities.Domain --path Aggregates
 ```
 
-Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, multi-path selection, aggregate diagnostics, and batch staging remain outside this PR.
+Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, aggregate diagnostics and batch staging remain outside this PR.
 
-## Pending impact review — next exploration step
+## Remaining impact review
 
-This refinement changes more than the syntax of the current experiment. Before generalizing semantic extensions beyond `normalize`, the next exploration should explicitly review how the extension-catalog model changes assumptions already introduced by PR #4, PR #5, and this PR.
+The ownership/lifecycle question is now resolved by the project overlay. Remaining later questions include:
 
-Questions to carry forward:
-
-1. **Ruleset manifest and schema** — should extension catalog references become a permanent first-class Ruleset surface, and how should schema/versioning evolve?
-2. **Ruleset update/install** — how are project-owned extension catalogs preserved when `vslices update` refreshes upstream Ruleset knowledge?
-3. **Target resolution** — what happens when one extension declares several target realizations and the project selects or changes its target?
-4. **Duplicate/collision rules** — how should collisions between core rules, project target rules, and extension-catalog realizations be diagnosed?
-5. **Provenance and lineage** — which source should be recorded as authority for semantic admission versus the selected target realization?
-6. **Rebase/materialization** — does changing only a target realization affect semantic lineage differently from changing the semantic declaration itself?
-7. **Multi-target compatibility** — when two realizations live under one semantic identity, what evidence is needed before Tooling can claim that they are behaviorally compatible rather than merely present?
-8. **Existing core intrinsics** — should core operations such as `trim` remain split between VSIR vocabulary and target Ruleset knowledge, or does the extension shape reveal a more uniform representation worth exploring later?
-9. **Future extension kinds** — only after real `ensure`, equality, invariant, feature, or other consumer boundaries reproduce this pattern should a generic extension abstraction be considered.
-10. **Semantic properties** — purity, determinism, idempotence, input/output contracts, and single-evaluation requirements remain deferred until a concrete lowering case demands them.
-11. **Project-scoped lowering** — when lowering several artifacts, which project-context elements are established once, which diagnostics stay per-artifact, and what atomicity guarantees are required for materialization and lineage?
-
-The next experiment after closing the current C# path should therefore be an impact audit, not an immediate generalization.
+1. target selection when an extension carries several realizations;
+2. collision policy between installed Ruleset rules and project realization rules;
+3. provenance/lineage for semantic admission versus realization;
+4. rebase consequences when only realization changes versus semantic declaration;
+5. evidence required for behavioral compatibility across multiple targets;
+6. whether future real extension kinds reproduce this pattern strongly enough to justify a broader abstraction;
+7. whether future lowering evidence requires purity, determinism, idempotence, input/output contracts or single-evaluation guarantees;
+8. project-scoped lowering selection, diagnostics and atomicity.
 
 ## Non-goals
 
-- define a universal plugin system for every VSIR node;
-- allow renderers to implicitly create semantics;
-- add a real product-specific normalize semantic without consumer evidence;
-- generalize extension declarations to `ensure`, equality, invariants, features, or other kinds in this PR;
-- claim multi-target behavioral equivalence merely because multiple renderers can be declared;
-- add purity/determinism/idempotence metadata before lowering evidence needs it;
-- implement project/folder/batch lowering, project-name resolution, `--path`, `--ir`, or `--proj` in this PR;
-- weaken fail-closed behavior for malformed or undeclared semantic input.
-
-## Evidence source
-
-The current consumer corpus still demonstrates `trim` as the concrete normalization intrinsic. `normalize-boundary-probe` remains intentionally synthetic and exists only to isolate the authority and extension mechanism.
-
-The Ticket Support `ActionDescription.vsir` probe supplies the executable consumer boundary. Richer artifacts such as `EmailAddress` should remain later experiments unless they independently reproduce the same extension pressure.
+- define a universal plugin system;
+- allow renderers to create semantics implicitly;
+- make source Rulesets own project extension catalogs;
+- generalize extensions to ensure/equality/invariants/features in this PR;
+- claim multi-target behavioral equivalence;
+- add purity/determinism/idempotence metadata without evidence;
+- implement project/folder/batch lowering in this PR;
+- weaken fail-closed semantic conservation.

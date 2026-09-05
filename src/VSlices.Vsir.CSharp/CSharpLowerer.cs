@@ -5,7 +5,8 @@ namespace VSlices.Vsir.CSharp;
 
 public sealed record CSharpLoweringContext(
     string Namespace,
-    CSharpLoweringRuleSet Rules);
+    CSharpLoweringRuleSet Rules,
+    VsirValidationContext? ValidationContext = null);
 
 public sealed record CSharpLoweringResult(
     string? Source,
@@ -18,7 +19,7 @@ public static class CSharpLowerer
 {
     public static CSharpLoweringResult Lower(DomainTypeVsir document, CSharpLoweringContext context)
     {
-        var diagnostics = DomainTypeValidator.Validate(document).ToList();
+        var diagnostics = DomainTypeValidator.Validate(document, context.ValidationContext).ToList();
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 

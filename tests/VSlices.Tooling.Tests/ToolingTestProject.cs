@@ -15,6 +15,7 @@ internal sealed class ToolingTestProject : IDisposable
     public string Root { get; }
     public string VslicesRoot => Path.Combine(Root, ".vslices");
     public string RulesetRoot => Path.Combine(VslicesRoot, "ruleset");
+    public string ExtensionsRoot => Path.Combine(VslicesRoot, "extensions");
     public string LineageRoot => Path.Combine(VslicesRoot, "lineage");
 
     public void WriteConfiguration(

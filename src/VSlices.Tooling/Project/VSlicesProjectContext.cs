@@ -5,6 +5,7 @@ internal sealed record VSlicesProjectContext(
     string VslicesRoot,
     string ConfigurationPath,
     string RulesetRoot,
+    string ExtensionsRoot,
     string LineageRoot,
     ProjectConfiguration Configuration)
 {
@@ -30,6 +31,7 @@ internal sealed record VSlicesProjectContext(
                     vslicesRoot,
                     configurationPath,
                     Path.Combine(vslicesRoot, "ruleset"),
+                    Path.Combine(vslicesRoot, "extensions"),
                     Path.Combine(vslicesRoot, "lineage"),
                     configuration);
             }

@@ -10,10 +10,7 @@ public sealed record DomainTypeVsir(
     ProductShape State,
     ProductShape Representation,
     Construction Construction,
-    EqualitySemantics? Equality)
-{
-    public VsirSemanticExtensions SemanticExtensions { get; init; } = VsirSemanticExtensions.None;
-}
+    EqualitySemantics? Equality);
 
 public sealed record ProductShape(IReadOnlyList<Field> Fields);
 public sealed record Field(string Name, string Type);
@@ -35,6 +32,12 @@ public sealed record VsirSemanticExtensions(IReadOnlySet<string> NormalizeIntrin
 
     public bool DeclaresNormalize(string intrinsic) =>
         NormalizeIntrinsics.Contains(intrinsic);
+}
+
+public sealed record VsirValidationContext(VsirSemanticExtensions SemanticExtensions)
+{
+    public static VsirValidationContext Empty { get; } =
+        new(VsirSemanticExtensions.None);
 }
 
 public sealed record VsirParseResult(
