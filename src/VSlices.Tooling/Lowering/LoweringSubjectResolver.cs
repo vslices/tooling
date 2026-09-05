@@ -74,7 +74,7 @@ internal static class LoweringSubjectResolver
         if (File.Exists(direct))
             return (new(LoweringSubjectKind.VsirArtifact, direct), null);
 
-        var searchRoot = VSlicesProjectContext.FindFrom(cwd)?.ProjectRoot ?? Path.GetFullPath(cwd);
+        var searchRoot = Path.GetFullPath(cwd);
         var policy = ArtifactDiscoveryPolicy.Load(searchRoot);
         var matches = EnumerateFiles(searchRoot, symbol + ".vsir", policy)
             .Take(3)
@@ -102,7 +102,7 @@ internal static class LoweringSubjectResolver
         if (File.Exists(direct))
             return (new(LoweringSubjectKind.DotNetProject, direct), null);
 
-        var searchRoot = VSlicesProjectContext.FindFrom(cwd)?.ProjectRoot ?? Path.GetFullPath(cwd);
+        var searchRoot = Path.GetFullPath(cwd);
         var policy = ArtifactDiscoveryPolicy.Load(searchRoot);
         var matches = EnumerateFiles(searchRoot, symbol + ".csproj", policy)
             .Take(3)
