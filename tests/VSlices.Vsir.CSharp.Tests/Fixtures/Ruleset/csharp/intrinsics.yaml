@@ -19,12 +19,12 @@ rules:
     renderer: expression
     template: "StringComparer.Ordinal.GetHashCode({value})"
 
-  - node: equality.domain.equals
+  - node: equality.over.equals
     mode: deterministic
     renderer: expression
     template: "{left}.Equals({right})"
 
-  - node: equality.domain.hash
+  - node: equality.over.hash
     mode: deterministic
     renderer: expression
     template: "{value}.GetHashCode()"
