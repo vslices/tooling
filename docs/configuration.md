@@ -62,9 +62,9 @@ targets:
     namespace:
       ignore-folders:
         - "Aggregates/*"
+        - "Aggregates/**/Entities"
+        - "Aggregates/**/*"
         - Entities
-        - "*Internal"
-        - "Generated?"
 ```
 
 The normal namespace derivation remains:
@@ -74,33 +74,53 @@ evaluated RootNamespace
 + project-relative VSIR directory segments
 ```
 
-An `ignore-folders` entry without a path separator is matched against each complete directory segment. Entries without wildcards are exact ordinal matches; entries containing `*` or `?` use simple glob matching for that single segment.
+`ignore-folders` rules are evaluated against the directory path relative to the related `.csproj`. The complete pattern provides context, but a successful match excludes only the final directory segment represented by that pattern; matching parent segments are not removed merely because they participated in the match.
 
-An entry containing `/` or `\\` is path-aware. It is matched against the project-relative directory path ending at the candidate segment. A successful path match excludes only the final matched segment; parent segments remain available to the namespace.
+Pattern semantics are:
+
+```text
+literal segment  exact ordinal segment match
+*                any characters within exactly one directory segment
+?                exactly one character within one directory segment
+**               zero or more complete directory segments
+```
+
+A rule without a path separator remains a global segment convention. For example, `Entities` ignores any complete directory segment named `Entities`, while `*Internal` matches any single segment ending in `Internal`.
+
+Path-aware examples:
+
+```text
+Aggregates/*
+  -> ignores each direct child of Aggregates
+  -> Aggregates/Tickets            => ignore Tickets
+  -> Aggregates/Orders             => ignore Orders
+
+Aggregates/Tickets
+  -> ignores Tickets only in that exact path context
+
+Aggregates/Tickets/Entities
+  -> ignores Entities only below Aggregates/Tickets
+
+Aggregates/**/Entities
+  -> ignores an Entities folder at any depth below Aggregates
+
+Aggregates/**/*
+  -> ignores every descendant folder below Aggregates
+  -> Aggregates itself remains part of the namespace
+```
 
 For example:
 
 ```text
 RootNamespace: Tickets.Domain
-VSIR path:     Aggregates/Tickets/TicketCode.vsir
-ignore:        Aggregates/*
+VSIR path:     Aggregates/Tickets/Entities/History/TicketHistory.vsir
+ignore:        Aggregates/**/*
 result:        Tickets.Domain.Aggregates
 ```
 
-`Aggregates/*` means “ignore any immediate child directory of `Aggregates` when deriving the namespace”; it does not remove `Aggregates` itself and it does not recursively consume deeper segments.
+The recursive `**` segment is contextual rather than the directory target itself. Consequently, recursive "ignore all descendants" uses `**/*`; a path rule ending directly in `**` is not used to remove a directory segment.
 
-Segment conventions can be combined with path conventions. For example:
-
-```text
-VSIR path:     Aggregates/Orders/Entities/Address.vsir
-ignore:        Aggregates/*
-               Entities
-result:        Tickets.Domain.Aggregates
-```
-
-This lets physical aggregate organization remain more expressive than the namespace without hardcoding aggregate names into Tooling.
-
-Path patterns are segment-aware: `*` and `?` apply within one path segment. Recursive `**` semantics are not currently defined.
+This lets physical organization be more expressive than target namespace organization without hardcoding aggregate names or folder conventions into Tooling.
 
 An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
 
