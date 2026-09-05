@@ -272,21 +272,21 @@ public static class VsirParser
             return null;
         }
 
-        RejectUnknownKeys(equalityNode, ["intrinsic", "domain", "by"], "equality", diagnostics);
+        RejectUnknownKeys(equalityNode, ["intrinsic", "over", "by"], "equality", diagnostics);
 
         var intrinsic = OptionalScalar(equalityNode, "intrinsic");
-        var domain = OptionalScalar(equalityNode, "domain");
+        var over = OptionalScalar(equalityNode, "over");
         var by = Scalar(equalityNode, "by");
 
-        if (string.IsNullOrWhiteSpace(by) || (intrinsic is null) == (domain is null))
+        if (string.IsNullOrWhiteSpace(by) || (intrinsic is null) == (over is null))
         {
             diagnostics.Add(new(
                 "VSIR106",
-                "Equality requires 'by' and exactly one of 'intrinsic' or 'domain'."));
+                "Equality requires 'by' and exactly one of 'intrinsic' or 'over'."));
             return null;
         }
 
-        return new(intrinsic, domain, by);
+        return new(intrinsic, over, by);
     }
 
     private static void RejectUnknownKeys(
