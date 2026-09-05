@@ -138,15 +138,15 @@ public static class DomainTypeValidator
                 Require(equality.Intrinsic == "ordinal-equals", "VSIR213",
                     $"Unsupported equality intrinsic '{equality.Intrinsic}'.");
             }
-            else if (equality.Domain is not null)
+            else if (equality.Over is not null)
             {
-                Require(IsTypeReference(equality.Domain), "VSIR227", $"Invalid equality domain type reference '{equality.Domain}'.");
+                Require(IsTypeReference(equality.Over), "VSIR227", $"Invalid equality over type reference '{equality.Over}'.");
                 if (equalityField is not null)
                 {
                     Require(
-                        string.Equals(equalityField.Type, equality.Domain, StringComparison.Ordinal),
+                        string.Equals(equalityField.Type, equality.Over, StringComparison.Ordinal),
                         "VSIR228",
-                        $"Equality domain '{equality.Domain}' does not match state field type '{equalityField.Type}'.");
+                        $"Equality over '{equality.Over}' does not match state field type '{equalityField.Type}'.");
                 }
             }
         }
