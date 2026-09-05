@@ -64,14 +64,17 @@ public static class CSharpRebaser
                 return new(resolved, []);
             }
 
+            const string resolutionGuidance =
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.";
+
             return new(null, [CreateConflictDiagnostic(
                 "REB004",
                 "Human and deterministic projections both changed the same insertion point.",
                 $"Baseline insertion:{Environment.NewLine}{DisplayFull(string.Empty)}{Environment.NewLine}{Environment.NewLine}" +
                 $"Human insertion:{Environment.NewLine}{DisplayFull(humanInserted)}{Environment.NewLine}{Environment.NewLine}" +
                 $"Next deterministic insertion:{Environment.NewLine}{DisplayFull(nextChanged)}{Environment.NewLine}{Environment.NewLine}" +
-                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
-                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.",
+                resolutionGuidance,
                 BuildTrace(
                     previousDeterministicSource,
                     humanSource,
@@ -84,7 +87,8 @@ public static class CSharpRebaser
                     humanInsertionLength),
                 $"  Baseline insertion: {DisplaySnippet(string.Empty)}" + Environment.NewLine +
                 $"  Human insertion: {DisplaySnippet(humanInserted)}" + Environment.NewLine +
-                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}")]);
+                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
+                resolutionGuidance)]);
         }
 
         var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
