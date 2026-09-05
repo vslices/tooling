@@ -61,6 +61,10 @@ internal sealed class ToolingTestProject : IDisposable
                 mode: deterministic
                 renderer: expression
                 template: "!string.IsNullOrEmpty({value})"
+              - node: intrinsic.not-whitespace
+                mode: deterministic
+                renderer: expression
+                template: "!string.IsNullOrWhiteSpace({value})"
               - node: intrinsic.length-at-most
                 mode: deterministic
                 renderer: expression
