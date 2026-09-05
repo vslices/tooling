@@ -2,89 +2,113 @@
 
 This branch exercises successive VSlices boundaries against the real `TicketCode` specimen from Ticket Support.
 
+The experiment follows one rule:
+
+> change only the first layer that can no longer justify the result, then rerun the real consumer before generalizing further.
+
 ## Observation chain
 
 ```text
 TicketCode.vsir
-  -> real consumer
   -> VSIR100
      normalize not representable
 
   -> represent normalize explicitly
-  -> real consumer
   -> CSL030
      normalize represented, but C# lowerer has no execution mechanism
 
-  -> add ordered normalization dataflow in Tooling
-     using the existing deterministic expression renderer
-
-  -> test-only intrinsic.trim rule proves the current renderer is sufficient
-
-  -> real consumer on build5.264 with production Ruleset
+  -> ordered normalization dataflow in Tooling
   -> CSL031
-     No deterministic C# normalization rule is available for 'intrinsic.trim'
+     no target-specific intrinsic.trim realization
 
-  -> ownership boundary confirmed
-     normalization mechanism -> Tooling
-     trim realization        -> Ruleset
-
-  -> vslices/ruleset#2
-     adds only intrinsic.trim using the existing expression renderer
-
-  -> consumer updates Ruleset from experiment/ticket-code-lowering
-  -> vslices lower TicketCode
-  -> SUCCESS
+  -> vslices/ruleset#2 supplies intrinsic.trim
+  -> real consumer lower succeeds
      deterministic witness computed
      existing human materialization preserved
-     lowering lineage established
+     lineage established
 
-  -> deterministic witness reveals namespace Tickets.Domain
-     while TicketCode.vsir lives under Aggregates/Tickets
+  -> deterministic witness exposes target-context namespace gap
+     Tickets.Domain vs physical Aggregates/Tickets
 
-  -> target-context experiment
-     default namespace = evaluated RootNamespace
-                       + full relative directory path from .csproj to .vsir
-     expected Tickets.Domain.Aggregates.Tickets
+  -> evaluated RootNamespace + full relative path
+     => Tickets.Domain.Aggregates.Tickets
 
-  -> real consumer reruns lower with existing lineage
-  -> REB002
-     old insertion rebaser cannot explain the namespace conflict precisely
+  -> existing lineage invokes three-way rebase
+  -> original REB002 is too opaque
 
-  -> rebase conflict experiment
-     distinguish unlocatable ambiguity from concurrent human/deterministic insertion
-     expose baseline / human / next deterministic values
-     provide explicit CLI resolution
+  -> distinguish:
+     REB002 = location cannot be established uniquely
+     REB004 = location known, human and deterministic branches changed it differently
 
-  -> real consumer executes
-     vslices lower TicketCode --resolve deterministic
+  -> explicit --resolve deterministic
   -> textual rebase succeeds
-     namespace updated in human materialization
-     deterministic lineage baseline advanced
-  -> target compilation fails
-     human using-static still references the previous TicketCode namespace
 
-  -> target-semantic refactoring experiment
-     resolve the moved symbol through Roslyn
-     discover semantic reference blast radius
-     stage all required edits
-     require explicit human authorization, default N
-     validate staged solution
-     commit human files + lineage transactionally
+  -> target compilation fails
+     human static import still points to old TicketCode namespace
+
+  -> finding
+     textual preservation != target-semantic validity
+
+  -> managed Roslyn namespace-move experiment
+     exact semantic references
+     staged conservative rewrites
+     compile validation
+     blast radius
+     explicit human authority
+     transactional sources + lineage
+
+  -> real consumer packaging failure
+     BuildHost-netcore missing
+
+  -> Native AOT + managed companion runtime-closure fix
+
+  -> real consumer workspace diagnostics
+     .NET 10 package-pruning advisory surfaced as MSBuildWorkspace failure
+
+  -> narrow advisory classification
+     other workspace failures remain fail-closed
+
+  -> real consumer analysis cost ~58s
+
+  -> separate authorization to start expensive analysis
+     from authorization to mutate human-maintained code
+
+  -> namespace policy experiment
+     project-specific path patterns allow physical organization
+     to differ from namespace organization
+
+  -> review hardening
+     semantic authority, companion completeness,
+     fail-closed compilation, semantic artifact identity,
+     documentation and responsibility extraction
 ```
 
-## Experimental prioritization
+## 1. Normalization ownership
 
-Evidence determines what the current machinery can justify and where the observed boundary lies. It does not uniquely determine which unresolved boundary must be investigated next.
+The observed VSIR contains:
 
-Human maintainer interest may therefore prioritize which evidence-compatible experiment is run next. That interest may order the research agenda, but it does not redefine consumer semantics, move a failure to a preferred layer, or justify implementation without discriminating evidence.
+```yaml
+- normalize:
+    target: input.Value
+    intrinsic: trim
+```
 
-`TicketCode` was selected partly because normalization is an interesting boundary after `TicketId`; the namespace experiment followed because the successful deterministic witness made the previously deferred target-context gap concrete. The rebase conflict experiment then followed because the real consumer exposed `REB002` after target context changed. The Roslyn experiment follows because the real resolved materialization compiled incorrectly even though the textual three-way merge itself succeeded.
+The final ownership split is:
 
-## Confirmed normalization finding
+```text
+VSlices.Vsir
+  -> recognizes `trim` as a valid normalization semantic
+  -> rejects unknown normalize intrinsic values
 
-The current Ruleset primitive is expressive enough for the observed normalization.
+C# lowering mechanism
+  -> processes construction steps in order
+  -> carries a reference-to-expression environment
 
-A deterministic expression rule of the form:
+Ruleset
+  -> materializes intrinsic.trim for C#
+```
+
+The current Ruleset primitive is sufficient:
 
 ```yaml
 - node: intrinsic.trim
@@ -93,11 +117,7 @@ A deterministic expression rule of the form:
   template: "{value}.Trim()"
 ```
 
-can be consumed by Tooling without a new renderer mode.
-
-Tooling processes construction steps in order and keeps a reference-to-expression environment. A successful normalize rule replaces the current expression for its target, and later ensures plus final state construction consume that updated expression.
-
-For `TicketCode`, the deterministic witness contains semantics equivalent to:
+For TicketCode, the deterministic witness is semantically equivalent to:
 
 ```text
 ensure non-empty(input.Value.Trim())
@@ -105,205 +125,154 @@ state.Value <- input.Value.Trim()
 ordinal equality over state.Value
 ```
 
-The real consumer confirmed both boundaries:
+The review pass found one semantic-authority leak: an arbitrary intrinsic string could previously reach Ruleset lookup. That is now closed by VSIR validation; only the demonstrated `trim` intrinsic is recognized in this baseline.
+
+Current normalization lowering may repeat a rendered expression in validation and construction. `trim` is pure, so the demonstrated case is valid. Generalization beyond pure transforms requires either referential transparency as an explicit invariant or a single-evaluation intermediate.
+
+## 2. Target-context namespace derivation
+
+The first namespace experiment defines the unfiltered default as:
 
 ```text
-without intrinsic.trim
-  -> CSL031
-
-with intrinsic.trim from vslices/ruleset#2
-  -> deterministic lowering succeeds
-  -> existing human materialization is not rewritten during configured lineage bootstrap
+nearest unique .csproj
+  -> evaluate RootNamespace through dotnet msbuild
+  -> project-relative VSIR directory
+  -> append directory segments
 ```
 
-This demonstrates the ownership split:
-
-```text
-normalization dataflow / execution mechanism -> Tooling
-trim realization knowledge                 -> Ruleset
-```
-
-## Human-editable materialization and deterministic witness
-
-The successful consumer run also demonstrates the intended distinction between the deterministic witness and the existing human-editable materialization.
-
-The lineage baseline contains the deterministic projection produced by Tooling, while the existing `TicketCode.vsir.cs` remains byte-for-byte human-owned during bootstrap. Human choices such as formatting, helper constants, static imports, `ToString()`, and other implementation freedoms are therefore not erased merely because Tooling can now produce a satisfying deterministic witness.
-
-The later namespace experiment qualifies one part of that statement: preserving unrelated human **text** does not prove that the resulting human materialization remains semantically valid for its target. Human code outside the textual rebase region may semantically depend on the region that changed.
-
-## Target-context namespace experiment
-
-The successful TicketCode witness exposed the independent namespace question deferred by PR #4.
-
-The previous resolver delegated namespace discovery to `dotnet new class` in the VSIR directory. For the real consumer that produced:
-
-```text
-Tickets.Domain
-```
-
-The target-context experiment defines the default target namespace explicitly as:
-
-```text
-evaluated .csproj RootNamespace
-+ every relative directory segment from the .csproj directory to the .vsir directory
-```
-
-For the real consumer:
+For TicketCode:
 
 ```text
 project:
   services/ticket-service/Tickets.Domain/Tickets.Domain.csproj
 
-evaluated RootNamespace:
+RootNamespace:
   Tickets.Domain
 
-VSIR:
-  services/ticket-service/Tickets.Domain/Aggregates/Tickets/TicketCode.vsir
-
-relative directory path:
+VSIR directory:
   Aggregates/Tickets
 
-expected namespace:
+unfiltered result:
   Tickets.Domain.Aggregates.Tickets
 ```
 
-The `.csproj` does not need to declare `<RootNamespace>` explicitly. Tooling asks MSBuild for the evaluated `RootNamespace`, preserving SDK/default/property-import behavior instead of guessing from XML text or hardcoding the project filename.
+MSBuild evaluation is intentional; Tooling does not parse `<RootNamespace>` heuristically or assume the project filename is authoritative.
 
-An explicit `--namespace` remains authoritative and bypasses project discovery as before.
+An explicit `--namespace` remains authoritative and bypasses derived namespace policy.
 
-## Target-context scope
+## 3. Namespace path policy
 
-This phase changes only default namespace derivation:
+The later consumer experiment established that physical folder organization and namespace organization are not always isomorphic.
 
-```text
-find nearest unique .csproj
-  -> evaluate RootNamespace through MSBuild
-  -> compute directory path relative to .csproj directory
-  -> append every directory segment to RootNamespace
+Project policy now supports:
+
+```yaml
+targets:
+  csharp:
+    namespace:
+      ignore-folders:
+        - "Aggregates/*"
+        - "Aggregates/**/Entities"
 ```
 
-Regression evidence covers both:
+Semantics:
 
 ```text
-Tickets.Domain.csproj
-+ Aggregates/Tickets/TicketCode.vsir
--> Tickets.Domain.Aggregates.Tickets
-
-Arbitrary.Project.csproj
-+ explicit RootNamespace Company.Product
-+ Features/Orders/OrderId.vsir
--> Company.Product.Features.Orders
+*   = exactly one directory segment
+?   = one character inside one segment
+**  = zero or more complete directory segments
 ```
 
-## Rebase conflict experiment
+The full pattern establishes context, but only the terminal matched folder is removed.
 
-The first real rerun after changing namespace derivation produced:
+Examples:
 
 ```text
-REB002: Deterministic insertion anchor is missing or ambiguous in the human projection.
+Aggregates/*
+  -> ignores direct children such as Tickets or Orders
+  -> preserves Aggregates
+
+Aggregates/Tickets/Entities
+  -> ignores Entities only in that exact context
+
+Aggregates/**/Entities
+  -> ignores a terminal Entities folder at any depth below Aggregates
+
+Aggregates/**/*
+  -> ignores every descendant folder below Aggregates
+  -> preserves Aggregates itself
 ```
 
-The underlying three-way state is more informative than that message:
+The current Ticket Support policy is deliberately narrower:
+
+```yaml
+ignore-folders:
+  - "Aggregates/*"
+  - "Aggregates/**/Entities"
+```
+
+That policy allows `TicketCode.vsir` under `Aggregates/Tickets` to derive `Tickets.Domain.Aggregates`, which matches the existing human materialization and avoids manufacturing a namespace move solely from physical organization.
+
+The pattern language is owned by `NamespacePathPolicy` inside the .NET target assembly; project/MSBuild discovery remains in `DotNetTargetContextResolver`.
+
+## 4. Conservative three-way materialization rebase
+
+The original real namespace change produced:
 
 ```text
 previous deterministic:
   namespace Tickets.Domain;
 
-human materialization:
+human:
   namespace Tickets.Domain.Aggregates;
 
 next deterministic:
   namespace Tickets.Domain.Aggregates.Tickets;
 ```
 
-Both the human and deterministic branches changed the same insertion point after `Tickets.Domain`. That is a genuine concurrent insertion conflict, not merely an unlocatable anchor.
+Both human and deterministic branches changed the same insertion point.
 
-The rebaser now distinguishes:
+The rebaser therefore distinguishes:
 
 ```text
 REB002
-  deterministic location itself cannot be established uniquely
+  deterministic change location cannot be established uniquely
 
 REB004
-  deterministic insertion point is known
-  human inserted one value there
-  next deterministic projection inserted a different value there
+  location is known, but human and deterministic branches changed it differently
 ```
 
-`REB004` reports the three values needed to understand the conflict:
+`--resolve deterministic` authorizes only that known textual conflict region. It does not replace the entire human materialization and does not authorize arbitrary semantic edits in other files.
 
-```text
-Baseline insertion: <empty>
-Human insertion: '.Aggregates'
-Next deterministic insertion: '.Aggregates.Tickets'
-```
+This remains a three-way **materialization** merge driven by deterministic witnesses; it is not an AST-semantic merge.
 
-The default remains conservative: VSlices does not infer that the human intended the deterministic value merely because one string is a prefix of the other.
+## 5. Real post-rebase semantic failure
 
-## Explicit CLI resolution
-
-A maintainer who has inspected the conflict can resolve that exact region explicitly with:
+The first consumer execution of:
 
 ```text
 vslices lower TicketCode --resolve deterministic
 ```
 
-The same strategy is available to explicit `rebase`.
-
-`--resolve deterministic` does **not** replace the complete human materialization. It resolves only the conflicting textual insertion region located through deterministic surrounding context. This authorization is intentionally narrower than authority to modify arbitrary semantic references elsewhere in human-maintained code.
-
-Conceptually:
-
-```text
-human before:
-  namespace Tickets.Domain.Aggregates;
-  + human formatting/helpers/etc.
-
---resolve deterministic
-
-textual candidate:
-  namespace Tickets.Domain.Aggregates.Tickets;
-  + same unrelated human text
-```
-
-If the human projection already contains exactly the next deterministic insertion, rebase treats the textual requirement as already satisfied and preserves that region unchanged.
-
-Unknown resolution names fail explicitly; this experiment introduces only the `deterministic` strategy.
-
-## Real post-rebase compilation finding
-
-The consumer commit produced by the first real explicit resolution was:
+produced consumer commit:
 
 ```text
 f057f23fc630fceb80036534251f6b863fa506e4
-vslices lower TicketCode --resolve deterministic
 ```
 
-The deterministic lineage baseline correctly moved to:
-
-```text
-namespace Tickets.Domain.Aggregates.Tickets;
-```
-
-and the human materialization's namespace declaration moved to the same namespace.
-
-However, the human materialization also contained a pre-existing static import outside the textual conflict region:
+The namespace declaration moved correctly, but a human static import outside the textual conflict region still referenced:
 
 ```csharp
-using static VSlices.Arrows.Req<
-    Tickets.Domain.Aggregates.TicketCode.Input,
-    Tickets.Domain.Aggregates.TicketCode>;
+Tickets.Domain.Aggregates.TicketCode
 ```
 
-After the namespace move, those fully-qualified references still pointed to the old symbol location while `TicketCode` now lived at:
+while the type had moved to:
 
 ```text
 Tickets.Domain.Aggregates.Tickets.TicketCode
 ```
 
-The resulting file therefore failed target compilation.
-
-This classifies the failure independently:
+Classification:
 
 ```text
 deterministic projection          ✓
@@ -313,146 +282,181 @@ explicit textual resolution       ✓
 target-semantic consequences      ✗
 ```
 
-The rebase did what its textual contract said. The missing capability was target-specific knowledge of semantic references affected by the known namespace move.
+The narrow finding is:
 
-## Roslyn semantic namespace refactoring
+> preserving unrelated human text does not prove that the target materialization remains semantically valid.
 
-The new experiment keeps the textual rebaser generic and introduces a separate .NET semantic-refactoring stage after a candidate rebase changes the namespace of the materialized top-level symbol.
+## 6. Roslyn semantic namespace refactoring
 
-The .NET target layer loads the real solution through `MSBuildWorkspace`, resolves the original `INamedTypeSymbol`, and asks Roslyn for semantic references to that symbol. It does not search for namespace strings globally.
+The textual `CSharpRebaser` stays generic. The known .NET namespace-move consequence is handled by a separate managed companion using Roslyn + `MSBuildWorkspace`.
 
-Conceptually:
-
-```text
-previous human solution
-  -> resolve TicketCode symbol
-
-rebased candidate
-  -> known namespace move
-
-Roslyn FindReferences(TicketCode)
-  -> semantic reference locations
-  -> conservative source rewrites to the new fully-qualified symbol
-  -> changed-file / reference-count blast radius
-```
-
-The blast radius is computed before any real source file is modified. The intended CLI surface is interactive:
+The helper now has explicit responsibilities:
 
 ```text
-Semantic namespace refactoring
-Symbol: Tickets.Domain.Aggregates.TicketCode
-        -> Tickets.Domain.Aggregates.Tickets.TicketCode
-References: N
-Files: M
+Program.cs
+  -> thin process host
 
-  path/to/FileA.cs (2 semantic references)
-  path/to/FileB.cs (1 semantic reference)
+RefactorArguments
+  -> CLI protocol parsing
 
-This operation will modify human-maintained code outside the deterministic rebase region.
-Apply semantic refactoring? [y/N]
+NamespaceMovePlanner
+  -> solution/symbol/reference planning
+
+CompilationValidator
+  -> fail-closed baseline/proposal compilation checks
+
+RefactorManifest
+  -> staged-plan protocol
 ```
 
-An empty answer, EOF, `n`, `no`, or any unrecognized answer is rejection. Only an explicit `y`/`yes` approves the cross-file semantic edit.
+The semantic artifact identity passed to Roslyn comes from parsed VSIR `name:` carried by `TranspilationResult`, not from the `.vsir` filename.
 
-This establishes a narrower authority model:
+The helper resolves the original `INamedTypeSymbol`, uses `SymbolFinder.FindReferencesAsync`, prepares conservative rewrites, validates compilation, stages changed files, and returns a manifest. It never commits consumer files itself.
+
+If Roslyn finds a reference that cannot be conservatively rewritten, the operation fails explicitly, e.g. `DOTNET031`.
+
+## 7. Two authority boundaries
+
+A real consumer run showed Roslyn workspace analysis taking about 58 seconds. That produced a distinct authority concern before mutation is even considered.
+
+The workflow now asks twice:
 
 ```text
-automatic authority
-  deterministic witness computation
-  semantic blast-radius discovery
-  staging and validation of a proposed refactoring
+known namespace move
+  -> Analyze semantic blast radius with Roslyn? [y/N]
 
---resolve deterministic authority
-  resolve the known textual rebase conflict deterministically
-
-additional interactive authority
-  modify semantic references outside that textual conflict region
+if approved and plan is valid
+  -> show References: N / Files: M
+  -> Apply semantic refactoring? [y/N]
 ```
 
-`--resolve deterministic` therefore never silently implies authority to edit an arbitrary number of human-maintained files.
+Only explicit `y` / `yes` approves. Blank, EOF and unrecognized answers reject.
 
-## Transactional safety
-
-The semantic refactoring is prepared before authorization and committed only after all safety barriers pass.
+These permissions are distinct:
 
 ```text
-compute textual candidate
-  -> load real solution/project context
-  -> find exact semantic references
-  -> prepare changed documents in Roslyn workspace
-  -> compile affected projects before change
-  -> compile proposed affected projects after change
-  -> stage changed files
-  -> show blast radius
-  -> ask [y/N]
-  -> verify source SHA-256 preconditions again
-  -> atomically commit staged human files + deterministic lineage baseline
+1. authorize potentially expensive target-semantic analysis
+2. authorize mutation of human-maintained source files
 ```
 
-If the affected project already has compiler errors, Tooling currently fails closed because this first experiment cannot attribute post-change compiler failures safely against an already-invalid baseline.
+`--resolve deterministic` grants neither implicitly.
 
-If proposed compilation fails, the user rejects, a source file changes after the plan is computed, or the multi-file commit cannot complete, the operation does not intentionally leave a partially advanced lineage. The transaction writer uses preconditions, staged files, backups, and rollback for already-written members.
+## 8. Transactional safety
 
-The deterministic lineage baseline participates in the same transaction as the human source changes. A semantic refactoring must not advance lineage while leaving its human projection behind.
+The target-semantic workflow is delegated from `LoweringCoordinator` to `SemanticRefactoringCoordinator`.
 
-## Native AOT boundary
+```text
+textual candidate
+  -> detect namespace move
+  -> analysis authorization
+  -> Roslyn plan
+  -> baseline compilation validation
+  -> proposed compilation validation
+  -> staged source files
+  -> blast radius
+  -> mutation authorization
+  -> SHA-256 precondition re-check
+  -> transactionally commit human sources + lineage
+```
 
-Roslyn/MSBuild workspace support is intentionally not embedded into the Native AOT CLI process.
+Failure to obtain a Roslyn `Compilation` is itself a validation failure. “Could not verify” is never treated as “verified”.
 
-The distribution now has two execution pieces:
+Existing compiler errors, invalid proposed compilation, source changes after planning, rejection, or transaction failure stop without intentionally advancing lineage independently.
+
+`TransactionalFileWriter` remains unabstracted beyond its current concrete consumer because no second real use case justifies a general transaction framework.
+
+## 9. Native AOT boundary and companion health
+
+Roslyn/MSBuildWorkspace is intentionally not embedded in the Native AOT CLI.
+
+Distribution:
 
 ```text
 vslices / vslices.exe
   Native AOT coordinator
-  owns UX, authority, lineage and transactional commit
 
-refactor/VSlices.Targets.DotNet.Refactor.dll
-  managed companion
-  owns Roslyn/MSBuild semantic analysis and staged target validation
+refactor/
+  VSlices.Targets.DotNet.Refactor.dll
+  BuildHost-netcore/
+  BuildHost-net472/
+  Roslyn/MSBuild dependencies
 ```
 
-The companion returns a staged plan/manifest; it does not commit the consumer files itself. This keeps Roslyn's dynamic workspace surface outside the AOT core while retaining a single user-facing `vslices` command.
+The real consumer exposed a package that contained the root helper DLL but lacked `BuildHost-netcore`.
 
-PR/release archives and the installer include the companion directory. The helper-aware self-updater also replaces that directory for subsequent updates. There is one transition caveat: a VSlices build predating the companion only knows how to self-update the native executable, so the first move to a helper-aware experimental build requires bootstrapping the complete artifact once. Subsequent helper-aware builds can update both pieces together.
-
-## Explicit next experiment / non-scope
-
-Folder exclusion is deliberately **not** part of this phase.
-
-The next target-context experiment may introduce an explicit ignore/exclusion mechanism, potentially using patterns, so selected directory segments do not participate in generated namespaces.
-
-For example, such a future policy might allow a consumer to keep a file under:
+A complete companion is now defined once as:
 
 ```text
-Aggregates/Tickets/TicketCode.vsir
+helper DLL
++ BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
 ```
 
-while excluding `Tickets` from namespace derivation and obtaining:
+That definition is shared by startup health, same-build self-update repair, downloaded-archive validation, staging validation and the Windows installer.
+
+A root helper DLL without its build host is therefore incomplete and `vslices update --self` must repair it rather than report “up to date”.
+
+## 10. Workspace diagnostics
+
+The real consumer also exposed .NET 10 package-pruning advisories that `MSBuildWorkspace` can surface as `WorkspaceDiagnosticKind.Failure` even though normal `dotnet` treats them as warnings.
+
+The implementation does not ignore workspace failures generally. Only the known pruning advisory shape is non-fatal; unrelated project/SDK/import/workspace failures remain fail-closed through `DOTNET022`.
+
+## `lower` vs direct `rebase`
+
+This distinction is deliberate:
 
 ```text
-Tickets.Domain.Aggregates
+rebase
+  = textual primitive
+
+lower
+  = project workflow
+    + lineage policy
+    + known target-semantic closure when required
 ```
 
-That behavior is intentionally not implemented or specified here. This experiment first establishes the unfiltered baseline rule:
+The direct `rebase` command therefore does not promise the same Roslyn post-rebase closure as `lower`.
+
+## Review-hardening findings
+
+The code-review pass before merge found five concrete closure issues and three responsibility extractions:
 
 ```text
-RootNamespace + full relative path
+1. unknown normalize intrinsic could leak semantic authority to Ruleset
+   -> fixed in VSIR validation
+
+2. companion startup health and updater repair disagreed on completeness
+   -> one completeness authority shared across startup/updater/installer
+
+3. GetCompilationAsync == null skipped validation
+   -> fail closed
+
+4. Roslyn symbol name inferred from filename
+   -> semantic name carried from parsed VSIR
+
+5. canonical docs described old scope
+   -> release/context/README/experiment refreshed
+
+organizational:
+  -> split Roslyn helper host/planner/validator/manifest/arguments
+  -> extract SemanticRefactoringCoordinator
+  -> extract NamespacePathPolicy
 ```
 
-Only after that behavior is exercised against the real consumer should folder-ignore syntax, matching semantics, ownership, and precedence be designed.
+These are review-hardening changes, not new product experiments.
 
-Two CLI surfaces discussed during the semantic-refactoring design are also explicitly **non-scope** for this phase:
+## Follow-up watchpoints
 
-```text
-vslices lower TicketCode --plan
-vslices lower TicketCode --apply-refactorings [values]
-```
+Documented but intentionally not implemented in this PR:
 
-The current experiment deliberately uses interactive authorization with default `N`. It does not define a non-interactive approval vocabulary, refactoring categories, plan persistence, or a generic semantic-refactoring command surface.
+- cancelling long Roslyn analysis should eventually terminate the child process tree and clean staging deterministically;
+- reducing Roslyn workspace scope must not reduce blast-radius completeness;
+- normalization beyond demonstrated pure transforms requires referential transparency or single evaluation;
+- no generic compiler-repair engine, semantic refactoring framework, non-interactive approval vocabulary, Git-history ancestry reconstruction or provenance graph is introduced.
 
 ## Current status
 
-TicketCode lowering is successful end-to-end for the semantic surface exercised by the normalization experiment:
+The semantic surface exercised by TicketCode is:
 
 ```text
 normalize trim
@@ -461,35 +465,14 @@ deterministic state construction
 ordinal equality
 ```
 
-The namespace phase tests a separate target-context concern. The rebase phase makes the resulting human/deterministic conflict explainable and explicitly resolvable without weakening the default conservative merge policy. The Roslyn phase now tests whether known target-semantic consequences of that authorized namespace move can be discovered, validated, shown as a blast radius, separately authorized, and committed transactionally.
+The branch now also contains the target-context, namespace policy, conservative materialization rebase and known namespace-move semantic safety mechanisms discovered by the same consumer.
 
-## Non-scope continuity
-
-All prior explicit non-scope remains inherited except for the narrow boundaries moved by direct TicketCode evidence.
-
-Still out of scope:
+The final merge gate is not additional feature work. It is:
 
 ```text
-new VSIR concepts or classifications beyond the observed normalize semantic
-new Ruleset renderer modes
-additional normalization intrinsics
-new target languages
-interpretate
-Git-history ancestry reconstruction
-general provenance graph
-aggregate update semantics
-folder-ignore / namespace-exclusion patterns
-project-specific path-segment exclusions
-namespace rewriting beyond RootNamespace + full relative path
-additional automatic conflict-resolution strategies
-implicit preference for deterministic changes on conflict
-generic semantic repair of arbitrary compiler failures
-semantic refactorings beyond the observed namespace move
-non-interactive refactoring approval policy
-vslices lower TicketCode --plan
-vslices lower TicketCode --apply-refactorings [values]
-configurable terminal themes
-normalization semantics beyond deterministic expression transforms demonstrated by TicketCode
+review-hardened HEAD
+-> green CI
+-> final Ticket Support consumer smoke
+-> freeze
+-> merge decision
 ```
-
-The purpose of this note is reconstructibility: future work should be able to recover why Tooling contains generic normalization dataflow, why `trim` belongs to external Ruleset knowledge, why default namespaces now include the complete project-relative directory path, why folder-ignore policy remains a separate follow-up experiment, why concurrent human/deterministic insertions require explicit resolution rather than inference, and why preserving unrelated human text is not enough when target-semantic dependencies cross the rebase boundary.
