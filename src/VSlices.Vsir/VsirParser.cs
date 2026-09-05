@@ -18,8 +18,11 @@ public static class VsirParser
         "equality"
     ];
 
-    public static VsirParseResult Parse(string text)
+    public static VsirParseResult Parse(
+        string text,
+        VsirSemanticExtensions? semanticExtensions = null)
     {
+        semanticExtensions ??= VsirSemanticExtensions.None;
         var diagnostics = new List<VsirDiagnostic>();
 
         try
@@ -162,7 +165,7 @@ public static class VsirParser
                 new Construction(input, steps),
                 equality);
 
-            diagnostics.AddRange(DomainTypeValidator.Validate(document));
+            diagnostics.AddRange(DomainTypeValidator.Validate(document, semanticExtensions));
             return new(document, diagnostics);
         }
         catch (Exception ex)
