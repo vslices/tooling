@@ -23,7 +23,7 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
-        var validationReferences = InitialInputReferences(document.Construction.Input.Fields);
+        var validationReferences = InitialInputReferences(document.Construction.Input);
         foreach (var step in document.Construction.Steps)
         {
             switch (step)
@@ -68,15 +68,17 @@ public static class CSharpLowerer
         if (document.Equality is not null)
             ValidateEqualityRules(document.Equality, context.Rules, diagnostics);
 
+        ValidateRepresentationRules(document, context.Rules, diagnostics);
+
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
         var typeName = document.Name;
+        var inputType = InputType(document);
         var inputFields = document.Construction.Input.Fields;
         var reprFields = document.Representation.Fields;
         var stateFields = document.State.Fields;
-        var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
-        var renderedReferences = InitialInputReferences(inputFields);
+        var renderedReferences = InitialInputReferences(document.Construction.Input);
         var renderedEnsures = new List<string>();
 
         foreach (var step in document.Construction.Steps)
@@ -93,25 +95,31 @@ public static class CSharpLowerer
                     break;
                 }
                 case EnsureStep ensure:
-                    renderedEnsures.Add(RenderEnsure(typeName, ensure, context.Rules, renderedReferences));
+                    renderedEnsures.Add(RenderEnsure(typeName, inputType, ensure, context.Rules, renderedReferences));
                     break;
             }
         }
 
+        var stateExpressions = ResolveStateExpressions(document, renderedReferences);
         var source = new StringBuilder();
         source.AppendLine($"namespace {context.Namespace};");
         source.AppendLine();
         source.AppendLine($"public sealed class {typeName} :");
-        source.AppendLine(isIdentifier
-            ? $"    Identifier<{typeName}, {typeName}.Repr>,"
-            : $"    DomainType<{typeName}, {typeName}.Repr>,");
-        source.AppendLine($"    Transform<{typeName}, {typeName}.Input>");
+
+        var contracts = Contracts(document, inputType).ToArray();
+        for (var i = 0; i < contracts.Length; i++)
+            source.AppendLine($"    {contracts[i]}{(i == contracts.Length - 1 ? string.Empty : ",")}");
+
         source.AppendLine("{");
         source.AppendLine($"    public readonly record struct Repr({Parameters(reprFields)});");
-        source.AppendLine();
-        source.AppendLine($"    public readonly record struct Input({Parameters(inputFields)});");
-        source.AppendLine();
 
+        if (!document.Construction.Input.IsScalar)
+        {
+            source.AppendLine();
+            source.AppendLine($"    public readonly record struct Input({Parameters(inputFields)});");
+        }
+
+        source.AppendLine();
         foreach (var field in stateFields)
             source.AppendLine($"    private readonly {CSharpType(field.Type)} _{Camel(field.Name)};");
 
@@ -119,11 +127,11 @@ public static class CSharpLowerer
         source.AppendLine($"    private {typeName}({Parameters(stateFields, camelNames: true)}) =>");
         source.AppendLine($"        {ConstructorAssignment(stateFields)};");
         source.AppendLine();
-        source.AppendLine($"    public static VSlices.Arrows.Req<Input, {typeName}>.Full Invariants =>");
+        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {typeName}>.Full Invariants =>");
 
         if (renderedEnsures.Count == 0)
         {
-            source.AppendLine($"        VSlices.Arrows.Req<Input, {typeName}>.Transform((Input input) => Instance(input));");
+            source.AppendLine($"        VSlices.Arrows.Req<{inputType}, {typeName}>.Transform(({inputType} input) => Instance(input));");
         }
         else
         {
@@ -137,8 +145,8 @@ public static class CSharpLowerer
         }
 
         source.AppendLine();
-        source.AppendLine($"    private static {typeName} Instance(Input input) =>");
-        source.AppendLine($"        new({string.Join(", ", stateFields.Select(x => ResolveReference("input." + x.Name, renderedReferences)))});");
+        source.AppendLine($"    private static {typeName} Instance({inputType} input) =>");
+        source.AppendLine($"        new({string.Join(", ", stateFields.Select(x => stateExpressions["state." + x.Name]))});");
 
         if (document.Equality is not null)
         {
@@ -146,13 +154,115 @@ public static class CSharpLowerer
             RenderEquality(source, typeName, document.Equality, context.Rules);
         }
 
+        if (document.RefinedFrom is not null)
+        {
+            var baseField = stateFields.Single(x => x.Type == document.RefinedFrom);
+            source.AppendLine();
+            source.AppendLine($"    public {CSharpType(document.RefinedFrom)} ToBase() =>");
+            source.AppendLine($"        _{Camel(baseField.Name)};");
+        }
+
         source.AppendLine();
         source.AppendLine("    public Repr To() =>");
-        source.AppendLine($"        new({string.Join(", ", reprFields.Select(x => "_" + Camel(x.Name)))});");
+        source.AppendLine($"        new({string.Join(", ", RepresentationExpressions(document, context.Rules))});");
         source.AppendLine("}");
 
         return new(source.ToString(), []);
     }
+
+    private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
+    {
+        var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
+        var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
+
+        if (isIdentifier)
+            yield return $"Identifier<{document.Name}, {document.Name}.Repr>";
+        else if (!isRefined)
+            yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
+
+        if (isRefined)
+            yield return $"Refined<{document.Name}, {CSharpType(document.RefinedFrom!)}, {document.Name}.Repr>";
+
+        yield return $"Transform<{document.Name}, {inputType}>";
+    }
+
+    private static string InputType(DomainTypeVsir document) =>
+        document.Construction.Input.IsScalar
+            ? CSharpType(document.Construction.Input.ScalarType!)
+            : document.Name + ".Input";
+
+    private static IReadOnlyDictionary<string, string> ResolveStateExpressions(
+        DomainTypeVsir document,
+        IReadOnlyDictionary<string, string> references)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in document.State.Fields)
+        {
+            var stateReference = "state." + field.Name;
+            var refine = document.Construction.Steps
+                .OfType<RefineStep>()
+                .SingleOrDefault(x => x.As == stateReference);
+
+            result[stateReference] = refine is not null
+                ? ResolveReference(refine.Value, references)
+                : ResolveReference("input." + field.Name, references);
+        }
+
+        return result;
+    }
+
+    private static void ValidateRepresentationRules(
+        DomainTypeVsir document,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (document.RepresentationMapping is null)
+            return;
+
+        foreach (var projection in document.RepresentationMapping.Fields.Values)
+        {
+            if (projection is not StringifyProjection stringify)
+                continue;
+
+            if (!rules.TryRenderDeterministicExpression(
+                    "projection.stringify",
+                    new Dictionary<string, string> { ["value"] = MemberFromStateReference(stringify.Value) },
+                    out _))
+            {
+                diagnostics.Add(new(
+                    "CSL040",
+                    "No deterministic C# representation rule is available for 'projection.stringify'."));
+            }
+        }
+    }
+
+    private static IEnumerable<string> RepresentationExpressions(
+        DomainTypeVsir document,
+        CSharpLoweringRuleSet rules)
+    {
+        foreach (var field in document.Representation.Fields)
+        {
+            if (document.RepresentationMapping?.Fields.TryGetValue(field.Name, out var projection) == true)
+            {
+                if (projection is StringifyProjection stringify &&
+                    rules.TryRenderDeterministicExpression(
+                        "projection.stringify",
+                        new Dictionary<string, string> { ["value"] = MemberFromStateReference(stringify.Value) },
+                        out var expression))
+                {
+                    yield return expression;
+                    continue;
+                }
+
+                throw new InvalidOperationException($"Validated representation mapping for '{field.Name}' became unavailable.");
+            }
+
+            yield return "_" + Camel(field.Name);
+        }
+    }
+
+    private static string MemberFromStateReference(string reference) =>
+        "_" + Camel(reference["state.".Length..]);
 
     private static void ValidateEqualityRules(
         EqualitySemantics equality,
@@ -173,7 +283,7 @@ public static class CSharpLowerer
         {
             diagnostics.Add(new(
                 "CSL021",
-                $"No deterministic C# equality rule is available for '{equality.Intrinsic}'."));
+                $"No deterministic C# equality rule is available for '{EqualityDescription(equality)}'."));
         }
 
         if (!rules.TryRenderDeterministicExpression(
@@ -186,7 +296,7 @@ public static class CSharpLowerer
         {
             diagnostics.Add(new(
                 "CSL022",
-                $"No deterministic C# hash rule is available for equality '{equality.Intrinsic}'."));
+                $"No deterministic C# hash rule is available for equality '{EqualityDescription(equality)}'."));
         }
     }
 
@@ -238,14 +348,20 @@ public static class CSharpLowerer
         source.AppendLine("        !(left == right);");
     }
 
+    private static string EqualityDescription(EqualitySemantics equality) =>
+        equality.Intrinsic ?? "domain:" + equality.Domain;
+
     private static string EqualityNode(EqualitySemantics equality, string operation) =>
-        $"equality.{equality.Intrinsic}.{operation}";
+        equality.Intrinsic is not null
+            ? $"equality.{equality.Intrinsic}.{operation}"
+            : $"equality.domain.{operation}";
 
     private static string EqualityStateField(EqualitySemantics equality) =>
         equality.By["state.".Length..];
 
     private static string RenderEnsure(
         string typeName,
+        string inputType,
         EnsureStep ensure,
         CSharpLoweringRuleSet rules,
         IReadOnlyDictionary<string, string> references)
@@ -255,9 +371,9 @@ public static class CSharpLowerer
             throw new InvalidOperationException($"Validated lowering rule '{node}' became unavailable.");
 
         var predicate =
-            $"VSlices.Arrows.Req<Input, {typeName}>.Ensure((Input input) => {expression}";
+            $"VSlices.Arrows.Req<{inputType}, {typeName}>.Ensure(({inputType} input) => {expression}";
 
-        return $"{predicate}, Fail: {RenderFailure(ensure, references)})";
+        return $"{predicate}, Fail: {RenderFailure(ensure, inputType, references)})";
     }
 
     private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeNormalization(
@@ -294,6 +410,7 @@ public static class CSharpLowerer
 
     private static string RenderFailure(
         EnsureStep ensure,
+        string inputType,
         IReadOnlyDictionary<string, string> references)
     {
         var literal = Quote(ensure.FailureMessage);
@@ -301,14 +418,19 @@ public static class CSharpLowerer
             return literal;
 
         var condition = (LengthAtMostCondition)ensure.Condition;
-        return $"(Input input) => {literal}.Replace(\"{{length}}\", {ResolveReference(condition.Value, references)}.Length.ToString())";
+        return $"({inputType} input) => {literal}.Replace(\"{{length}}\", {ResolveReference(condition.Value, references)}.Length.ToString())";
     }
 
-    private static Dictionary<string, string> InitialInputReferences(IReadOnlyList<Field> fields) =>
-        fields.ToDictionary(
+    private static Dictionary<string, string> InitialInputReferences(ConstructionInput input)
+    {
+        if (input.IsScalar)
+            return new Dictionary<string, string>(StringComparer.Ordinal) { ["input"] = "input" };
+
+        return input.Fields.ToDictionary(
             field => "input." + field.Name,
             field => "input." + field.Name,
             StringComparer.Ordinal);
+    }
 
     private static string ResolveReference(
         string reference,
@@ -337,11 +459,7 @@ public static class CSharpLowerer
             return $"{CSharpType(field.Type)} {name}";
         }));
 
-    private static string CSharpType(string type) => type switch
-    {
-        "string" => "string",
-        _ => throw new InvalidOperationException($"Unsupported type '{type}'.")
-    };
+    private static string CSharpType(string type) => type;
 
     private static string Camel(string value) =>
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
