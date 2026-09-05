@@ -12,8 +12,10 @@ public static class VsirParser
         "classification",
         "shape",
         "traits",
+        "refined-from",
         "state",
         "representation",
+        "representation-mapping",
         "construction",
         "equality"
     ];
@@ -41,8 +43,10 @@ public static class VsirParser
             var classification = Scalar(root, "classification");
             var shape = Scalar(root, "shape");
             var traits = ReadScalarSequence(root, "traits", "traits", diagnostics);
+            var refinedFrom = OptionalScalar(root, "refined-from");
             var state = Product(root, "state");
             var representation = Product(root, "representation");
+            var representationMapping = ParseRepresentationMapping(root, diagnostics);
             var equality = ParseEquality(root, diagnostics);
 
             if (!TryMapping(root, "construction", out var constructionNode))
@@ -50,7 +54,7 @@ public static class VsirParser
 
             RejectUnknownKeys(constructionNode, ["input", "steps"], "construction", diagnostics);
 
-            var input = Product(constructionNode, "input");
+            var input = ParseConstructionInput(constructionNode, diagnostics);
             var steps = new List<ConstructionStep>();
 
             foreach (var stepNode in ReadMappingSequence(
@@ -82,11 +86,34 @@ public static class VsirParser
                     continue;
                 }
 
+                if (TryMapping(stepNode, "refine", out var refine))
+                {
+                    RejectUnknownKeys(stepNode, ["refine"], "construction.steps[]", diagnostics);
+                    RejectUnknownKeys(
+                        refine,
+                        ["value", "as"],
+                        "construction.steps[].refine",
+                        diagnostics);
+
+                    var value = Scalar(refine, "value");
+                    var target = Scalar(refine, "as");
+                    if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(target))
+                    {
+                        diagnostics.Add(new(
+                            "VSIR110",
+                            "Refine step requires both 'value' and 'as'."));
+                        continue;
+                    }
+
+                    steps.Add(new RefineStep(value, target));
+                    continue;
+                }
+
                 if (!TryMapping(stepNode, "ensure", out var ensure))
                 {
                     diagnostics.Add(new(
                         "VSIR100",
-                        "Only construction steps 'normalize' and 'ensure' are supported by the experimental parser."));
+                        "Only construction steps 'normalize', 'ensure', and 'refine' are supported by the experimental parser."));
                     continue;
                 }
 
@@ -144,8 +171,10 @@ public static class VsirParser
                 classification,
                 shape,
                 traits,
+                refinedFrom,
                 state,
                 representation,
+                representationMapping,
                 new Construction(input, steps),
                 equality);
 
@@ -156,6 +185,78 @@ public static class VsirParser
         {
             return Failure("VSIR000", ex.Message);
         }
+    }
+
+    private static ConstructionInput ParseConstructionInput(
+        YamlMappingNode construction,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (!construction.Children.TryGetValue(new YamlScalarNode("input"), out var node))
+        {
+            diagnostics.Add(new("VSIR111", "Construction requires input semantics."));
+            return ConstructionInput.Product([]);
+        }
+
+        if (node is YamlScalarNode scalar)
+        {
+            var type = scalar.Value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(type))
+                diagnostics.Add(new("VSIR111", "Construction scalar input requires a type."));
+            return ConstructionInput.Scalar(type);
+        }
+
+        if (node is YamlMappingNode mapping)
+            return ConstructionInput.Product(ReadFields(mapping));
+
+        diagnostics.Add(new("VSIR111", "Construction input must be either a scalar type or a product mapping."));
+        return ConstructionInput.Product([]);
+    }
+
+    private static RepresentationMapping? ParseRepresentationMapping(
+        YamlMappingNode root,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (!root.Children.ContainsKey(new YamlScalarNode("representation-mapping")))
+            return null;
+
+        if (!TryMapping(root, "representation-mapping", out var mapping))
+        {
+            diagnostics.Add(new("VSIR112", "representation-mapping must be a mapping."));
+            return null;
+        }
+
+        var fields = new Dictionary<string, RepresentationProjection>(StringComparer.Ordinal);
+        foreach (var pair in mapping.Children)
+        {
+            if (pair.Key is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
+            {
+                diagnostics.Add(new("VSIR113", "representation-mapping requires scalar field names."));
+                continue;
+            }
+
+            if (pair.Value is not YamlMappingNode projection)
+            {
+                diagnostics.Add(new("VSIR114", $"representation-mapping.{key.Value} must be a mapping."));
+                continue;
+            }
+
+            RejectUnknownKeys(
+                projection,
+                ["stringify"],
+                $"representation-mapping.{key.Value}",
+                diagnostics);
+
+            var stringify = Scalar(projection, "stringify");
+            if (string.IsNullOrWhiteSpace(stringify))
+            {
+                diagnostics.Add(new("VSIR115", $"representation-mapping.{key.Value} requires a supported projection."));
+                continue;
+            }
+
+            fields[key.Value] = new StringifyProjection(stringify);
+        }
+
+        return new(fields);
     }
 
     private static EqualitySemantics? ParseEquality(
@@ -171,18 +272,21 @@ public static class VsirParser
             return null;
         }
 
-        RejectUnknownKeys(equalityNode, ["intrinsic", "by"], "equality", diagnostics);
+        RejectUnknownKeys(equalityNode, ["intrinsic", "domain", "by"], "equality", diagnostics);
 
-        var intrinsic = Scalar(equalityNode, "intrinsic");
+        var intrinsic = OptionalScalar(equalityNode, "intrinsic");
+        var domain = OptionalScalar(equalityNode, "domain");
         var by = Scalar(equalityNode, "by");
 
-        if (string.IsNullOrWhiteSpace(intrinsic) || string.IsNullOrWhiteSpace(by))
+        if (string.IsNullOrWhiteSpace(by) || (intrinsic is null) == (domain is null))
         {
-            diagnostics.Add(new("VSIR106", "Equality requires both 'intrinsic' and 'by'."));
+            diagnostics.Add(new(
+                "VSIR106",
+                "Equality requires 'by' and exactly one of 'intrinsic' or 'domain'."));
             return null;
         }
 
-        return new(intrinsic, by);
+        return new(intrinsic, domain, by);
     }
 
     private static void RejectUnknownKeys(
@@ -274,19 +378,25 @@ public static class VsirParser
             ? scalar.Value ?? string.Empty
             : string.Empty;
 
+    private static string? OptionalScalar(YamlMappingNode node, string key)
+    {
+        var value = Scalar(node, key);
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     private static int Int(YamlMappingNode node, string key) => int.Parse(Scalar(node, key));
 
-    private static ProductShape Product(YamlMappingNode node, string key)
-    {
-        if (!TryMapping(node, key, out var map))
-            return new([]);
+    private static ProductShape Product(YamlMappingNode node, string key) =>
+        TryMapping(node, key, out var map)
+            ? new(ReadFields(map))
+            : new([]);
 
-        return new(map.Children
+    private static IReadOnlyList<Field> ReadFields(YamlMappingNode map) =>
+        map.Children
             .Select(pair => new Field(
                 ((YamlScalarNode)pair.Key).Value ?? string.Empty,
                 ((YamlScalarNode)pair.Value).Value ?? string.Empty))
-            .ToArray());
-    }
+            .ToArray();
 
     private static bool TryMapping(YamlMappingNode node, string key, out YamlMappingNode mapping)
     {
