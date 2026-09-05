@@ -227,7 +227,7 @@ VSlices.Vsir.CSharp
 
 ## Downstream project-scoped lowering contract
 
-The current CLI experiment lowers one VSIR artifact at a time, but the extension model exposes a requirement for any future project-scoped lowering operation.
+The extension model exposes a requirement for future lowering across several VSIR artifacts, but this PR does not implement that CLI feature.
 
 The minimal conceptual shape to carry forward is:
 
@@ -242,17 +242,17 @@ Scope =
     ProjectRelativePath
 ```
 
-`Scope` is valid only when `Target` is a project. A project-relative path narrows the set of VSIR artifacts selected for lowering; it does not become an independent semantic or target context.
+`Scope` is valid only when `Target` is a project. A project-relative path narrows the selected VSIR set; it does not create a third target/context kind.
 
-This implies several downstream laws:
+A future project-scoped operation should therefore satisfy these laws:
 
-1. A project-scoped lowering operation establishes project context once and applies one coherent Ruleset / extension-catalog / target context to every selected artifact.
-2. Batch selection must not alter per-artifact semantic ordering. For example, `normalize -> ensure` remains local to the artifact and must validate the normalized value.
-3. Project-relative scope is a selection concern, not a third lowering target alongside VSIR artifact and project.
-4. A future batch operation should be atomic with respect to materialization and lineage: either all selected artifacts are valid/lowerable and their materializations are committed, or no partial batch should be written.
-5. Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, multi-path selection, aggregate diagnostics, and staging mechanics are separate CLI concerns and are not implemented by this PR.
+1. establish project context once;
+2. apply one coherent Ruleset / extension-catalog / target context to every selected artifact;
+3. preserve each artifact's local semantic ordering;
+4. treat scope as selection only;
+5. commit materialization/lineage atomically for the selected batch rather than leaving a partial result.
 
-Illustrative future command shapes are intentionally non-normative here:
+Illustrative future syntax:
 
 ```text
 vslices lower Risk.vsir
@@ -260,7 +260,7 @@ vslices lower Identities.Domain.csproj
 vslices lower Identities.Domain --path Aggregates
 ```
 
-The important architectural point for this PR is narrower: extension catalogs are resolved from project context rather than per-artifact renderer lookup, so future project-scoped lowering must preserve one coherent semantic authority across the selected set.
+Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, multi-path selection, aggregate diagnostics, and batch staging remain outside this PR.
 
 ## Pending impact review — next exploration step
 
