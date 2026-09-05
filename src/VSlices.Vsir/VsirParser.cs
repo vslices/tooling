@@ -18,8 +18,11 @@ public static class VsirParser
         "equality"
     ];
 
-    public static VsirParseResult Parse(string text)
+    public static VsirParseResult Parse(
+        string text,
+        VsirValidationContext? validationContext = null)
     {
+        validationContext ??= VsirValidationContext.Empty;
         var diagnostics = new List<VsirDiagnostic>();
 
         try
@@ -45,11 +48,7 @@ public static class VsirParser
             if (!TryMapping(root, "construction", out var constructionNode))
                 return Failure("VSIR002", "Missing construction mapping.");
 
-            RejectUnknownKeys(
-                constructionNode,
-                ["input", "steps"],
-                "construction",
-                diagnostics);
+            RejectUnknownKeys(constructionNode, ["input", "steps"], "construction", diagnostics);
 
             var input = Product(constructionNode, "input");
             var steps = new List<ConstructionStep>();
@@ -62,11 +61,7 @@ public static class VsirParser
             {
                 if (TryMapping(stepNode, "normalize", out var normalize))
                 {
-                    RejectUnknownKeys(
-                        stepNode,
-                        ["normalize"],
-                        "construction.steps[]",
-                        diagnostics);
+                    RejectUnknownKeys(stepNode, ["normalize"], "construction.steps[]", diagnostics);
                     RejectUnknownKeys(
                         normalize,
                         ["target", "intrinsic"],
@@ -95,11 +90,7 @@ public static class VsirParser
                     continue;
                 }
 
-                RejectUnknownKeys(
-                    stepNode,
-                    ["ensure"],
-                    "construction.steps[]",
-                    diagnostics);
+                RejectUnknownKeys(stepNode, ["ensure"], "construction.steps[]", diagnostics);
                 RejectUnknownKeys(
                     ensure,
                     ["condition", "failure"],
@@ -125,6 +116,7 @@ public static class VsirParser
                 Condition? condition = intrinsic switch
                 {
                     "non-empty" => new NonEmptyCondition(value),
+                    "not-whitespace" => new NotWhitespaceCondition(value),
                     "length-at-most" => new LengthAtMostCondition(value, Int(conditionNode, "max")),
                     _ => null
                 };
@@ -141,12 +133,7 @@ public static class VsirParser
                     continue;
                 }
 
-                RejectUnknownKeys(
-                    failure,
-                    ["message"],
-                    "construction.steps[].ensure.failure",
-                    diagnostics);
-
+                RejectUnknownKeys(failure, ["message"], "construction.steps[].ensure.failure", diagnostics);
                 steps.Add(new EnsureStep(condition, Scalar(failure, "message")));
             }
 
@@ -162,7 +149,7 @@ public static class VsirParser
                 new Construction(input, steps),
                 equality);
 
-            diagnostics.AddRange(DomainTypeValidator.Validate(document));
+            diagnostics.AddRange(DomainTypeValidator.Validate(document, validationContext));
             return new(document, diagnostics);
         }
         catch (Exception ex)
@@ -184,11 +171,7 @@ public static class VsirParser
             return null;
         }
 
-        RejectUnknownKeys(
-            equalityNode,
-            ["intrinsic", "by"],
-            "equality",
-            diagnostics);
+        RejectUnknownKeys(equalityNode, ["intrinsic", "by"], "equality", diagnostics);
 
         var intrinsic = Scalar(equalityNode, "intrinsic");
         var by = Scalar(equalityNode, "by");
@@ -210,9 +193,17 @@ public static class VsirParser
         bool rootDiagnostic = false)
     {
         var allowed = allowedKeys.ToHashSet(StringComparer.Ordinal);
-        foreach (var keyNode in mapping.Children.Keys.OfType<YamlScalarNode>())
+        foreach (var keyNode in mapping.Children.Keys)
         {
-            var key = keyNode.Value ?? string.Empty;
+            if (keyNode is not YamlScalarNode scalar)
+            {
+                diagnostics.Add(new(
+                    "VSIR104",
+                    $"Unsupported non-scalar semantic key in '{semanticPath}'."));
+                continue;
+            }
+
+            var key = scalar.Value ?? string.Empty;
             if (allowed.Contains(key))
                 continue;
 

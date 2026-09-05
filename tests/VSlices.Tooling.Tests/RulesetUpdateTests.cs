@@ -23,6 +23,42 @@ public sealed class RulesetUpdateTests
     }
 
     [Fact]
+    public async Task Ruleset_update_preserves_project_owned_extension_overlay()
+    {
+        using var project = new ToolingTestProject();
+        var source = Path.Combine(project.Root, "source-ruleset");
+        ToolingTestProject.WriteValidRuleset(source, "new.marker");
+        ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
+        project.WriteConfiguration(source);
+        WriteProjectExtensionMarker(project, "keep-me");
+
+        var result = await project.Run(project.Root, "update", "--ruleset");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "keep-me")));
+        Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "manifest.yaml")));
+    }
+
+    [Fact]
+    public async Task Force_init_preserves_project_owned_extension_overlay()
+    {
+        using var project = new ToolingTestProject();
+        var source = Path.Combine(project.Root, "source-ruleset");
+        ToolingTestProject.WriteValidRuleset(source, "new.marker");
+        ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
+        project.WriteConfiguration(source);
+        WriteProjectExtensionMarker(project, "keep-me");
+
+        var result = await project.Run(
+            project.Root,
+            "init", "--force", "--from", source, "--target", "C#");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "keep-me")));
+        Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "manifest.yaml")));
+    }
+
+    [Fact]
     public async Task Force_init_with_local_source_clears_stale_git_ref_and_remains_updatable()
     {
         using var project = new ToolingTestProject();
@@ -52,6 +88,9 @@ public sealed class RulesetUpdateTests
     [InlineData("missing-rule-file")]
     [InlineData("duplicate-rule")]
     [InlineData("invalid-renderer")]
+    [InlineData("source-owned-extensions")]
+    [InlineData("non-scalar-rule-file")]
+    [InlineData("non-mapping-rule")]
     public async Task Invalid_source_never_replaces_current_snapshot(string invalidCase)
     {
         using var project = new ToolingTestProject();
@@ -96,6 +135,16 @@ public sealed class RulesetUpdateTests
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));
     }
 
+    private static void WriteProjectExtensionMarker(ToolingTestProject project, string marker)
+    {
+        Directory.CreateDirectory(project.ExtensionsRoot);
+        File.WriteAllText(Path.Combine(project.ExtensionsRoot, "manifest.yaml"), """
+            version: 0.1
+            catalogs: []
+            """);
+        File.WriteAllText(Path.Combine(project.ExtensionsRoot, marker), marker);
+    }
+
     private static void WriteInvalidRuleset(string root, string invalidCase)
     {
         Directory.CreateDirectory(root);
@@ -109,6 +158,34 @@ public sealed class RulesetUpdateTests
         }
 
         Directory.CreateDirectory(Path.Combine(root, "csharp"));
+
+        if (invalidCase == "source-owned-extensions")
+        {
+            File.WriteAllText(Path.Combine(root, "manifest.yaml"), """
+                extensions:
+                  - extensions/normalize.yaml
+                targets:
+                  csharp:
+                    rules:
+                      - csharp/intrinsics.yaml
+                """);
+            File.WriteAllText(Path.Combine(root, "csharp", "intrinsics.yaml"), "rules: []\n");
+            Directory.CreateDirectory(Path.Combine(root, "extensions"));
+            File.WriteAllText(Path.Combine(root, "extensions", "normalize.yaml"), "extensions: []\n");
+            return;
+        }
+
+        if (invalidCase == "non-scalar-rule-file")
+        {
+            File.WriteAllText(Path.Combine(root, "manifest.yaml"), """
+                targets:
+                  csharp:
+                    rules:
+                      - path: csharp/intrinsics.yaml
+                """);
+            return;
+        }
+
         File.WriteAllText(Path.Combine(root, "manifest.yaml"), """
             targets:
               csharp:
@@ -130,6 +207,15 @@ public sealed class RulesetUpdateTests
                     mode: deterministic
                     renderer: expression
                     template: two
+                """);
+            return;
+        }
+
+        if (invalidCase == "non-mapping-rule")
+        {
+            File.WriteAllText(Path.Combine(root, "csharp", "intrinsics.yaml"), """
+                rules:
+                  - intrinsic.non-empty
                 """);
             return;
         }

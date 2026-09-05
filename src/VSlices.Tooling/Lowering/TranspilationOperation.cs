@@ -35,7 +35,13 @@ internal static class TranspilationOperation
                 $"Target '{target.Target}' is not supported by the current lowering engine.")]);
         }
 
-        var rules = CSharpLoweringRuleSet.Load(project.RulesetRoot);
+        var extensions = ProjectExtensionCatalogs.Load(project.ExtensionsRoot);
+        if (!extensions.IsSuccess)
+            return TranspilationResult.Failure(extensions.Diagnostics);
+
+        var rules = CSharpLoweringRuleSet.Load(
+            project.RulesetRoot,
+            extensions.Extensions!.CSharpRules);
         if (!rules.IsSuccess)
             return TranspilationResult.Failure(rules.Diagnostics);
 
@@ -49,7 +55,7 @@ internal static class TranspilationOperation
             return TranspilationResult.Failure([targetContext.Diagnostic]);
 
         var text = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
-        var parsed = VsirParser.Parse(text);
+        var parsed = VsirParser.Parse(text, extensions.Extensions.ValidationContext);
         if (!parsed.IsSuccess)
             return TranspilationResult.Failure(parsed.Diagnostics);
 
@@ -57,7 +63,8 @@ internal static class TranspilationOperation
             parsed.Document!,
             new CSharpLoweringContext(
                 targetContext.Context!.Namespace,
-                rules.RuleSet!));
+                rules.RuleSet!,
+                extensions.Extensions.ValidationContext));
 
         return lowered.IsSuccess
             ? TranspilationResult.Success(
