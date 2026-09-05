@@ -15,11 +15,132 @@ internal static class LoweringCoordinator
         CSharpRebaseResolution resolution,
         CancellationToken cancellationToken)
     {
-        var next = await TranspilationOperation.Execute(
-            subject,
+        var resolved = LoweringSubjectResolver.Resolve(subject, Environment.CurrentDirectory);
+        if (resolved.Diagnostic is not null)
+        {
+            CommandInfrastructure.WriteDiagnostics([resolved.Diagnostic]);
+            return 1;
+        }
+
+        if (resolved.Subject!.Kind == LoweringSubjectKind.DotNetProject)
+        {
+            return await ExecuteProject(
+                resolved.Subject.Path,
+                target,
+                from,
+                source,
+                output,
+                stdout,
+                namespaceOverride,
+                resolution,
+                cancellationToken);
+        }
+
+        return await ExecuteArtifact(
+            resolved.Subject.Path,
             target,
+            from,
+            source,
+            output,
+            stdout,
             namespaceOverride,
+            resolution,
             cancellationToken);
+    }
+
+    private static async Task<int> ExecuteProject(
+        string projectPath,
+        string? target,
+        string? from,
+        string? source,
+        string? output,
+        bool stdout,
+        string? namespaceOverride,
+        CSharpRebaseResolution resolution,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(from) ||
+            !string.IsNullOrWhiteSpace(source) ||
+            !string.IsNullOrWhiteSpace(output) ||
+            stdout ||
+            !string.IsNullOrWhiteSpace(namespaceOverride))
+        {
+            Console.Error.WriteLine(
+                "CLI006: Project lowering does not yet support --from, --source, --output, --stdout, or --namespace. Lower an individual .vsir when an artifact-specific override is required.");
+            return 2;
+        }
+
+        var prepared = TranspilationOperation.Prepare(projectPath, target);
+        if (!prepared.IsSuccess)
+        {
+            CommandInfrastructure.WriteDiagnostics(prepared.Diagnostics);
+            return 1;
+        }
+
+        var artifacts = LoweringSubjectResolver.EnumerateProjectVsirFiles(projectPath)
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        if (artifacts.Length == 0)
+        {
+            Console.WriteLine($"No VSIR artifacts found in project '{Path.GetFileNameWithoutExtension(projectPath)}'.");
+            return 0;
+        }
+
+        var succeeded = 0;
+        var unsupported = 0;
+        var failed = 0;
+
+        Console.WriteLine($"Lowering project '{Path.GetFileNameWithoutExtension(projectPath)}' ({artifacts.Length} VSIR artifacts)...");
+
+        foreach (var artifact in artifacts)
+        {
+            var relative = Path.GetRelativePath(Path.GetDirectoryName(projectPath)!, artifact);
+            var exitCode = await ExecuteArtifact(
+                artifact,
+                target,
+                from: null,
+                source: null,
+                output: null,
+                stdout: false,
+                namespaceOverride: null,
+                resolution,
+                cancellationToken,
+                prepared.Environment);
+
+            if (exitCode == 0)
+            {
+                succeeded++;
+                Console.WriteLine($"  ✓ {relative}");
+            }
+            else
+            {
+                unsupported++;
+                Console.WriteLine($"  - {relative} (not lowered)");
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine($"Project lowering: {succeeded} succeeded, {unsupported} not lowered, {failed} unexpected failures.");
+
+        return failed > 0 ? 1 : 0;
+    }
+
+    private static async Task<int> ExecuteArtifact(
+        string subject,
+        string? target,
+        string? from,
+        string? source,
+        string? output,
+        bool stdout,
+        string? namespaceOverride,
+        CSharpRebaseResolution resolution,
+        CancellationToken cancellationToken,
+        TranspilationEnvironment? environment = null)
+    {
+        var next = environment is null
+            ? await TranspilationOperation.Execute(subject, target, namespaceOverride, cancellationToken)
+            : await TranspilationOperation.ExecuteResolved(subject, environment, namespaceOverride, cancellationToken);
         if (!next.IsSuccess)
         {
             CommandInfrastructure.WriteDiagnostics(next.Diagnostics);
