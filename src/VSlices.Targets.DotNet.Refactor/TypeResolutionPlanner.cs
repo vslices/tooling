@@ -36,7 +36,7 @@ internal static class TypeResolutionPlanner
 
         var assemblies = new[] { compilation.Assembly }
             .Concat(compilation.SourceModule.ReferencedAssemblySymbols)
-            .Distinct(SymbolEqualityComparer.Default)
+            .Distinct<IAssemblySymbol>(SymbolEqualityComparer.Default)
             .ToArray();
         var resolved = new List<TypeResolutionEntry>();
 
