@@ -88,6 +88,7 @@ public static class DomainTypeValidator
             var value = ensure.Condition switch
             {
                 NonEmptyCondition x => x.Value,
+                NotWhitespaceCondition x => x.Value,
                 LengthAtMostCondition x => x.Value,
                 _ => string.Empty
             };
