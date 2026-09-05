@@ -277,6 +277,11 @@ public static class CSharpLowerer
                 {
                     ["value"] = ResolveReference(x.Value, references)
                 }),
+            NotWhitespaceCondition x =>
+                ("intrinsic.not-whitespace", new Dictionary<string, string>
+                {
+                    ["value"] = ResolveReference(x.Value, references)
+                }),
             LengthAtMostCondition x =>
                 ("intrinsic.length-at-most", new Dictionary<string, string>
                 {
