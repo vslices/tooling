@@ -118,7 +118,7 @@ internal static class SelfUpdater
         var currentVersion = CurrentVersion();
         var releaseVersion = NormalizeVersion(release.TagName);
         var sameVersion = NormalizeVersion(currentVersion) == releaseVersion;
-        var needsCompanionRepair = sameVersion && !SemanticRefactoringCompanionInstalled();
+        var needsCompanionRepair = sameVersion && !SemanticRefactoringCompanionHealth.IsInstalled();
         if (sameVersion && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentVersion, release.TagName, rid);
@@ -189,7 +189,7 @@ internal static class SelfUpdater
         var currentBuildIdentity = CurrentBuildIdentity();
         var currentIdentity = currentBuildIdentity ?? CurrentVersion();
         var sameBuild = currentBuildIdentity == buildIdentity;
-        var needsCompanionRepair = sameBuild && !SemanticRefactoringCompanionInstalled();
+        var needsCompanionRepair = sameBuild && !SemanticRefactoringCompanionHealth.IsInstalled();
         if (sameBuild && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
@@ -367,11 +367,10 @@ internal static class SelfUpdater
         var replacement = replacements[0];
         var packageRoot = Path.GetDirectoryName(replacement)!;
         var companionSource = Path.Combine(packageRoot, "refactor");
-        var companionAssembly = Path.Combine(companionSource, "VSlices.Targets.DotNet.Refactor.dll");
-        if (!File.Exists(companionAssembly))
+        if (!SemanticRefactoringCompanionHealth.IsCompleteCompanionDirectory(companionSource))
         {
             Console.Error.WriteLine(
-                $"UPD015: Release archive '{assetName}' does not contain the Roslyn semantic-refactoring companion.");
+                $"UPD015: Release archive '{assetName}' does not contain a complete Roslyn semantic-refactoring companion with BuildHost-netcore.");
             return 1;
         }
 
@@ -411,7 +410,7 @@ internal static class SelfUpdater
         try
         {
             CopyDirectory(source, pending);
-            if (!File.Exists(Path.Combine(pending, "VSlices.Targets.DotNet.Refactor.dll")))
+            if (!SemanticRefactoringCompanionHealth.IsCompleteCompanionDirectory(pending))
                 throw new InvalidOperationException("Semantic-refactoring companion staging is incomplete.");
 
             if (Directory.Exists(destination))
@@ -453,12 +452,6 @@ internal static class SelfUpdater
             File.Copy(file, target, overwrite: true);
         }
     }
-
-    private static bool SemanticRefactoringCompanionInstalled() =>
-        File.Exists(Path.Combine(
-            AppContext.BaseDirectory,
-            "refactor",
-            "VSlices.Targets.DotNet.Refactor.dll"));
 
     private static void ShowResolvedUpdate(string current, string latest, string rid)
     {
