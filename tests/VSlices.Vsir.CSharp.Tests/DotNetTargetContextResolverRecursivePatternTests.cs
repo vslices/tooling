@@ -48,7 +48,7 @@ public sealed class DotNetTargetContextResolverRecursivePatternTests
         var root = Path.Combine(
             Path.GetTempPath(),
             "vslices-target-context-recursive-" + Guid.NewGuid().ToString("N"));
-        var nested = relativeFolders.Aggregate(root, Path.Combine);
+        var nested = relativeFolders.Aggregate(root, (current, folder) => Path.Combine(current, folder));
         Directory.CreateDirectory(nested);
 
         try
