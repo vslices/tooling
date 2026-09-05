@@ -5,6 +5,9 @@ public static class DomainTypeValidator
     private static readonly HashSet<string> SupportedTraits =
         new(["transform", "identifier"], StringComparer.Ordinal);
 
+    private static readonly HashSet<string> SupportedNormalizeIntrinsics =
+        new(["trim"], StringComparer.Ordinal);
+
     public static IReadOnlyList<VsirDiagnostic> Validate(DomainTypeVsir document)
     {
         var diagnostics = new List<VsirDiagnostic>();
@@ -57,6 +60,11 @@ public static class DomainTypeValidator
 
         foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
         {
+            Require(
+                SupportedNormalizeIntrinsics.Contains(normalize.Intrinsic),
+                "VSIR221",
+                $"Unsupported normalize intrinsic '{normalize.Intrinsic}'.");
+
             Require(
                 normalize.Target.StartsWith("input.", StringComparison.Ordinal),
                 "VSIR219",
