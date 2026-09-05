@@ -61,7 +61,7 @@ targets:
   csharp:
     namespace:
       ignore-folders:
-        - Tickets
+        - "Aggregates/*"
         - Entities
         - "*Internal"
         - "Generated?"
@@ -74,24 +74,33 @@ evaluated RootNamespace
 + project-relative VSIR directory segments
 ```
 
-Each `ignore-folders` entry is matched independently against each complete directory segment. Entries without wildcards are exact ordinal matches. Entries containing `*` or `?` use simple glob matching for that single segment. Patterns do not span path separators and are not regular expressions.
+An `ignore-folders` entry without a path separator is matched against each complete directory segment. Entries without wildcards are exact ordinal matches; entries containing `*` or `?` use simple glob matching for that single segment.
 
-This makes project conventions reusable. For example, configuring `Entities` once excludes any directory segment named exactly `Entities`, regardless of which aggregate contains it:
+An entry containing `/` or `\\` is path-aware. It is matched against the project-relative directory path ending at the candidate segment. A successful path match excludes only the final matched segment; parent segments remain available to the namespace.
+
+For example:
 
 ```text
 RootNamespace: Tickets.Domain
-VSIR path:     Aggregates/Orders/Entities/Address.vsir
-ignore:        Entities
-result:        Tickets.Domain.Aggregates.Orders
+VSIR path:     Aggregates/Tickets/TicketCode.vsir
+ignore:        Aggregates/*
+result:        Tickets.Domain.Aggregates
 ```
 
-Likewise:
+`Aggregates/*` means “ignore any immediate child directory of `Aggregates` when deriving the namespace”; it does not remove `Aggregates` itself and it does not recursively consume deeper segments.
+
+Segment conventions can be combined with path conventions. For example:
 
 ```text
-ignore:        *Internal
-VSIR path:     Aggregates/Orders/EntitiesInternal/Address.vsir
-result:        Tickets.Domain.Aggregates.Orders
+VSIR path:     Aggregates/Orders/Entities/Address.vsir
+ignore:        Aggregates/*
+               Entities
+result:        Tickets.Domain.Aggregates
 ```
+
+This lets physical aggregate organization remain more expressive than the namespace without hardcoding aggregate names into Tooling.
+
+Path patterns are segment-aware: `*` and `?` apply within one path segment. Recursive `**` semantics are not currently defined.
 
 An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
 
