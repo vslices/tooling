@@ -19,7 +19,7 @@ vslices --version
 vslices -v
 ```
 
-Plain `vslices update` and combined `--self --ruleset` are intentionally undefined until aggregate ordering and partial-failure semantics are justified by evidence.
+Plain `vslices update` and combined `--self --ruleset` remain intentionally undefined until aggregate ordering and partial-failure semantics are justified by evidence.
 
 ## Authority boundaries
 
@@ -52,7 +52,7 @@ target-native tooling
   = target facts already owned by the target ecosystem
 ```
 
-A missing lowering rule is a stop condition, never permission to guess.
+A missing lowering rule is a stop condition, never permission to guess. A Ruleset also cannot create a semantic operation that VSIR itself does not recognize.
 
 ## Internal responsibility tree
 
@@ -61,37 +61,31 @@ Command handlers are CLI adapters, not orchestration containers.
 ```text
 src/VSlices.Tooling/
   Commands/
-    VsirCommands.cs
-    RulesetCommands.cs
-    UpdateCommands.cs
-
   Lowering/
     TranspilationOperation.cs
     RebaseOperation.cs
     LoweringCoordinator.cs
-    Lineage/
-      LoweringLineageStore.cs
-      LoweringLineageBootstrap.cs
-
+    SemanticRefactoring/
+      SemanticRefactoringCoordinator.cs
+      DotNetSemanticRefactoringClient.cs
+      SemanticRefactoringAuthorization.cs
+      TransactionalFileWriter.cs
   Project/
-    VSlicesProjectContext.cs
-    ProjectConfiguration.cs
-    ArtifactDiscoveryPolicy.cs
-
   Rulesets/
-    RulesetSourceMaterializer.cs
-    RulesetSnapshotInstaller.cs
-    RulesetUpdater.cs
-
   Updates/
-    SelfUpdater.cs
-
   Presentation/
-    TerminalOutput.cs
-    CliVersion.cs
 
-  CommandInfrastructure.cs
+src/VSlices.Targets.DotNet/
+  DotNetTargetContextResolver.cs
+  Namespace/
+    NamespacePathPolicy.cs
+
+src/VSlices.Targets.DotNet.Refactor/
   Program.cs
+  RefactorArguments.cs
+  NamespaceMovePlanner.cs
+  CompilationValidator.cs
+  RefactorManifest.cs
 ```
 
 The key flow is:
@@ -102,35 +96,89 @@ CLI handler
   -> semantic mechanism / project infrastructure / target adapter
 ```
 
-`TranspilationOperation` owns the reusable path from VSIR + project target/ruleset/context to a deterministic projection. `RebaseOperation` owns deterministic three-way rebase. `LoweringCoordinator` owns the policy for selecting the least-powerful sufficient lowering mechanism. Public commands do not call other public command handlers to reuse behavior.
+`TranspilationOperation` owns the reusable path from VSIR + project target/ruleset/context to a deterministic projection. `RebaseOperation` owns deterministic three-way materialization rebase. `LoweringCoordinator` owns the high-level `lower` policy and delegates the target-semantic namespace-move subworkflow to `SemanticRefactoringCoordinator`.
 
 `VSlicesProjectContext` is the single detected representation of a VSlices project and carries project root, `.vslices` root, configuration, ruleset root and lineage root.
 
-## Semantic conservation
+## Semantic conservation and normalization
 
 Unknown semantics must not disappear silently.
 
-The parser fails closed for unknown keys in known semantic mappings including:
+The parser fails closed for unknown keys in known semantic mappings. The validator also owns recognized semantic values.
 
-```text
-root
-construction
-construction step
-ensure
-condition
-failure
-equality
+The first normalization semantic demonstrated by the TicketCode consumer is:
+
+```yaml
+- normalize:
+    target: input.Value
+    intrinsic: trim
 ```
 
-Mappings whose keys are user-defined data remain open where appropriate, including `state`, `representation`, and `construction.input`.
+The current authority split is:
 
-`traits` are capabilities, not a sequence. Their order is irrelevant; duplicate and unknown traits are explicit validation errors. The current experimental subset still requires `transform`; `identifier` independently requires explicit equality semantics.
+```text
+VSlices.Vsir
+  -> recognizes `trim` as a valid normalize intrinsic
 
-## Lowering and lineage
+C# lowering mechanism
+  -> preserves construction-step order and normalization dataflow
 
-`transpile` requests one deterministic witness when VSIR, ruleset and target context are sufficient.
+Ruleset
+  -> supplies target-specific realization of intrinsic.trim
+```
 
-`rebase` receives conceptually:
+An unknown normalize intrinsic is rejected by VSIR before Ruleset lookup. This prevents a target rule from inventing domain semantics accidentally.
+
+The demonstrated `trim` renderer is pure. Current lowering may repeat the rendered expression in validation and construction; broader normalization will require either referential transparency or single-evaluation lowering.
+
+## .NET target context and namespace policy
+
+Default C# namespace derivation uses the nearest unique `.csproj`, evaluates `RootNamespace` through MSBuild, then appends the project-relative VSIR directory path after project policy is applied.
+
+Example configuration:
+
+```yaml
+targets:
+  default: csharp
+  csharp:
+    namespace:
+      ignore-folders:
+        - "Aggregates/*"
+        - "Aggregates/**/Entities"
+```
+
+Pattern semantics are segment-aware:
+
+```text
+*   = exactly one directory segment
+?   = one character inside a segment
+**  = zero or more complete directory segments
+```
+
+The complete pattern establishes context, but only the terminal matched folder is excluded from namespace derivation.
+
+Examples:
+
+```text
+Aggregates/*
+  -> ignores any direct aggregate folder but preserves Aggregates
+
+Aggregates/**/Entities
+  -> ignores a terminal Entities folder at any depth under Aggregates
+
+Aggregates/**/*
+  -> ignores every descendant folder under Aggregates while preserving Aggregates itself
+```
+
+An explicit `--namespace` remains authoritative and bypasses derived namespace policy.
+
+See [`docs/configuration.md`](docs/configuration.md).
+
+## Lowering, rebase and lineage
+
+`transpile` requests one deterministic witness when VSIR, Ruleset and target context are sufficient.
+
+`rebase` is the textual primitive:
 
 ```text
 previous deterministic projection
@@ -139,56 +187,92 @@ previous deterministic projection
 -> rebased human materialization
 ```
 
-`lower` coordinates:
+It remains conservative. `REB002` means the deterministic change location cannot be established uniquely. `REB004` means the location is known but human and deterministic branches changed it differently.
+
+`--resolve deterministic` authorizes only the known textual conflict region.
+
+`lower` is the project workflow:
 
 ```text
 no materialization
-  -> transpile
-  -> record deterministic baseline
+  -> transpile + deterministic baseline
 
 materialization + recorded lineage
-  -> rebase
-  -> update baseline
+  -> textual rebase
+  -> optional target-semantic closure for known namespace moves
+  -> advance baseline
 
 materialization + no lineage + exact deterministic witness
-  -> record current deterministic baseline
-  -> preserve witness unchanged
+  -> establish lineage without rewriting the witness
 
-conventional materialization + no lineage + authorized bootstrap
-  -> compute current deterministic projection
-  -> record it as baseline
+conventional materialization + authorized bootstrap
+  -> store current deterministic projection
   -> preserve human witness byte-for-byte
-  -> succeed without immediate rebase
 
 otherwise
-  -> stop / require explicit --from ancestry
+  -> stop / require explicit ancestry
 ```
 
-The first bootstrap convention is:
+The direct `rebase` command does **not** promise the same project-wide target-semantic closure as `lower`. That distinction is intentional.
 
-```yaml
-lineage:
-  bootstrap:
-    convention: existing-materialization
+`.vslices/lineage/` is intended to be version-controlled by default. It is continuity evidence, not semantic authority, and Tooling does not currently reconstruct missing lineage from Git history.
+
+## Roslyn semantic refactoring
+
+A real TicketCode rebase proved that preserving unrelated human text does not guarantee target-semantic validity: a namespace declaration moved while human fully-qualified references elsewhere still pointed to the old symbol.
+
+For the observed namespace-move case, `lower` can invoke a managed Roslyn companion after the textual candidate is known.
+
+The authority model is intentionally split:
+
+```text
+1. detect a namespace move cheaply
+2. ask before loading Roslyn/MSBuildWorkspace
+3. discover exact semantic references
+4. validate baseline and proposed compilations
+5. show blast radius
+6. ask separately before mutating human-maintained code
+7. re-check source preconditions
+8. commit affected sources + lineage transactionally
 ```
 
-Despite the name, the human materialization is **not** stored as the deterministic baseline. The convention authorizes lineage to begin at the current point; Tooling computes and stores the current deterministic projection while leaving the human witness untouched.
+Only explicit `y` / `yes` approves the interactive authority boundaries. Blank, EOF or any unrecognized answer rejects.
 
-The next semantic change can then perform a real three-way rebase.
+The semantic artifact name comes from parsed VSIR `name:` and is carried through `TranspilationResult`; it is not inferred from the `.vsir` filename.
 
-### Lineage versioning decision
+Compilation validation is fail-closed. If Roslyn cannot produce a `Compilation`, Tooling treats that as “could not verify”, not as successful validation.
 
-`.vslices/lineage/` is intended to be version-controlled by default.
+## Native AOT + managed Roslyn companion
 
-It is not semantic authority, but it is continuity evidence required for another developer, machine or CI environment to reconstruct the same automatic three-way rebase without requiring an unavailable historical VSIR. Git history records the evolution of this operational evidence; Tooling does not currently reconstruct lineage from Git history.
+Roslyn/MSBuildWorkspace is deliberately outside the Native AOT executable.
 
-No provenance graph is introduced. The deterministic baseline remains the smallest evidence currently demonstrated as necessary.
+Distribution shape:
+
+```text
+vslices / vslices.exe
+  Native AOT coordinator
+
+refactor/
+  VSlices.Targets.DotNet.Refactor.dll
+  BuildHost-netcore/
+  BuildHost-net472/
+  Roslyn/MSBuild runtime dependencies
+```
+
+A complete companion requires at least:
+
+```text
+refactor/VSlices.Targets.DotNet.Refactor.dll
+refactor/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.dll
+```
+
+Startup health checks, same-build `vslices update --self` repair, downloaded-archive validation, staging validation and the Windows installer all use the same completeness rule. A root helper DLL without `BuildHost-netcore` is incomplete.
+
+The standalone Native AOT CLI emits `UPD016` when it detects an incomplete companion and directs the user to run `vslices update --self`.
 
 ## Rulesets and updates
 
 `vslices init` and `vslices update --ruleset` share ruleset-source materialization and snapshot installation mechanisms.
-
-The flow is:
 
 ```text
 source
@@ -198,86 +282,73 @@ source
   -> atomic replace with backup/rollback
 ```
 
-For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current `.vslices/ruleset` can be replaced. Missing files, duplicate rules, unsupported renderers/modes and other loader errors stop before swap.
+For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current `.vslices/ruleset` can be replaced.
 
-For supported GitHub repository sources, `ruleset.ref` is treated as a real Git reference candidate: branch, then tag, then direct commit/archive reference. Local directories and generic direct ZIP URLs do not silently reinterpret `ref` as a branch.
+For supported GitHub repository sources, `ruleset.ref` is treated as a real Git reference candidate: branch, tag, then direct commit/archive reference.
 
-See [`docs/rulesets.md`](docs/rulesets.md) and [`docs/configuration.md`](docs/configuration.md).
-
-## Project configuration
-
-A normal initialized configuration includes:
-
-```yaml
-version: 0.1
-
-targets:
-  default: csharp
-
-ruleset:
-  source: https://github.com/vslices/ruleset
-  ref: main
-
-lineage:
-  bootstrap:
-    convention: existing-materialization
-
-updates:
-  source: https://github.com/vslices/tooling
-  channel: preview
-```
-
-Configuration is operating policy, not VSIR semantics. Explicit CLI arguments override project configuration where a command supports an override.
+See [`docs/rulesets.md`](docs/rulesets.md).
 
 ## Validation
 
-The repository has two relevant test layers:
+Relevant test layers are:
 
 ```text
 tests/VSlices.Vsir.CSharp.Tests
   = VSIR / C# semantic and lowering behavior
 
 tests/VSlices.Tooling.Tests
-  = project/ruleset/lineage orchestration through the real CLI boundary
+  = Tooling orchestration, semantic-refactoring safety and installation health
 ```
 
-Tooling integration tests intentionally execute the built CLI out-of-process. During consolidation, an in-process test reference exposed a case-insensitive assembly identity collision between the executable assembly `vslices` and Framework assembly `VSlices`. The CLI itself remains executable, but ordinary in-process loading of both assemblies is unsafe. This is retained as an architectural finding rather than forcing a new assembly split solely for tests.
-
-CI additionally smoke-tests `update --ruleset`, non-destructive lineage bootstrap, subsequent automatic rebase, discovery, target-context delegation and Native AOT distribution.
+CI also exercises Roslyn/MSBuildWorkspace, non-destructive lineage bootstrap, subsequent rebase, target context and namespace patterns, complete managed companion packaging, and Native AOT artifacts for Linux, win-x64 and win-arm64.
 
 ## Evidence from Ticket Support
 
-`TicketId.vsir` exposed the current chain incrementally:
+The current experimental chain is:
 
 ```text
-semantic conservation
--> identifier/equality representation
--> C# structural lowering
--> external ordinal equality rules
--> ruleset update
--> lineage bootstrap
--> non-destructive bootstrap correction
+TicketId
+  -> identifier/equality representation
+  -> target lowering rules
+  -> project ruleset lifecycle
+  -> non-destructive lineage bootstrap
+
+TicketCode
+  -> normalize representation
+  -> ordered normalization dataflow
+  -> external intrinsic.trim realization
+  -> evaluated namespace target context
+  -> conservative rebase conflict semantics
+  -> explicit textual conflict authority
+  -> target-semantic namespace consequence
+  -> Roslyn semantic blast-radius planning
+  -> Native AOT companion/runtime closure
+  -> package-pruning workspace diagnostics
+  -> explicit analysis cost authority
+  -> namespace path policy
+  -> review hardening of semantic ownership and fail-closed guarantees
 ```
 
-Tooling `build4.218` was exercised against `atom-dev-serviu/access-management-product` from a clean lineage state. The deterministic baseline was created and the existing human `TicketId.vsir.cs` remained unchanged, confirming the bootstrap behavior against the real consumer.
-
-A separate target-context namespace problem was observed and intentionally remains outside this consolidation. The follow-up hypothesis derives namespace from the related `.csproj` (`RootNamespace` or project name) plus relative path, with future project-specific exclusions for organizational-only path segments.
+The repository deliberately preserves this chain because each mechanism was added only after the real consumer exposed the next unjustified boundary.
 
 ## Explicit future scope
 
-Recorded but not implemented in this consolidation:
+Recorded but not implemented in this baseline:
 
-- namespace path policy and path exclusions;
-- convention selection according to availability;
-- whether convention definitions partly belong in `vslices/ruleset`;
-- aggregate `vslices update` semantics;
-- consistent presentation styles for `transpile`, `rebase`, and `lower`;
+- normalization intrinsics beyond `trim`;
+- namespace-pattern negation, precedence or regex semantics;
+- semantic refactoring kinds beyond the observed namespace move;
+- non-interactive semantic-refactoring approval policy;
+- generic compiler repair;
+- Roslyn workspace-scope optimization that could weaken blast-radius completeness;
+- killing the Roslyn child process tree on cancellation;
 - interpretive lowering;
 - general provenance graphs or Git-history ancestry reconstruction;
-- new VSIR classifications, normalization, target languages, or configurable themes.
+- aggregate `vslices update` semantics;
+- configurable terminal themes.
 
 ## Orientation
 
-Read [`AGENTS.md`](AGENTS.md) and [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md) before semantic or architectural changes. The release direction is in [`docs/releases/v0.2.0-preview.md`](docs/releases/v0.2.0-preview.md), and installation details remain in [`docs/how-to-install-on-windows.md`](docs/how-to-install-on-windows.md).
+Read [`AGENTS.md`](AGENTS.md) and [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md) before semantic or architectural changes. The release direction is in [`docs/releases/v0.2.0-preview.md`](docs/releases/v0.2.0-preview.md), and the TicketCode experiment is reconstructed in [`docs/experiments/ticket-code-lowering.md`](docs/experiments/ticket-code-lowering.md).
 
 The repository prefers small evidence-driven extensions over speculative generalization. Material decisions must remain reconstructible from repository artifacts rather than conversation history.
