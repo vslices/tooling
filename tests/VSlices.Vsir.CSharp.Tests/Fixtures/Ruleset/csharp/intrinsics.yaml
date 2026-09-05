@@ -18,3 +18,18 @@ rules:
     mode: deterministic
     renderer: expression
     template: "StringComparer.Ordinal.GetHashCode({value})"
+
+  - node: equality.domain.equals
+    mode: deterministic
+    renderer: expression
+    template: "{left}.Equals({right})"
+
+  - node: equality.domain.hash
+    mode: deterministic
+    renderer: expression
+    template: "{value}.GetHashCode()"
+
+  - node: projection.stringify
+    mode: deterministic
+    renderer: expression
+    template: "{value}.ToString()"
