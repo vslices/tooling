@@ -12,7 +12,7 @@ public static class DomainTypeValidator
         DomainTypeVsir document,
         VsirSemanticExtensions? semanticExtensions = null)
     {
-        semanticExtensions ??= VsirSemanticExtensions.None;
+        semanticExtensions ??= document.SemanticExtensions;
         var diagnostics = new List<VsirDiagnostic>();
 
         Require(document.Version == "0.1", "VSIR200", "Only VSIR 0.1 is supported.");
