@@ -163,9 +163,12 @@ public static class VsirParser
                 state,
                 representation,
                 new Construction(input, steps),
-                equality);
+                equality)
+            {
+                SemanticExtensions = semanticExtensions
+            };
 
-            diagnostics.AddRange(DomainTypeValidator.Validate(document, semanticExtensions));
+            diagnostics.AddRange(DomainTypeValidator.Validate(document));
             return new(document, diagnostics);
         }
         catch (Exception ex)
