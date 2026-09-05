@@ -24,6 +24,15 @@ public sealed record NonEmptyCondition(string Value) : Condition;
 public sealed record LengthAtMostCondition(string Value, int Max) : Condition;
 public sealed record VsirDiagnostic(string Code, string Message);
 
+public sealed record VsirSemanticExtensions(IReadOnlySet<string> NormalizeIntrinsics)
+{
+    public static VsirSemanticExtensions None { get; } =
+        new(new HashSet<string>(StringComparer.Ordinal));
+
+    public bool DeclaresNormalize(string intrinsic) =>
+        NormalizeIntrinsics.Contains(intrinsic);
+}
+
 public sealed record VsirParseResult(
     DomainTypeVsir? Document,
     IReadOnlyList<VsirDiagnostic> Diagnostics)
