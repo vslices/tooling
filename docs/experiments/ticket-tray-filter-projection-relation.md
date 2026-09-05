@@ -41,6 +41,69 @@ Can VSlices Tooling lower a semantic representation into an intentionally non-is
 4. target context, and
 5. the editable human witness?
 
+## Project lowering enters scope
+
+PR #6 recorded project/folder/batch lowering as future work. This experiment deliberately takes the first, narrowest part of that item into scope: **complete .NET project lowering**.
+
+The command keeps the existing subject-oriented CLI shape:
+
+```text
+vslices lower Identities.Domain
+```
+
+A lower subject may now resolve to either:
+
+```text
+VSIR artifact
+.NET project (.csproj)
+```
+
+When an extensionless symbol resolves to both, Tooling must not guess:
+
+```text
+vslices lower Identities.Domain
+  -> ambiguous
+
+vslices lower Identities.Domain.vsir
+  -> artifact
+
+vslices lower Identities.Domain.csproj
+  -> project
+```
+
+Project lowering establishes one coherent lowering environment before processing its artifacts:
+
+```text
+project
+  -> VSlicesProjectContext
+  -> configured target
+  -> installed Ruleset
+  -> project extension overlay
+  -> enumerate project .vsir artifacts
+  -> lower each artifact through the existing artifact mechanism
+```
+
+The purpose of this first project-level surface is both operational and experimental: existing projects can expose which VSIR artifacts the current semantic/lowering surface already accepts and which explicit boundary each remaining artifact reaches.
+
+An unsupported artifact therefore does not cause supported siblings to be abandoned. The project run reports the per-artifact boundary and a summary while preserving fail-closed behavior inside every individual artifact.
+
+Artifact-specific overrides (`--from`, `--source`, `--output`, `--stdout`, `--namespace`) are not generalized to project semantics by this change. They remain individual-artifact surfaces until concrete evidence establishes meaningful batch behavior.
+
+### Still outside the project-lowering slice
+
+```text
+--path / folder-scoped lowering
+atomic batch materialization
+multi-project / solution lowering
+cross-project dependency orchestration
+```
+
+The intended future module syntax is recorded only as direction, not implemented here:
+
+```text
+vslices lower Identities.Domain --path ValueObjects
+```
+
 ## First-boundary protocol
 
 Run the real `TicketTrayFilter.vsir` through the current CLI and stop at the first boundary that cannot justify the next result.
@@ -85,6 +148,25 @@ A Ruleset change becomes justified only after Tooling can represent the relevant
 
 The companion branch in `vslices/ruleset` records the same evidence gate without pre-authorizing a projection primitive.
 
+## Explicit non-scope inherited from PR #6
+
+The PR #6 baseline was:
+
+```text
+implicit semantics from renderer lookup
+a universal semantic plugin system
+multi-target execution
+extension support for ensure/equality/invariants/features
+behavioral-equivalence claims across targets
+arbitrary executable extensions
+purity/determinism/idempotence metadata without evidence
+project/folder/batch lowering
+```
+
+This experiment has now taken **project lowering only** out of the final item. Folder/path-scoped lowering and stronger batch semantics remain outside the current slice as described above.
+
 ## Success criterion
 
-The first iteration succeeds when the CLI exposes the earliest unsupported boundary for `TicketTrayFilter` without inventing semantics, and the result is specific enough to design the next discriminating experiment.
+The first projection iteration succeeds when the CLI exposes the earliest unsupported boundary for `TicketTrayFilter` without inventing semantics, and the result is specific enough to design the next discriminating experiment.
+
+The project-lowering iteration succeeds when a real existing project can be used as a coverage probe: supported artifacts use the existing lowering/lineage behavior, unsupported artifacts remain explicit, and the project shares one prepared Ruleset/extension/target environment rather than rediscovering semantic authority independently for every file.
