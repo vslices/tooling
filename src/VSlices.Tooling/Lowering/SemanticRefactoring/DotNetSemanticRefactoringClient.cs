@@ -31,6 +31,15 @@ internal static class DotNetSemanticRefactoringClient
             ]);
         }
 
+        if (string.IsNullOrWhiteSpace(next.SemanticName))
+        {
+            return DotNetSemanticRefactoringPlan.Failure([
+                new(
+                    "DOTNET019",
+                    "The transpilation result does not carry a semantic artifact name for Roslyn refactoring. No files were modified.")
+            ]);
+        }
+
         var helper = ResolveHelper();
         if (helper is null)
         {
@@ -57,7 +66,6 @@ internal static class DotNetSemanticRefactoringClient
                 new UTF8Encoding(false),
                 cancellationToken);
 
-            var symbolName = Path.GetFileNameWithoutExtension(next.VsirPath!);
             var startInfo = new ProcessStartInfo("dotnet")
             {
                 RedirectStandardOutput = true,
@@ -69,7 +77,7 @@ internal static class DotNetSemanticRefactoringClient
             Add("--project", next.TargetContext.ProjectPath);
             Add("--document", humanPath);
             Add("--candidate", candidatePath);
-            Add("--symbol", symbolName);
+            Add("--symbol", next.SemanticName!);
             Add("--staging", stagingPath);
             Add("--manifest", manifestPath);
 
