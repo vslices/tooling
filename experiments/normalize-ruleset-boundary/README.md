@@ -21,11 +21,11 @@ That observation is correct for semantic integrity, but it exposed a second ques
 
 > Can a custom Ruleset explicitly declare a new normalization semantic so the CLI can use it without requiring a new `VSlices.Vsir` release, while still preventing target renderers from implicitly inventing semantic vocabulary?
 
-The working hypothesis is now:
+The working hypothesis remains:
 
 > VSIR should remain closed to implicit semantics, but open to explicitly declared semantic extensions.
 
-This PR will explore only the smallest demonstrated case: extension of `normalize`. It will not generalize the mechanism to every VSIR concept until later consumer evidence requires it.
+The experiment is still deliberately limited to `normalize`.
 
 ## Observation chain
 
@@ -43,33 +43,26 @@ normalize boundary probe
   -> VSIR221
   -> semantic validity stops before target realization
 
-review of flexibility consequence
-  -> current boundary requires a VSlices.Vsir release for every new normalize semantic
-  -> this is too restrictive for custom Rulesets and domain-specific operations
+case B
+  -> semantic extension is explicitly declared
+  -> VSIR221 disappears
+  -> missing C# realization becomes CSL031
 
-scope change
-  -> preserve rejection of undeclared semantics
-  -> introduce an explicit semantic-extension path
-  -> keep semantic declaration separate from target renderer authority
+configuration review
+  -> declaring semantic identity in the manifest and renderer elsewhere is valid but too ceremonial
+  -> the common case is one project with one primary target
+  -> multi-target projects are more likely during migration, compatibility, or interoperability work
+
+current refinement
+  -> manifest references extension catalogs
+  -> one extension entry owns semantic identity
+  -> the same entry may optionally carry one or more target realizations
+  -> semantic admission and renderer authority remain logically separate even when authored together
 ```
-
-## Scope change
-
-The original PR question was:
-
-> Can target-specific Ruleset knowledge cause the CLI to accept a `normalize` intrinsic that VSIR does not recognize?
-
-The answer remains **no**, and that invariant is retained.
-
-The PR now continues one boundary further:
-
-> Can a custom Ruleset carry an explicit declaration that makes a previously unknown `normalize` operation semantically admissible, without making the existence of a renderer sufficient proof of semantic validity?
-
-This means the experiment is no longer only a negative control. It becomes a minimal semantic-extension experiment driven by the exact failure observed at `VSIR221`.
 
 ## Intended authority split
 
-The experiment must preserve three distinct questions:
+The experiment preserves three independent questions:
 
 ```text
 1. Is this semantic operation known or explicitly declared?
@@ -82,151 +75,187 @@ The experiment must preserve three distinct questions:
         -> Ruleset target realization
 ```
 
-A target renderer alone must not answer question 1.
+A renderer alone must not answer question 1.
 
-Conceptually:
+## Current extension shape under test
 
-```text
-core semantic
-  trim
-    -> known by VSlices.Vsir
+The manifest now treats extension files the same way it already treats target rule files: as references maintained by the project Ruleset.
 
-explicit extension semantic
-  custom.normalize-x
-    -> declared by the active custom Ruleset as a normalize extension
-    -> accepted structurally by VSIR without VSlices.Vsir knowing its domain meaning
+```yaml
+extensions:
+  - extensions/ticketing.yaml
 
-undeclared semantic
-  typo-or-magic
-    -> VSIR221
+targets:
+  csharp:
+    rules:
+      - csharp/intrinsics.yaml
 ```
 
-The declaration and the renderer may live in the same Ruleset distribution, but they represent different authority:
+An extension catalog keeps semantic identity and its target realizations together:
 
-```text
-semantic extension declaration
-  !=
-target realization
+```yaml
+extensions:
+  - node: intrinsic.normalize-boundary-probe
+    semantic:
+      kind: normalize
+    targets:
+      csharp:
+        mode: deterministic
+        renderer: expression
+        template: "{value}.Trim()"
 ```
+
+The `semantic` block grants semantic admission. The `targets.csharp` block grants C# realization. They are co-located for ergonomics, but they remain different authorities inside Tooling.
+
+A declared semantic without a C# realization is therefore valid and should reach `CSL031`:
+
+```yaml
+extensions:
+  - node: intrinsic.normalize-boundary-probe
+    semantic:
+      kind: normalize
+```
+
+A renderer placed only in `targets.csharp.rules` without any semantic declaration must still leave the VSIR rejected as `VSIR221`.
+
+## Why co-locate semantic identity and realizations?
+
+The common configuration is expected to have one primary language target. Requiring a semantic catalog plus a separate per-language declaration for every custom operation would optimize the common path for a relatively rare multi-target case.
+
+Keeping realizations under one extension instead makes the simple case small while still scaling naturally when a second target is genuinely needed:
+
+```yaml
+extensions:
+  - node: intrinsic.normalize-rut
+    semantic:
+      kind: normalize
+    targets:
+      csharp:
+        mode: deterministic
+        renderer: expression
+        template: "Rut.Normalize({value})"
+      typescript:
+        mode: deterministic
+        renderer: expression
+        template: "normalizeRut({value})"
+```
+
+That shape is particularly useful for language migrations, compatibility periods, and service interoperability because both realizations remain visibly attached to one semantic identity.
+
+This PR only executes the C# branch of that model. The multi-target shape is recorded as the next exploration boundary, not claimed as fully implemented.
 
 ## Experiment sequence
 
-### A. Undeclared extension remains rejected
+### A. Undeclared semantic
 
 ```text
 unknown normalize intrinsic
-+ matching target renderer
 -> VSIR221
--> no C# materialization
 ```
 
-This preserves the authority boundary discovered by the original negative-control experiment.
-
-### B. Declared extension without target realization
+### B. Declared semantic without C# realization
 
 ```text
-explicitly declared normalize extension
-+ no C# renderer
+referenced extension catalog
++ semantic.kind: normalize
++ no targets.csharp realization
 -> semantic validation succeeds
--> C# lowering reaches target capability boundary
 -> CSL031
 ```
 
-This is the key discriminating experiment. It proves that semantic validity and target capability are separate.
-
-### C. Declared extension with target realization
+### C. Declared semantic with co-located C# realization
 
 ```text
-explicitly declared normalize extension
-+ matching C# renderer
+referenced extension catalog
++ semantic.kind: normalize
++ targets.csharp renderer
 -> semantic validation succeeds
--> target lowering succeeds
--> deterministic C# materialization
+-> deterministic C# lowering succeeds
 ```
 
-### D. Remove the declaration again
-
-The same renderer must become insufficient once the semantic declaration is removed:
+### D. Renderer without declaration
 
 ```text
-renderer still present
-+ declaration absent
+renderer exists in targets.csharp.rules
++ no referenced semantic extension declaration
 -> VSIR221
 ```
 
-This guards against accidentally collapsing extension registration into renderer lookup.
-
-## Minimal extension contract under investigation
-
-The first implementation should describe only what VSIR needs to know to admit a custom operation as a `normalize` semantic.
-
-At minimum, the declaration needs an identity and its semantic category. A candidate shape may resemble:
-
-```yaml
-semantic-extensions:
-  custom.normalize-x:
-    kind: normalize
-```
-
-The exact persisted syntax is not considered settled by this document; implementation should choose the smallest representation that fits the existing Ruleset manifest/snapshot model and can be validated deterministically.
-
-Properties such as purity, determinism, idempotence, input/output contracts, or cross-target realizations are deliberately deferred until a real lowering problem requires them.
+This final case keeps the original authority boundary intact.
 
 ## Invariants
 
 1. Unknown and undeclared normalize semantics still fail closed.
 2. A target renderer never grants semantic validity by itself.
-3. A semantic extension must be explicitly declared.
-4. Extension identity must survive independently of a particular target renderer.
+3. A semantic extension must be explicitly declared from a referenced extension catalog.
+4. Extension identity survives independently of a particular target realization.
 5. Core semantics such as `trim` remain valid without external extension declaration.
-6. Declared extensions must still satisfy the structural laws of the `normalize` position.
-7. Missing target realization for a valid extension must remain distinguishable from unknown semantics (`CSL031` vs `VSIR221`).
-8. This PR extends only `normalize`; no generic extension framework is assumed yet.
+6. Declared extensions still satisfy the structural laws of the `normalize` position.
+7. Missing C# realization for a valid extension remains distinguishable from unknown semantics (`CSL031` vs `VSIR221`).
+8. Co-location is an authoring convenience, not a collapse of semantic and target authority.
+9. This PR executes only the `normalize` + C# path; no generic plugin model is assumed.
 
 ## Architectural boundary under test
 
 ```text
+Ruleset manifest
+  -> references extension catalogs
+
+extension catalog entry
+  -> semantic identity / kind
+  -> optional target realizations
+
 VSlices.Vsir
-  core normalize vocabulary
-  normalize structural contract
-  extension-aware semantic validation
+  -> core normalize vocabulary
+  -> normalize structural contract
+  -> extension-aware semantic validation
 
-active Ruleset semantic declarations
-  explicit custom normalize identities
-  target-neutral admission evidence
-
-VSlices.Vsir.CSharp / lowering mechanism
-  ordered normalization dataflow
-
-Ruleset target rules
-  target-specific renderer for the semantic identity
+VSlices.Vsir.CSharp
+  -> ordered normalization dataflow
+  -> consumes only the C# realization for an already-valid semantic identity
 ```
-
-The important distinction is that the active Ruleset may carry both declaration and realization, but Tooling must consume them through separate semantic and target-capability boundaries.
 
 ## Acceptance criteria
 
-- preserve the real CLI negative-control path that produces `VSIR221` for an undeclared normalize semantic;
-- provide one explicit normalize extension declaration through an isolated/custom Ruleset fixture;
-- show that the declared extension passes semantic validation without adding the intrinsic to the hard-coded `VSlices.Vsir` core vocabulary;
-- show `CSL031` when that valid extension lacks a C# realization;
-- add a matching C# realization and show deterministic CLI lowering succeeds;
-- remove/omit the declaration while leaving the renderer and show `VSIR221` returns;
-- exercise the behavior through the real CLI command path, not only parser/lowerer unit tests;
-- keep production/core Ruleset knowledge free of synthetic experiment-only semantics.
+- preserve `VSIR221` for an undeclared normalize semantic;
+- load semantic extension identities through referenced catalog files;
+- show a declared normalize extension reaches `CSL031` without a C# realization;
+- show the same extension lowers successfully when a C# realization is co-located under `targets.csharp`;
+- show a standalone C# renderer still cannot create semantic validity;
+- exercise all four states through the real CLI command path;
+- keep synthetic experiment knowledge outside the production/core Ruleset surface.
+
+## Pending impact review — next exploration step
+
+This refinement changes more than the syntax of the current experiment. Before generalizing semantic extensions beyond `normalize`, the next exploration should explicitly review how the extension-catalog model changes assumptions already introduced by PR #4, PR #5, and this PR.
+
+Questions to carry forward:
+
+1. **Ruleset manifest and schema** — should extension catalog references become a permanent first-class Ruleset surface, and how should schema/versioning evolve?
+2. **Ruleset update/install** — how are project-owned extension catalogs preserved when `vslices update` refreshes upstream Ruleset knowledge?
+3. **Target resolution** — what happens when one extension declares several target realizations and the project selects or changes its target?
+4. **Duplicate/collision rules** — how should collisions between core rules, project target rules, and extension-catalog realizations be diagnosed?
+5. **Provenance and lineage** — which source should be recorded as authority for semantic admission versus the selected target realization?
+6. **Rebase/materialization** — does changing only a target realization affect semantic lineage differently from changing the semantic declaration itself?
+7. **Multi-target compatibility** — when two realizations live under one semantic identity, what evidence is needed before Tooling can claim that they are behaviorally compatible rather than merely present?
+8. **Existing core intrinsics** — should core operations such as `trim` remain split between VSIR vocabulary and target Ruleset knowledge, or does the extension shape reveal a more uniform representation worth exploring later?
+9. **Future extension kinds** — only after real `ensure`, equality, invariant, feature, or other consumer boundaries reproduce this pattern should a generic extension abstraction be considered.
+10. **Semantic properties** — purity, determinism, idempotence, input/output contracts, and single-evaluation requirements remain deferred until a concrete lowering case demands them.
+
+The next experiment after closing the current C# path should therefore be an impact audit, not an immediate generalization.
 
 ## Non-goals
 
 - define a universal plugin system for every VSIR node;
 - allow renderers to implicitly create semantics;
 - add a real product-specific normalize semantic without consumer evidence;
-- add purity/determinism/idempotence metadata before lowering evidence needs it;
 - generalize extension declarations to `ensure`, equality, invariants, features, or other kinds in this PR;
-- solve arbitrary executable extensions or interpretation;
+- claim multi-target behavioral equivalence merely because multiple renderers can be declared;
+- add purity/determinism/idempotence metadata before lowering evidence needs it;
 - weaken fail-closed behavior for malformed or undeclared semantic input.
 
 ## Evidence source
 
-The current consumer corpus still demonstrates `trim` as the concrete normalization intrinsic. The synthetic boundary probe is intentionally not a business semantic; it exists to isolate the authority mechanism.
+The current consumer corpus still demonstrates `trim` as the concrete normalization intrinsic. `normalize-boundary-probe` remains intentionally synthetic and exists only to isolate the authority and extension mechanism.
 
-Richer Ticket Support artifacts such as `EmailAddress` expose later validation/equality boundaries and should remain separate experiments. If those later cases need the same extension mechanism, that will be evidence for generalization rather than an assumption made here.
+The Ticket Support `ActionDescription.vsir` probe supplies the executable consumer boundary. Richer artifacts such as `EmailAddress` should remain later experiments unless they independently reproduce the same extension pressure.
