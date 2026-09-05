@@ -61,6 +61,25 @@ Do not make extracted `lower` behavior public merely because it has a class. Do 
 
 `VSlicesProjectContext` is the canonical detected project representation. Reuse it instead of deriving project/config/ruleset/lineage roots independently.
 
+## Diagnostic output contract
+
+VSIR-facing commands expose three human diagnostic levels:
+
+```text
+default
+  -> compact failure and bounded previews
+
+--verbose
+  -> expanded human-oriented evidence needed to understand the failure
+
+--trace
+  -> complete available decision evidence; implies verbose output
+```
+
+`--verbose` and `--trace` affect diagnostic presentation, not semantic or lowering behavior. Diagnostic producers should preserve useful structured detail rather than truncating evidence before it reaches the CLI. `--trace` is an audit trail for the decision path, not a synonym for infrastructure debug logging.
+
+For rebase conflicts, default output keeps bounded region previews, `--verbose` exposes the complete conflicting regions, and `--trace` additionally exposes the complete deterministic/human sources plus the comparison measurements used by the rebaser.
+
 ## Semantic conservation
 
 Known semantic mappings are fail-closed: unknown keys at root, construction, construction step, ensure, condition, failure and equality produce explicit diagnostics. Do not apply fixed-key rejection to variable-key semantic data maps such as `state`, `representation`, and `construction.input`.

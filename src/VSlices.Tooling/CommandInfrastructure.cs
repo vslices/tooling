@@ -2,6 +2,13 @@ using VSlices.Vsir;
 
 namespace VSlices.Tooling;
 
+internal enum DiagnosticVerbosity
+{
+    Normal,
+    Verbose,
+    Trace
+}
+
 internal static class CommandInfrastructure
 {
     public static (string? Path, VsirDiagnostic? Diagnostic) ResolveVsir(string value, string cwd)
@@ -136,10 +143,33 @@ internal static class CommandInfrastructure
         }
     }
 
-    public static void WriteDiagnostics(IEnumerable<VsirDiagnostic> diagnostics)
+    public static DiagnosticVerbosity ResolveDiagnosticVerbosity(bool verbose, bool trace) =>
+        trace ? DiagnosticVerbosity.Trace : verbose ? DiagnosticVerbosity.Verbose : DiagnosticVerbosity.Normal;
+
+    public static void WriteDiagnostics(
+        IEnumerable<VsirDiagnostic> diagnostics,
+        DiagnosticVerbosity verbosity = DiagnosticVerbosity.Normal)
     {
         foreach (var diagnostic in diagnostics)
+        {
             Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+
+            if (verbosity >= DiagnosticVerbosity.Verbose &&
+                !string.IsNullOrWhiteSpace(diagnostic.Details))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Details:");
+                Console.Error.WriteLine(diagnostic.Details);
+            }
+
+            if (verbosity >= DiagnosticVerbosity.Trace &&
+                !string.IsNullOrWhiteSpace(diagnostic.Trace))
+            {
+                Console.Error.WriteLine();
+                Console.Error.WriteLine("Trace:");
+                Console.Error.WriteLine(diagnostic.Trace);
+            }
+        }
     }
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(

@@ -122,6 +122,27 @@ public sealed class CSharpRebaserTests
     }
 
     [Fact]
+    public void Rebase_conflict_preserves_full_details_and_trace_beyond_compact_preview()
+    {
+        var previousRegion = new string('a', 220) + "PREVIOUS-TAIL-A";
+        var nextRegion = new string('b', 220) + "NEXT-TAIL-B";
+        var human = new string('c', 220) + "HUMAN-TAIL-C";
+
+        var result = CSharpRebaser.Rebase(previousRegion, human, nextRegion);
+
+        Assert.False(result.IsSuccess);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("REB001", diagnostic.Code);
+        Assert.Contains("...", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("PREVIOUS-TAIL-A", diagnostic.Details, StringComparison.Ordinal);
+        Assert.Contains("NEXT-TAIL-B", diagnostic.Details, StringComparison.Ordinal);
+        Assert.Contains("PREVIOUS-TAIL-A", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("HUMAN-TAIL-C", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("NEXT-TAIL-B", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("Common prefix length:", diagnostic.Trace, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Rebase_reports_baseline_human_and_next_for_a_concurrent_insertion()
     {
         const string previous = """

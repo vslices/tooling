@@ -19,7 +19,7 @@ public sealed class VsirParserSemanticConservationTests
     {
         var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]"));
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
-        Assert.Equal(new EqualitySemantics("ordinal-equals", "state.Value"), parsed.Document!.Equality);
+        Assert.Equal(new EqualitySemantics("ordinal-equals", null, "state.Value"), parsed.Document!.Equality);
         var rules = CSharpLoweringRuleSet.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset"));
         Assert.True(rules.IsSuccess, string.Join(Environment.NewLine, rules.Diagnostics));
         var lowered = CSharpLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));

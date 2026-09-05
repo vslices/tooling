@@ -16,66 +16,125 @@ internal static class TranspilationOperation
         if (resolution.Diagnostic is not null)
             return TranspilationResult.Failure([resolution.Diagnostic]);
 
-        var project = VSlicesProjectContext.FindFrom(resolution.Path!);
+        var prepared = Prepare(resolution.Path!, requestedTarget);
+        if (!prepared.IsSuccess)
+            return TranspilationResult.Failure(prepared.Diagnostics);
+
+        return await ExecuteResolved(
+            resolution.Path!,
+            prepared.Environment!,
+            namespaceOverride,
+            cancellationToken);
+    }
+
+    public static TranspilationEnvironmentResult Prepare(
+        string projectEvidencePath,
+        string? requestedTarget)
+    {
+        var project = VSlicesProjectContext.FindFrom(projectEvidencePath);
         if (project is null || !File.Exists(Path.Combine(project.RulesetRoot, "manifest.yaml")))
         {
-            return TranspilationResult.Failure([new(
+            return TranspilationEnvironmentResult.Failure([new(
                 "CLI010",
-                "No project-local VSlices project/ruleset was found. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the VSIR path ancestry. Run 'vslices init'.")]);
+                "No project-local VSlices project/ruleset was found. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the path ancestry. Run 'vslices init'.")]);
         }
 
         var target = CommandInfrastructure.ResolveTarget(requestedTarget, project);
         if (target.Diagnostic is not null)
-            return TranspilationResult.Failure([target.Diagnostic]);
+            return TranspilationEnvironmentResult.Failure([target.Diagnostic]);
 
         if (target.Target != "csharp")
         {
-            return TranspilationResult.Failure([new(
+            return TranspilationEnvironmentResult.Failure([new(
                 "CLI020",
                 $"Target '{target.Target}' is not supported by the current lowering engine.")]);
         }
 
         var extensions = ProjectExtensionCatalogs.Load(project.ExtensionsRoot);
         if (!extensions.IsSuccess)
-            return TranspilationResult.Failure(extensions.Diagnostics);
+            return TranspilationEnvironmentResult.Failure(extensions.Diagnostics);
 
         var rules = CSharpLoweringRuleSet.Load(
             project.RulesetRoot,
             extensions.Extensions!.CSharpRules);
         if (!rules.IsSuccess)
-            return TranspilationResult.Failure(rules.Diagnostics);
+            return TranspilationEnvironmentResult.Failure(rules.Diagnostics);
 
+        return TranspilationEnvironmentResult.Success(new(
+            project,
+            target.Target!,
+            extensions.Extensions,
+            rules.RuleSet!));
+    }
+
+    public static async Task<TranspilationResult> ExecuteResolved(
+        string vsirPath,
+        TranspilationEnvironment environment,
+        string? namespaceOverride,
+        CancellationToken cancellationToken)
+    {
         var targetContext = await DotNetTargetContextResolver.Resolve(
-            resolution.Path!,
+            vsirPath,
             namespaceOverride,
             cancellationToken,
-            project.Configuration.CSharpNamespaceIgnoredFolders);
+            environment.Project.Configuration.CSharpNamespaceIgnoredFolders);
 
         if (targetContext.Diagnostic is not null)
             return TranspilationResult.Failure([targetContext.Diagnostic]);
 
-        var text = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
-        var parsed = VsirParser.Parse(text, extensions.Extensions.ValidationContext);
+        var text = await File.ReadAllTextAsync(vsirPath, cancellationToken);
+        var parsed = VsirParser.Parse(text, environment.Extensions.ValidationContext);
         if (!parsed.IsSuccess)
             return TranspilationResult.Failure(parsed.Diagnostics);
+
+        var typeResolution = await DotNetTypeResolutionClient.ResolveImports(
+            parsed.Document!,
+            targetContext.Context!,
+            cancellationToken);
+        if (!typeResolution.IsSuccess)
+            return TranspilationResult.Failure(typeResolution.Diagnostics);
 
         var lowered = CSharpLowerer.Lower(
             parsed.Document!,
             new CSharpLoweringContext(
                 targetContext.Context!.Namespace,
-                rules.RuleSet!,
-                extensions.Extensions.ValidationContext));
+                environment.RuleSet,
+                environment.Extensions.ValidationContext));
 
-        return lowered.IsSuccess
-            ? TranspilationResult.Success(
-                lowered.Source!,
-                resolution.Path!,
-                parsed.Document!.Name,
-                target.Target!,
-                project,
-                targetContext.Context!)
-            : TranspilationResult.Failure(lowered.Diagnostics);
+        if (!lowered.IsSuccess)
+            return TranspilationResult.Failure(lowered.Diagnostics);
+
+        var source = DotNetTypeResolutionClient.ApplyImports(
+            lowered.Source!,
+            typeResolution.Imports);
+
+        return TranspilationResult.Success(
+            source,
+            vsirPath,
+            parsed.Document!.Name,
+            environment.Target,
+            environment.Project,
+            targetContext.Context!);
     }
+}
+
+internal sealed record TranspilationEnvironment(
+    VSlicesProjectContext Project,
+    string Target,
+    ProjectExtensions Extensions,
+    CSharpLoweringRuleSet RuleSet);
+
+internal sealed record TranspilationEnvironmentResult(
+    TranspilationEnvironment? Environment,
+    IReadOnlyList<VsirDiagnostic> Diagnostics)
+{
+    public bool IsSuccess => Environment is not null && Diagnostics.Count == 0;
+
+    public static TranspilationEnvironmentResult Success(TranspilationEnvironment environment) =>
+        new(environment, []);
+
+    public static TranspilationEnvironmentResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
+        new(null, diagnostics.ToArray());
 }
 
 internal sealed record TranspilationResult(
