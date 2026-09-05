@@ -252,7 +252,7 @@ This implies several downstream laws:
 4. A future batch operation should be atomic with respect to materialization and lineage: either all selected artifacts are valid/lowerable and their materializations are committed, or no partial batch should be written.
 5. Artifact discovery, project-name resolution, recursive selection, `--path`, `--ir`, `--proj`, multi-path selection, aggregate diagnostics, and staging mechanics are separate CLI concerns and are not implemented by this PR.
 
-Illustrative future command shapes are therefore intentionally non-normative here:
+Illustrative future command shapes are intentionally non-normative here:
 
 ```text
 vslices lower Risk.vsir
