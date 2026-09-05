@@ -117,7 +117,9 @@ internal static class SelfUpdater
 
         var currentVersion = CurrentVersion();
         var releaseVersion = NormalizeVersion(release.TagName);
-        if (NormalizeVersion(currentVersion) == releaseVersion)
+        var sameVersion = NormalizeVersion(currentVersion) == releaseVersion;
+        var needsCompanionRepair = sameVersion && !SemanticRefactoringCompanionHealth.IsInstalled();
+        if (sameVersion && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentVersion, release.TagName, rid);
             TerminalOutput.BlankLine();
@@ -142,9 +144,14 @@ internal static class SelfUpdater
 
         if (checkOnly)
         {
-            TerminalOutput.Info($"→ {release.TagName} is available");
+            TerminalOutput.Info(needsCompanionRepair
+                ? "→ The current VSlices version is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                : $"→ {release.TagName} is available");
             return 0;
         }
+
+        if (needsCompanionRepair)
+            TerminalOutput.Info("→ Repairing the semantic-refactoring companion for the current VSlices version");
 
         return await InstallArchivePair(
             http,
@@ -179,8 +186,11 @@ internal static class SelfUpdater
         }
 
         var buildIdentity = $"build{pullRequest}.{run.RunNumber}";
-        var currentIdentity = CurrentBuildIdentity() ?? CurrentVersion();
-        if (CurrentBuildIdentity() == buildIdentity)
+        var currentBuildIdentity = CurrentBuildIdentity();
+        var currentIdentity = currentBuildIdentity ?? CurrentVersion();
+        var sameBuild = currentBuildIdentity == buildIdentity;
+        var needsCompanionRepair = sameBuild && !SemanticRefactoringCompanionHealth.IsInstalled();
+        if (sameBuild && !needsCompanionRepair)
         {
             ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
             TerminalOutput.BlankLine();
@@ -209,9 +219,14 @@ internal static class SelfUpdater
 
         if (checkOnly)
         {
-            TerminalOutput.Info($"→ {buildIdentity} is available");
+            TerminalOutput.Info(needsCompanionRepair
+                ? "→ The current PR build is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                : $"→ {buildIdentity} is available");
             return 0;
         }
+
+        if (needsCompanionRepair)
+            TerminalOutput.Info("→ Repairing the semantic-refactoring companion for the current PR build");
 
         var staging = Path.Combine(Path.GetTempPath(), "vslices-build-update-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging);
@@ -350,6 +365,19 @@ internal static class SelfUpdater
         }
 
         var replacement = replacements[0];
+        var packageRoot = Path.GetDirectoryName(replacement)!;
+        var companionSource = Path.Combine(packageRoot, "refactor");
+        if (!SemanticRefactoringCompanionHealth.IsCompleteCompanionDirectory(companionSource))
+        {
+            Console.Error.WriteLine(
+                $"UPD015: Release archive '{assetName}' does not contain a complete Roslyn semantic-refactoring companion with BuildHost-netcore.");
+            return 1;
+        }
+
+        InstallCompanionDirectory(
+            companionSource,
+            Path.Combine(Path.GetDirectoryName(executable)!, "refactor"));
+
         if (!OperatingSystem.IsWindows())
         {
             File.SetUnixFileMode(
@@ -368,6 +396,61 @@ internal static class SelfUpdater
             replacement,
             version,
             cancellationToken);
+    }
+
+    private static void InstallCompanionDirectory(string source, string destination)
+    {
+        var parent = Path.GetDirectoryName(destination)!;
+        Directory.CreateDirectory(parent);
+
+        var transactionId = Guid.NewGuid().ToString("N");
+        var pending = Path.Combine(parent, ".vslices.refactor.pending." + transactionId);
+        var backup = Path.Combine(parent, ".vslices.refactor.backup." + transactionId);
+
+        try
+        {
+            CopyDirectory(source, pending);
+            if (!SemanticRefactoringCompanionHealth.IsCompleteCompanionDirectory(pending))
+                throw new InvalidOperationException("Semantic-refactoring companion staging is incomplete.");
+
+            if (Directory.Exists(destination))
+                Directory.Move(destination, backup);
+
+            Directory.Move(pending, destination);
+
+            if (Directory.Exists(backup))
+                Directory.Delete(backup, recursive: true);
+        }
+        catch
+        {
+            if (Directory.Exists(destination) && Directory.Exists(backup))
+                Directory.Delete(destination, recursive: true);
+
+            if (!Directory.Exists(destination) && Directory.Exists(backup))
+                Directory.Move(backup, destination);
+
+            if (Directory.Exists(pending))
+                Directory.Delete(pending, recursive: true);
+            throw;
+        }
+    }
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, directory);
+            Directory.CreateDirectory(Path.Combine(destination, relative));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(source, file);
+            var target = Path.Combine(destination, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
     }
 
     private static void ShowResolvedUpdate(string current, string latest, string rid)
@@ -432,7 +515,7 @@ internal static class SelfUpdater
         CancellationToken cancellationToken)
     {
         var url = $"https://api.github.com/repos/{owner}/{repository}/actions/workflows/ci.yml/runs?event=pull_request&status=success&per_page=100";
-        await using var stream = await http.GetStreamAsync(url, cancellationToken);
+        await using var stream = await http.GetStreamAsync(url, cancellationToken: cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("workflow_runs", out var runs))
@@ -467,7 +550,7 @@ internal static class SelfUpdater
         CancellationToken cancellationToken)
     {
         var url = $"https://api.github.com/repos/{owner}/{repository}/actions/runs/{runId}/artifacts?per_page=100";
-        await using var stream = await http.GetStreamAsync(url, cancellationToken);
+        await using var stream = await http.GetStreamAsync(url, cancellationToken: cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
 
         if (!document.RootElement.TryGetProperty("artifacts", out var artifacts))

@@ -2,6 +2,12 @@ using VSlices.Vsir;
 
 namespace VSlices.Vsir.CSharp;
 
+public enum CSharpRebaseResolution
+{
+    None,
+    Deterministic
+}
+
 public sealed record CSharpRebaseResult(
     string? Source,
     IReadOnlyList<VsirDiagnostic> Diagnostics)
@@ -14,7 +20,8 @@ public static class CSharpRebaser
     public static CSharpRebaseResult Rebase(
         string previousDeterministicSource,
         string humanSource,
-        string nextDeterministicSource)
+        string nextDeterministicSource,
+        CSharpRebaseResolution resolution = CSharpRebaseResolution.None)
     {
         if (previousDeterministicSource == nextDeterministicSource)
             return new(humanSource, []);
@@ -28,15 +35,43 @@ public static class CSharpRebaser
 
         if (previousChanged.Length == 0)
         {
-            var anchor = suffixLength > 0 ? previousDeterministicSource[^suffixLength..] : string.Empty;
-            if (anchor.Length == 0)
-                return new(null, [new("REB003", "Cannot establish a deterministic insertion anchor.")]);
+            if (!TryLocateInsertionSlot(
+                    previousDeterministicSource,
+                    humanSource,
+                    prefixLength,
+                    out var humanInsertionStart,
+                    out var humanInsertionLength))
+            {
+                return new(null, [new(
+                    "REB002",
+                    "The deterministic insertion point is missing or ambiguous in the human projection. " +
+                    "VSlices could not establish a unique surrounding context, so no automatic edit was attempted.")]);
+            }
 
-            var anchorIndex = humanSource.IndexOf(anchor, StringComparison.Ordinal);
-            if (anchorIndex < 0 || humanSource.IndexOf(anchor, anchorIndex + 1, StringComparison.Ordinal) >= 0)
-                return new(null, [new("REB002", "Deterministic insertion anchor is missing or ambiguous in the human projection.")]);
+            var humanInserted = humanSource.Substring(humanInsertionStart, humanInsertionLength);
 
-            return new(humanSource.Insert(anchorIndex, nextChanged), []);
+            if (string.Equals(humanInserted, nextChanged, StringComparison.Ordinal))
+                return new(humanSource, []);
+
+            if (humanInserted.Length == 0)
+                return new(humanSource.Insert(humanInsertionStart, nextChanged), []);
+
+            if (resolution == CSharpRebaseResolution.Deterministic)
+            {
+                var resolved = humanSource
+                    .Remove(humanInsertionStart, humanInsertionLength)
+                    .Insert(humanInsertionStart, nextChanged);
+                return new(resolved, []);
+            }
+
+            return new(null, [new(
+                "REB004",
+                "Human and deterministic projections both changed the same insertion point." + Environment.NewLine +
+                $"  Baseline insertion: {DisplaySnippet(string.Empty)}" + Environment.NewLine +
+                $"  Human insertion: {DisplaySnippet(humanInserted)}" + Environment.NewLine +
+                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.")]);
         }
 
         var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
@@ -44,7 +79,9 @@ public static class CSharpRebaser
         {
             return new(null, [new(
                 "REB001",
-                "The VSIR-generated region changed by the developer and cannot be rebased deterministically.")]);
+                "The VSIR-generated region changed in the human projection and cannot be rebased deterministically." + Environment.NewLine +
+                $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
+                $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
         }
 
         if (humanSource.IndexOf(previousChanged, directIndex + previousChanged.Length, StringComparison.Ordinal) < 0)
@@ -64,13 +101,99 @@ public static class CSharpRebaser
         {
             return new(null, [new(
                 "REB002",
-                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically.")]);
+                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically." + Environment.NewLine +
+                $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
+                $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
         }
 
         var rebased = humanSource
             .Remove(contextualIndex, previousChanged.Length)
             .Insert(contextualIndex, nextChanged);
         return new(rebased, []);
+    }
+
+    private static bool TryLocateInsertionSlot(
+        string previousDeterministicSource,
+        string humanSource,
+        int insertionIndex,
+        out int humanInsertionStart,
+        out int humanInsertionLength)
+    {
+        humanInsertionStart = -1;
+        humanInsertionLength = 0;
+
+        var leftAvailable = insertionIndex;
+        var rightAvailable = previousDeterministicSource.Length - insertionIndex;
+        var maxContext = Math.Max(leftAvailable, rightAvailable);
+
+        for (var context = 1; context <= maxContext; context++)
+        {
+            var leftLength = Math.Min(context, leftAvailable);
+            var rightLength = Math.Min(context, rightAvailable);
+
+            var leftAnchor = leftLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(insertionIndex - leftLength, leftLength);
+            var rightAnchor = rightLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(insertionIndex, rightLength);
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    leftAnchor,
+                    insertionIndex - leftLength,
+                    out var humanLeftStart))
+            {
+                continue;
+            }
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    rightAnchor,
+                    insertionIndex,
+                    out var humanRightStart))
+            {
+                continue;
+            }
+
+            var leftEnd = leftAnchor.Length == 0
+                ? 0
+                : humanLeftStart + leftAnchor.Length;
+            var rightStart = rightAnchor.Length == 0
+                ? humanSource.Length
+                : humanRightStart;
+
+            if (rightStart < leftEnd)
+                continue;
+
+            humanInsertionStart = leftEnd;
+            humanInsertionLength = rightStart - leftEnd;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateExpectedUniqueAnchor(
+        string deterministicSource,
+        string humanSource,
+        string anchor,
+        int expectedDeterministicIndex,
+        out int humanIndex)
+    {
+        humanIndex = -1;
+        if (anchor.Length == 0)
+            return true;
+
+        if (!HasSingleOccurrence(deterministicSource, anchor, out var deterministicIndex) ||
+            deterministicIndex != expectedDeterministicIndex)
+        {
+            return false;
+        }
+
+        return HasSingleOccurrence(humanSource, anchor, out humanIndex);
     }
 
     private static bool TryLocateWithDeterministicContext(
@@ -125,6 +248,21 @@ public static class CSharpRebaser
             return false;
 
         return source.IndexOf(value, index + 1, StringComparison.Ordinal) < 0;
+    }
+
+    private static string DisplaySnippet(string value)
+    {
+        if (value.Length == 0)
+            return "<empty>";
+
+        var escaped = value
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
+        const int maximum = 160;
+        if (escaped.Length > maximum)
+            escaped = escaped[..maximum] + "...";
+
+        return $"'{escaped}'";
     }
 
     private static int CommonPrefixLength(string left, string right)

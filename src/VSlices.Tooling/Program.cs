@@ -2,6 +2,15 @@
 
 ConsoleApp.Version = CliVersion.Display;
 
+if (SemanticRefactoringCompanionHealth.ShouldNotify(args))
+{
+    Console.Error.WriteLine(
+        "UPD016: The semantic-refactoring companion is not installed for this VSlices build.");
+    Console.Error.WriteLine(
+        "Run 'vslices update --self' once more to finish the update.");
+    Console.Error.WriteLine();
+}
+
 if (args is ["-v"] or ["--version"])
 {
     if (!Console.IsOutputRedirected)

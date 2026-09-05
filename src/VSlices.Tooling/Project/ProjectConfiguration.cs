@@ -10,7 +10,8 @@ internal sealed record ProjectConfiguration(
     string? UpdateSource,
     string? UpdateChannel,
     int? UpdatePullRequest = null,
-    string? LineageBootstrapConvention = "existing-materialization")
+    string? LineageBootstrapConvention = "existing-materialization",
+    IReadOnlyList<string>? CSharpNamespaceIgnoredFolders = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
@@ -28,7 +29,8 @@ internal sealed record ProjectConfiguration(
             OfficialToolingSource,
             DefaultUpdateChannel,
             null,
-            DefaultLineageBootstrapConvention);
+            DefaultLineageBootstrapConvention,
+            []);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
@@ -41,16 +43,36 @@ internal sealed record ProjectConfiguration(
         var vslicesDirectory = Path.Combine(projectRoot, ".vslices");
         Directory.CreateDirectory(vslicesDirectory);
 
+        var targets = new YamlMappingNode
+        {
+            { "default", configuration.DefaultTarget ?? "csharp" }
+        };
+
+        if (configuration.CSharpNamespaceIgnoredFolders is { Count: > 0 })
+        {
+            targets.Add(
+                "csharp",
+                new YamlMappingNode
+                {
+                    {
+                        "namespace",
+                        new YamlMappingNode
+                        {
+                            {
+                                "ignore-folders",
+                                new YamlSequenceNode(
+                                    configuration.CSharpNamespaceIgnoredFolders
+                                        .Select(x => new YamlScalarNode(x)))
+                            }
+                        }
+                    }
+                });
+        }
+
         var root = new YamlMappingNode
         {
             { "version", configuration.Version },
-            {
-                "targets",
-                new YamlMappingNode
-                {
-                    { "default", configuration.DefaultTarget ?? "csharp" }
-                }
-            }
+            { "targets", targets }
         };
 
         var ruleset = new YamlMappingNode();
@@ -122,7 +144,8 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "updates", "source"),
             NestedScalar(root, "updates", "channel"),
             pullRequest,
-            NestedScalar(root, "lineage", "bootstrap", "convention"));
+            NestedScalar(root, "lineage", "bootstrap", "convention"),
+            NestedSequence(root, "targets", "csharp", "namespace", "ignore-folders"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)
@@ -149,6 +172,34 @@ internal sealed record ProjectConfiguration(
         }
 
         return Scalar(subsectionMapping, key);
+    }
+
+    private static IReadOnlyList<string> NestedSequence(
+        YamlMappingNode root,
+        string section,
+        string subsection,
+        string nestedSection,
+        string key)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode(section), out var sectionNode) ||
+            sectionNode is not YamlMappingNode sectionMapping ||
+            !sectionMapping.Children.TryGetValue(new YamlScalarNode(subsection), out var subsectionNode) ||
+            subsectionNode is not YamlMappingNode subsectionMapping ||
+            !subsectionMapping.Children.TryGetValue(new YamlScalarNode(nestedSection), out var nestedNode) ||
+            nestedNode is not YamlMappingNode nestedMapping ||
+            !nestedMapping.Children.TryGetValue(new YamlScalarNode(key), out var sequenceNode) ||
+            sequenceNode is not YamlSequenceNode sequence)
+        {
+            return [];
+        }
+
+        return sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(x => x.Value?.Trim())
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Cast<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private static string? Scalar(YamlMappingNode mapping, string key) =>

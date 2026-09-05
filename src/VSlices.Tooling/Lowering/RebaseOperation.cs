@@ -11,6 +11,7 @@ internal static class RebaseOperation
         string previousVsir,
         string? source,
         string? namespaceOverride,
+        CSharpRebaseResolution resolution,
         CancellationToken cancellationToken)
     {
         var next = await TranspilationOperation.Execute(
@@ -36,13 +37,19 @@ internal static class RebaseOperation
             ? conventional
             : Path.GetFullPath(source, Environment.CurrentDirectory);
 
-        return await ExecuteDeterministic(next, previous.Source!, humanPath, cancellationToken);
+        return await ExecuteDeterministic(
+            next,
+            previous.Source!,
+            humanPath,
+            resolution,
+            cancellationToken);
     }
 
     public static async Task<RebaseResult> ExecuteDeterministic(
         TranspilationResult next,
         string previousDeterministic,
         string humanPath,
+        CSharpRebaseResolution resolution,
         CancellationToken cancellationToken)
     {
         if (!File.Exists(humanPath))
@@ -53,7 +60,11 @@ internal static class RebaseOperation
         }
 
         var human = await File.ReadAllTextAsync(humanPath, cancellationToken);
-        var rebased = CSharpRebaser.Rebase(previousDeterministic, human, next.Source!);
+        var rebased = CSharpRebaser.Rebase(
+            previousDeterministic,
+            human,
+            next.Source!,
+            resolution);
 
         return rebased.IsSuccess
             ? RebaseResult.Success(rebased.Source!, humanPath, next.Source!)

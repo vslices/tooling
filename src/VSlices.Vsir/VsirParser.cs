@@ -60,9 +60,38 @@ public static class VsirParser
                          "construction.steps",
                          diagnostics))
             {
+                if (TryMapping(stepNode, "normalize", out var normalize))
+                {
+                    RejectUnknownKeys(
+                        stepNode,
+                        ["normalize"],
+                        "construction.steps[]",
+                        diagnostics);
+                    RejectUnknownKeys(
+                        normalize,
+                        ["target", "intrinsic"],
+                        "construction.steps[].normalize",
+                        diagnostics);
+
+                    var target = Scalar(normalize, "target");
+                    var normalizeIntrinsic = Scalar(normalize, "intrinsic");
+                    if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(normalizeIntrinsic))
+                    {
+                        diagnostics.Add(new(
+                            "VSIR109",
+                            "Normalize step requires both 'target' and 'intrinsic'."));
+                        continue;
+                    }
+
+                    steps.Add(new NormalizeStep(target, normalizeIntrinsic));
+                    continue;
+                }
+
                 if (!TryMapping(stepNode, "ensure", out var ensure))
                 {
-                    diagnostics.Add(new("VSIR100", "Only construction step 'ensure' is supported by the experimental parser."));
+                    diagnostics.Add(new(
+                        "VSIR100",
+                        "Only construction steps 'normalize' and 'ensure' are supported by the experimental parser."));
                     continue;
                 }
 

@@ -1,3 +1,5 @@
+using VSlices.Vsir.CSharp;
+
 namespace VSlices.Tooling;
 
 internal static class LoweringCoordinator
@@ -10,6 +12,7 @@ internal static class LoweringCoordinator
         string? output,
         bool stdout,
         string? namespaceOverride,
+        CSharpRebaseResolution resolution,
         CancellationToken cancellationToken)
     {
         var next = await TranspilationOperation.Execute(
@@ -63,6 +66,7 @@ internal static class LoweringCoordinator
                 from,
                 existing,
                 namespaceOverride,
+                resolution,
                 cancellationToken);
         }
         else
@@ -118,6 +122,7 @@ internal static class LoweringCoordinator
                 next,
                 previousDeterministic,
                 existing,
+                resolution,
                 cancellationToken);
         }
 
@@ -126,6 +131,18 @@ internal static class LoweringCoordinator
             CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics);
             return 1;
         }
+
+        var humanBefore = await File.ReadAllTextAsync(rebased.SourcePath!, cancellationToken);
+        var semantic = await SemanticRefactoringCoordinator.TryExecute(
+            project,
+            next,
+            rebased,
+            humanBefore,
+            output,
+            stdout,
+            cancellationToken);
+        if (semantic.Handled)
+            return semantic.ExitCode;
 
         var writeExitCode = await CommandInfrastructure.WriteResult(
             rebased.Source!,

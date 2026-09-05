@@ -17,6 +17,7 @@ public sealed record Field(string Name, string Type);
 public sealed record Construction(ProductShape Input, IReadOnlyList<ConstructionStep> Steps);
 public sealed record EqualitySemantics(string Intrinsic, string By);
 public abstract record ConstructionStep;
+public sealed record NormalizeStep(string Target, string Intrinsic) : ConstructionStep;
 public sealed record EnsureStep(Condition Condition, string FailureMessage) : ConstructionStep;
 public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;

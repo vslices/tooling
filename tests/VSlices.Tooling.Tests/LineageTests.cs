@@ -71,6 +71,53 @@ public sealed class LineageTests
     }
 
     [Fact]
+    public async Task Concurrent_namespace_insertion_reports_rebase_conflict_then_stops_at_target_context_before_writing()
+    {
+        using var project = ReadyProject();
+        var vsir = project.WriteStreetName();
+        var materialization = vsir + ".cs";
+
+        var initial = await project.Run(project.Root,
+            "lower", vsir, "--namespace", "Tests.Domain");
+        Assert.Equal(0, initial.ExitCode);
+
+        var human = File.ReadAllText(materialization)
+            .Replace(
+                "namespace Tests.Domain;",
+                "namespace Tests.Domain.Aggregates;",
+                StringComparison.Ordinal);
+        File.WriteAllText(
+            materialization,
+            human + Environment.NewLine + "// human detail" + Environment.NewLine);
+        var humanBeforeResolution = File.ReadAllBytes(materialization);
+        var baselineBeforeResolution = File.ReadAllBytes(project.BaselineFor(materialization));
+
+        var conflict = await project.Run(project.Root,
+            "lower", vsir,
+            "--namespace", "Tests.Domain.Aggregates.Tickets");
+
+        Assert.Equal(1, conflict.ExitCode);
+        var conflictText = conflict.StandardError + conflict.StandardOutput;
+        Assert.Contains("REB004", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Baseline insertion: <empty>", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Human insertion: '.Aggregates'", conflictText, StringComparison.Ordinal);
+        Assert.Contains("Next deterministic insertion: '.Aggregates.Tickets'", conflictText, StringComparison.Ordinal);
+        Assert.Contains("--resolve deterministic", conflictText, StringComparison.Ordinal);
+
+        var resolved = await project.Run(project.Root,
+            "lower", vsir,
+            "--namespace", "Tests.Domain.Aggregates.Tickets",
+            "--resolve", "deterministic");
+
+        Assert.Equal(1, resolved.ExitCode);
+        var resolutionText = resolved.StandardError + resolved.StandardOutput;
+        Assert.Contains("DOTNET020", resolutionText, StringComparison.Ordinal);
+        Assert.Contains("no related .csproj", resolutionText, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(humanBeforeResolution, File.ReadAllBytes(materialization));
+        Assert.Equal(baselineBeforeResolution, File.ReadAllBytes(project.BaselineFor(materialization)));
+    }
+
+    [Fact]
     public async Task Source_override_does_not_receive_bootstrap_authority_without_ancestry()
     {
         using var project = ReadyProject();

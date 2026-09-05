@@ -42,7 +42,8 @@ internal static class TranspilationOperation
         var targetContext = await DotNetTargetContextResolver.Resolve(
             resolution.Path!,
             namespaceOverride,
-            cancellationToken);
+            cancellationToken,
+            project.Configuration.CSharpNamespaceIgnoredFolders);
 
         if (targetContext.Diagnostic is not null)
             return TranspilationResult.Failure([targetContext.Diagnostic]);
@@ -62,8 +63,10 @@ internal static class TranspilationOperation
             ? TranspilationResult.Success(
                 lowered.Source!,
                 resolution.Path!,
+                parsed.Document!.Name,
                 target.Target!,
-                project)
+                project,
+                targetContext.Context!)
             : TranspilationResult.Failure(lowered.Diagnostics);
     }
 }
@@ -71,24 +74,30 @@ internal static class TranspilationOperation
 internal sealed record TranspilationResult(
     string? Source,
     string? VsirPath,
+    string? SemanticName,
     string? Target,
     VSlicesProjectContext? Project,
+    DotNetTargetContext? TargetContext,
     IReadOnlyList<VsirDiagnostic> Diagnostics)
 {
     public bool IsSuccess =>
         Source is not null &&
         VsirPath is not null &&
+        SemanticName is not null &&
         Target is not null &&
         Project is not null &&
+        TargetContext is not null &&
         Diagnostics.Count == 0;
 
     public static TranspilationResult Success(
         string source,
         string path,
+        string semanticName,
         string target,
-        VSlicesProjectContext project) =>
-        new(source, path, target, project, []);
+        VSlicesProjectContext project,
+        DotNetTargetContext targetContext) =>
+        new(source, path, semanticName, target, project, targetContext, []);
 
     public static TranspilationResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
-        new(null, null, null, null, diagnostics.ToArray());
+        new(null, null, null, null, null, null, diagnostics.ToArray());
 }

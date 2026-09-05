@@ -5,6 +5,9 @@ public static class DomainTypeValidator
     private static readonly HashSet<string> SupportedTraits =
         new(["transform", "identifier"], StringComparer.Ordinal);
 
+    private static readonly HashSet<string> SupportedNormalizeIntrinsics =
+        new(["trim"], StringComparer.Ordinal);
+
     public static IReadOnlyList<VsirDiagnostic> Validate(DomainTypeVsir document)
     {
         var diagnostics = new List<VsirDiagnostic>();
@@ -53,6 +56,28 @@ public static class DomainTypeValidator
             var matchingState = document.State.Fields.SingleOrDefault(x => x.Name == representationField.Name);
             Require(matchingState is not null && matchingState.Type == representationField.Type, "VSIR210",
                 $"Cannot project representation.{representationField.Name} deterministically from state. A representation mapping is required.");
+        }
+
+        foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
+        {
+            Require(
+                SupportedNormalizeIntrinsics.Contains(normalize.Intrinsic),
+                "VSIR221",
+                $"Unsupported normalize intrinsic '{normalize.Intrinsic}'.");
+
+            Require(
+                normalize.Target.StartsWith("input.", StringComparison.Ordinal),
+                "VSIR219",
+                $"Normalize currently requires a construction input target, got '{normalize.Target}'.");
+
+            if (normalize.Target.StartsWith("input.", StringComparison.Ordinal))
+            {
+                var fieldName = normalize.Target["input.".Length..];
+                Require(
+                    document.Construction.Input.Fields.Any(x => x.Name == fieldName),
+                    "VSIR220",
+                    $"Normalize references unknown input field '{fieldName}'.");
+            }
         }
 
         foreach (var ensure in document.Construction.Steps.OfType<EnsureStep>())
