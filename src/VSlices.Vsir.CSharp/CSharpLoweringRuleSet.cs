@@ -157,7 +157,7 @@ public sealed class CSharpLoweringRuleSet
         ICollection<VsirDiagnostic> diagnostics)
     {
         AddRule(
-            new(
+            new CSharpLoweringRule(
                 Scalar(entry, "node"),
                 Scalar(entry, "mode"),
                 Scalar(entry, "renderer"),
