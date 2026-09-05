@@ -60,12 +60,13 @@ public static class DotNetTargetContextResolver
 
         var ignorePatterns = namespaceIgnoredFolders?
             .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(NormalizePattern)
             .ToArray() ?? [];
 
         var namespaceSegments = ignorePatterns.Length == 0
             ? relativeSegments
             : relativeSegments
-                .Where(segment => !MatchesAnyFolderPattern(segment, ignorePatterns))
+                .Where((segment, index) => !ShouldIgnoreSegment(relativeSegments, index, segment, ignorePatterns))
                 .ToArray();
 
         var namespaceName = namespaceSegments.Length == 0
@@ -75,14 +76,53 @@ public static class DotNetTargetContextResolver
         return (new(project, namespaceName), null);
     }
 
-    private static bool MatchesAnyFolderPattern(string segment, IReadOnlyList<string> patterns) =>
-        patterns.Any(pattern =>
-            pattern.IndexOfAny(['*', '?']) < 0
-                ? segment.Equals(pattern, StringComparison.Ordinal)
-                : FileSystemName.MatchesSimpleExpression(
-                    pattern,
-                    segment,
-                    ignoreCase: false));
+    private static bool ShouldIgnoreSegment(
+        IReadOnlyList<string> relativeSegments,
+        int segmentIndex,
+        string segment,
+        IReadOnlyList<string> patterns)
+    {
+        foreach (var pattern in patterns)
+        {
+            if (!pattern.Contains('/'))
+            {
+                if (MatchesSimplePattern(pattern, segment))
+                    return true;
+
+                continue;
+            }
+
+            var patternSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (patternSegments.Length != segmentIndex + 1)
+                continue;
+
+            var matchesPath = true;
+            for (var i = 0; i < patternSegments.Length; i++)
+            {
+                if (MatchesSimplePattern(patternSegments[i], relativeSegments[i]))
+                    continue;
+
+                matchesPath = false;
+                break;
+            }
+
+            if (matchesPath)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool MatchesSimplePattern(string pattern, string value) =>
+        pattern.IndexOfAny(['*', '?']) < 0
+            ? value.Equals(pattern, StringComparison.Ordinal)
+            : FileSystemName.MatchesSimpleExpression(
+                pattern,
+                value,
+                ignoreCase: false);
+
+    private static string NormalizePattern(string pattern) =>
+        pattern.Trim().Replace('\\', '/').Trim('/');
 
     private static string? FindProject(string startDirectory)
     {
