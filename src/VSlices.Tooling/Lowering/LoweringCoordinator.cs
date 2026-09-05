@@ -13,12 +13,13 @@ internal static class LoweringCoordinator
         bool stdout,
         string? namespaceOverride,
         CSharpRebaseResolution resolution,
+        DiagnosticVerbosity diagnosticVerbosity,
         CancellationToken cancellationToken)
     {
         var resolved = LoweringSubjectResolver.Resolve(subject, Environment.CurrentDirectory);
         if (resolved.Diagnostic is not null)
         {
-            CommandInfrastructure.WriteDiagnostics([resolved.Diagnostic]);
+            CommandInfrastructure.WriteDiagnostics([resolved.Diagnostic], diagnosticVerbosity);
             return 1;
         }
 
@@ -33,6 +34,7 @@ internal static class LoweringCoordinator
                 stdout,
                 namespaceOverride,
                 resolution,
+                diagnosticVerbosity,
                 cancellationToken);
         }
 
@@ -45,6 +47,7 @@ internal static class LoweringCoordinator
             stdout,
             namespaceOverride,
             resolution,
+            diagnosticVerbosity,
             cancellationToken);
     }
 
@@ -57,6 +60,7 @@ internal static class LoweringCoordinator
         bool stdout,
         string? namespaceOverride,
         CSharpRebaseResolution resolution,
+        DiagnosticVerbosity diagnosticVerbosity,
         CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(from) ||
@@ -73,7 +77,7 @@ internal static class LoweringCoordinator
         var prepared = TranspilationOperation.Prepare(projectPath, target);
         if (!prepared.IsSuccess)
         {
-            CommandInfrastructure.WriteDiagnostics(prepared.Diagnostics);
+            CommandInfrastructure.WriteDiagnostics(prepared.Diagnostics, diagnosticVerbosity);
             return 1;
         }
 
@@ -105,6 +109,7 @@ internal static class LoweringCoordinator
                 stdout: false,
                 namespaceOverride: null,
                 resolution,
+                diagnosticVerbosity,
                 cancellationToken,
                 prepared.Environment);
 
@@ -135,6 +140,7 @@ internal static class LoweringCoordinator
         bool stdout,
         string? namespaceOverride,
         CSharpRebaseResolution resolution,
+        DiagnosticVerbosity diagnosticVerbosity,
         CancellationToken cancellationToken,
         TranspilationEnvironment? environment = null)
     {
@@ -143,7 +149,7 @@ internal static class LoweringCoordinator
             : await TranspilationOperation.ExecuteResolved(subject, environment, namespaceOverride, cancellationToken);
         if (!next.IsSuccess)
         {
-            CommandInfrastructure.WriteDiagnostics(next.Diagnostics);
+            CommandInfrastructure.WriteDiagnostics(next.Diagnostics, diagnosticVerbosity);
             return 1;
         }
 
@@ -249,7 +255,7 @@ internal static class LoweringCoordinator
 
         if (!rebased.IsSuccess)
         {
-            CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics);
+            CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics, diagnosticVerbosity);
             return 1;
         }
 
