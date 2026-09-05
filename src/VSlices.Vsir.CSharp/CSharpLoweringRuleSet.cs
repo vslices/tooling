@@ -39,18 +39,9 @@ public sealed class CSharpLoweringRuleSet
             foreach (var fileNode in ruleFiles.Children.OfType<YamlScalarNode>())
             {
                 var relativePath = fileNode.Value ?? string.Empty;
-                var fullPath = Path.GetFullPath(relativePath, root);
-                if (!IsWithin(root, fullPath))
-                {
-                    diagnostics.Add(new("CSR003", $"Ruleset path '{relativePath}' escapes the ruleset root."));
+                var fullPath = ResolveRulesetPath(root, relativePath, diagnostics);
+                if (fullPath is null)
                     continue;
-                }
-
-                if (!File.Exists(fullPath))
-                {
-                    diagnostics.Add(new("CSR004", $"Ruleset file '{relativePath}' does not exist."));
-                    continue;
-                }
 
                 var document = LoadMapping(fullPath);
                 if (!TrySequence(document, "rules", out var entries))
@@ -60,27 +51,40 @@ public sealed class CSharpLoweringRuleSet
                 }
 
                 foreach (var entry in entries.Children.OfType<YamlMappingNode>())
-                {
-                    var node = Scalar(entry, "node");
-                    var mode = Scalar(entry, "mode");
-                    var renderer = Scalar(entry, "renderer");
-                    var template = Scalar(entry, "template");
+                    AddRule(entry, relativePath, rules, diagnostics);
+            }
 
-                    if (string.IsNullOrWhiteSpace(node))
+            if (TrySequence(manifest, "extensions", out var extensionFiles))
+            {
+                foreach (var fileNode in extensionFiles.Children.OfType<YamlScalarNode>())
+                {
+                    var relativePath = fileNode.Value ?? string.Empty;
+                    var fullPath = ResolveRulesetPath(root, relativePath, diagnostics);
+                    if (fullPath is null)
+                        continue;
+
+                    var document = LoadMapping(fullPath);
+                    if (!TrySequence(document, "extensions", out var entries))
                     {
-                        diagnostics.Add(new("CSR006", $"Ruleset file '{relativePath}' contains a rule without a node."));
+                        diagnostics.Add(new("CSR011", $"Semantic extension file '{relativePath}' must declare an extensions sequence."));
                         continue;
                     }
 
-                    if (!mode.Equals("deterministic", StringComparison.OrdinalIgnoreCase))
-                        diagnostics.Add(new("CSR008", $"Lowering rule '{node}' uses unsupported mode '{mode}'."));
-                    if (!renderer.Equals("expression", StringComparison.OrdinalIgnoreCase))
-                        diagnostics.Add(new("CSR009", $"Lowering rule '{node}' uses unsupported renderer '{renderer}'."));
-                    if (string.IsNullOrWhiteSpace(template))
-                        diagnostics.Add(new("CSR010", $"Lowering rule '{node}' must declare a non-empty template."));
+                    foreach (var entry in entries.Children.OfType<YamlMappingNode>())
+                    {
+                        if (!TryMapping(entry, "targets", out var extensionTargets) ||
+                            !TryMapping(extensionTargets, "csharp", out var csharpRealization))
+                        {
+                            continue;
+                        }
 
-                    if (!rules.TryAdd(node, new(node, mode, renderer, template)))
-                        diagnostics.Add(new("CSR007", $"Lowering rule '{node}' is declared more than once."));
+                        AddRule(
+                            csharpRealization,
+                            relativePath,
+                            rules,
+                            diagnostics,
+                            nodeOverride: Scalar(entry, "node"));
+                    }
                 }
             }
 
@@ -116,6 +120,56 @@ public sealed class CSharpLoweringRuleSet
                 StringComparison.Ordinal));
 
         return true;
+    }
+
+    private static string? ResolveRulesetPath(
+        string root,
+        string relativePath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var fullPath = Path.GetFullPath(relativePath, root);
+        if (!IsWithin(root, fullPath))
+        {
+            diagnostics.Add(new("CSR003", $"Ruleset path '{relativePath}' escapes the ruleset root."));
+            return null;
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            diagnostics.Add(new("CSR004", $"Ruleset file '{relativePath}' does not exist."));
+            return null;
+        }
+
+        return fullPath;
+    }
+
+    private static void AddRule(
+        YamlMappingNode entry,
+        string relativePath,
+        IDictionary<string, CSharpLoweringRule> rules,
+        ICollection<VsirDiagnostic> diagnostics,
+        string? nodeOverride = null)
+    {
+        var node = nodeOverride ?? Scalar(entry, "node");
+        var mode = Scalar(entry, "mode");
+        var renderer = Scalar(entry, "renderer");
+        var template = Scalar(entry, "template");
+
+        if (string.IsNullOrWhiteSpace(node))
+        {
+            diagnostics.Add(new("CSR006", $"Ruleset file '{relativePath}' contains a rule without a node."));
+            return;
+        }
+
+        if (!mode.Equals("deterministic", StringComparison.OrdinalIgnoreCase))
+            diagnostics.Add(new("CSR008", $"Lowering rule '{node}' uses unsupported mode '{mode}'."));
+        if (!renderer.Equals("expression", StringComparison.OrdinalIgnoreCase))
+            diagnostics.Add(new("CSR009", $"Lowering rule '{node}' uses unsupported renderer '{renderer}'."));
+        if (string.IsNullOrWhiteSpace(template))
+            diagnostics.Add(new("CSR010", $"Lowering rule '{node}' must declare a non-empty template."));
+
+        if (!rules.TryAdd(node, new(node, mode, renderer, template)))
+            diagnostics.Add(new("CSR007", $"Lowering rule '{node}' is declared more than once."));
     }
 
     private static CSharpLoweringRuleSetLoadResult Failure(string code, string message) =>
