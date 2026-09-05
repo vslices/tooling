@@ -63,6 +63,7 @@ internal static class TranspilationOperation
             ? TranspilationResult.Success(
                 lowered.Source!,
                 resolution.Path!,
+                parsed.Document!.Name,
                 target.Target!,
                 project,
                 targetContext.Context!)
@@ -73,6 +74,7 @@ internal static class TranspilationOperation
 internal sealed record TranspilationResult(
     string? Source,
     string? VsirPath,
+    string? SemanticName,
     string? Target,
     VSlicesProjectContext? Project,
     DotNetTargetContext? TargetContext,
@@ -81,6 +83,7 @@ internal sealed record TranspilationResult(
     public bool IsSuccess =>
         Source is not null &&
         VsirPath is not null &&
+        SemanticName is not null &&
         Target is not null &&
         Project is not null &&
         TargetContext is not null &&
@@ -89,11 +92,12 @@ internal sealed record TranspilationResult(
     public static TranspilationResult Success(
         string source,
         string path,
+        string semanticName,
         string target,
         VSlicesProjectContext project,
         DotNetTargetContext targetContext) =>
-        new(source, path, target, project, targetContext, []);
+        new(source, path, semanticName, target, project, targetContext, []);
 
     public static TranspilationResult Failure(IEnumerable<VsirDiagnostic> diagnostics) =>
-        new(null, null, null, null, null, diagnostics.ToArray());
+        new(null, null, null, null, null, null, diagnostics.ToArray());
 }
