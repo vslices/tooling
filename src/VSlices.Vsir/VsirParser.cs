@@ -128,6 +128,7 @@ public static class VsirParser
                 Condition? condition = intrinsic switch
                 {
                     "non-empty" => new NonEmptyCondition(value),
+                    "not-whitespace" => new NotWhitespaceCondition(value),
                     "length-at-most" => new LengthAtMostCondition(value, Int(conditionNode, "max")),
                     _ => null
                 };
