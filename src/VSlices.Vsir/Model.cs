@@ -10,7 +10,10 @@ public sealed record DomainTypeVsir(
     ProductShape State,
     ProductShape Representation,
     Construction Construction,
-    EqualitySemantics? Equality);
+    EqualitySemantics? Equality)
+{
+    public VsirSemanticExtensions SemanticExtensions { get; init; } = VsirSemanticExtensions.None;
+}
 
 public sealed record ProductShape(IReadOnlyList<Field> Fields);
 public sealed record Field(string Name, string Type);
