@@ -32,7 +32,7 @@ public sealed class SrvIdentityIdLoweringTests
                 as: state.Value
 
         equality:
-          domain: Rut
+          over: Rut
           by: state.Value
         """;
 
@@ -50,7 +50,7 @@ public sealed class SrvIdentityIdLoweringTests
         Assert.Equal("Rut", parsed.Document.Construction.Input.ScalarType);
         Assert.IsType<RefineStep>(Assert.Single(parsed.Document.Construction.Steps));
         Assert.IsType<StringifyProjection>(Assert.Single(parsed.Document.RepresentationMapping!.Fields).Value);
-        Assert.Equal("Rut", parsed.Document.Equality!.Domain);
+        Assert.Equal("Rut", parsed.Document.Equality!.Over);
         Assert.Null(parsed.Document.Equality.Intrinsic);
     }
 
@@ -61,6 +61,15 @@ public sealed class SrvIdentityIdLoweringTests
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, x => x.Code == "VSIR104" && x.Message.Contains("refinedFrom", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Canonical_equality_type_relation_uses_over()
+    {
+        var parsed = VsirParser.Parse(Source.Replace("over: Rut", "domain: Rut", StringComparison.Ordinal));
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, x => x.Code == "VSIR104" && x.Message.Contains("equality.domain", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -104,11 +113,11 @@ public sealed class SrvIdentityIdLoweringTests
                 Path.Combine(root, "csharp", "rules.yaml"),
                 """
                 rules:
-                  - node: equality.domain.equals
+                  - node: equality.over.equals
                     mode: deterministic
                     renderer: expression
                     template: "{left}.Equals({right})"
-                  - node: equality.domain.hash
+                  - node: equality.over.hash
                     mode: deterministic
                     renderer: expression
                     template: "{value}.GetHashCode()"
