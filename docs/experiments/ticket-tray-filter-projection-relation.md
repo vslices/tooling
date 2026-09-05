@@ -165,6 +165,39 @@ project/folder/batch lowering
 
 This experiment has now taken **project lowering only** out of the final item. Folder/path-scoped lowering and stronger batch semantics remain outside the current slice as described above.
 
+## Nominal C# type resolution
+
+`SrvIdentityId` supplied a concrete target-context gap after its VSIR semantics became representable: the semantic type name `Rut` is sufficient inside VSIR, but C# needs a target symbol such as `Shared.Domain.ValueObjects.Rut` to compile.
+
+This does not introduce a semantic mapping such as `Rut -> string`. The authority split is:
+
+```text
+VSIR
+  -> semantic nominal type name: Rut
+
+.NET target context
+  -> target symbol: Shared.Domain.ValueObjects.Rut
+```
+
+Tooling delegates that lookup to the existing Roslyn/MSBuild companion against the related `.csproj` and its referenced assemblies. Missing and ambiguous target symbols fail closed.
+
+The preferred materialization policy is readability-first:
+
+```csharp
+using Shared.Domain.ValueObjects;
+
+// ...
+private readonly Rut _value;
+```
+
+rather than eagerly emitting:
+
+```csharp
+private readonly global::Shared.Domain.ValueObjects.Rut _value;
+```
+
+`global::` is intentionally reserved as a future conflict-resolution fallback. If real consumer evidence shows that the preferred imports create an unavoidable simple-name collision, Tooling may qualify only the conflicting references while keeping `using` + short names as the normal form. That fallback is not introduced pre-emptively in this slice.
+
 ## Success criterion
 
 The first projection iteration succeeds when the CLI exposes the earliest unsupported boundary for `TicketTrayFilter` without inventing semantics, and the result is specific enough to design the next discriminating experiment.
