@@ -93,24 +93,51 @@ public static class DotNetTargetContextResolver
             }
 
             var patternSegments = pattern.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            if (patternSegments.Length != segmentIndex + 1)
+            if (patternSegments.Length == 0 || patternSegments[^1] == "**")
                 continue;
 
-            var matchesPath = true;
-            for (var i = 0; i < patternSegments.Length; i++)
-            {
-                if (MatchesSimplePattern(patternSegments[i], relativeSegments[i]))
-                    continue;
-
-                matchesPath = false;
-                break;
-            }
-
-            if (matchesPath)
+            var candidatePath = relativeSegments.Take(segmentIndex + 1).ToArray();
+            if (MatchesPathPattern(patternSegments, candidatePath))
                 return true;
         }
 
         return false;
+    }
+
+    private static bool MatchesPathPattern(
+        IReadOnlyList<string> patternSegments,
+        IReadOnlyList<string> pathSegments)
+    {
+        var memo = new Dictionary<(int PatternIndex, int PathIndex), bool>();
+
+        bool Match(int patternIndex, int pathIndex)
+        {
+            var key = (patternIndex, pathIndex);
+            if (memo.TryGetValue(key, out var cached))
+                return cached;
+
+            bool result;
+            if (patternIndex == patternSegments.Count)
+            {
+                result = pathIndex == pathSegments.Count;
+            }
+            else if (patternSegments[patternIndex] == "**")
+            {
+                result = Match(patternIndex + 1, pathIndex) ||
+                         pathIndex < pathSegments.Count && Match(patternIndex, pathIndex + 1);
+            }
+            else
+            {
+                result = pathIndex < pathSegments.Count &&
+                         MatchesSimplePattern(patternSegments[patternIndex], pathSegments[pathIndex]) &&
+                         Match(patternIndex + 1, pathIndex + 1);
+            }
+
+            memo[key] = result;
+            return result;
+        }
+
+        return Match(0, 0);
     }
 
     private static bool MatchesSimplePattern(string pattern, string value) =>
