@@ -52,7 +52,11 @@ public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;
 public sealed record NotWhitespaceCondition(string Value) : Condition;
 public sealed record LengthAtMostCondition(string Value, int Max) : Condition;
-public sealed record VsirDiagnostic(string Code, string Message);
+public sealed record VsirDiagnostic(
+    string Code,
+    string Message,
+    string? Details = null,
+    string? Trace = null);
 
 public sealed record VsirSemanticExtensions(IReadOnlySet<string> NormalizeIntrinsics)
 {
