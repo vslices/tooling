@@ -100,7 +100,7 @@ public sealed class TicketCodeLoweringExperimentTests
     }
 
     [Fact]
-    public void Unknown_normalize_semantics_are_rejected_instead_of_disappearing()
+    public void Unknown_normalize_keys_are_rejected_instead_of_disappearing()
     {
         const string source = """
             vsir: 0.1
@@ -131,6 +131,37 @@ public sealed class TicketCodeLoweringExperimentTests
             diagnostic.Message.Contains(
                 "construction.steps[].normalize.imaginary-new-semantic",
                 StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Unknown_normalize_intrinsic_values_are_rejected_by_VSIR_before_ruleset_lookup()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketCode
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+              steps:
+                - normalize:
+                    target: input.Value
+                    intrinsic: hacer-magia
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, diagnostic =>
+            diagnostic.Code == "VSIR221" &&
+            diagnostic.Message.Contains("hacer-magia", StringComparison.Ordinal));
     }
 
     private static CSharpLoweringRuleSet LoadFixtureRules()
