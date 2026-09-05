@@ -37,7 +37,10 @@ consumer project
   = project operating policy
 
 .vslices/ruleset
-  = local lowering-knowledge snapshot
+  = installed source-owned lowering-knowledge snapshot
+
+.vslices/extensions
+  = project-owned semantic-extension overlay
 
 .vslices/lineage
   = operational deterministic ancestry evidence
@@ -52,7 +55,9 @@ target-native tooling
   = target facts already owned by the target ecosystem
 ```
 
-A missing lowering rule is a stop condition, never permission to guess. A Ruleset also cannot create a semantic operation that VSIR itself does not recognize.
+A missing lowering rule is a stop condition, never permission to guess. A target renderer also cannot create semantic validity by itself: core VSIR semantics must already be recognized, or a project semantic extension must explicitly admit the operation.
+
+`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `init --force` and `update --ruleset` may replace the installed Ruleset snapshot, but they preserve the project-owned extension overlay.
 
 ## Internal responsibility tree
 
@@ -71,6 +76,8 @@ src/VSlices.Tooling/
       SemanticRefactoringAuthorization.cs
       TransactionalFileWriter.cs
   Project/
+    VSlicesProjectContext.cs
+    ProjectExtensions.cs
   Rulesets/
   Updates/
   Presentation/
@@ -96,15 +103,25 @@ CLI handler
   -> semantic mechanism / project infrastructure / target adapter
 ```
 
-`TranspilationOperation` owns the reusable path from VSIR + project target/ruleset/context to a deterministic projection. `RebaseOperation` owns deterministic three-way materialization rebase. `LoweringCoordinator` owns the high-level `lower` policy and delegates the target-semantic namespace-move subworkflow to `SemanticRefactoringCoordinator`.
+`TranspilationOperation` owns the reusable path from VSIR + project target/ruleset/extensions/context to a deterministic projection. `RebaseOperation` owns deterministic three-way materialization rebase. `LoweringCoordinator` owns the high-level `lower` policy and delegates the target-semantic namespace-move subworkflow to `SemanticRefactoringCoordinator`.
 
-`VSlicesProjectContext` is the single detected representation of a VSlices project and carries project root, `.vslices` root, configuration, ruleset root and lineage root.
+`VSlicesProjectContext` is the single detected representation of a VSlices project and carries project root, `.vslices` root, configuration, installed Ruleset root, project extensions root and lineage root.
 
 ## Semantic conservation and normalization
 
 Unknown semantics must not disappear silently.
 
-The parser fails closed for unknown keys in known semantic mappings. The validator also owns recognized semantic values.
+The parser fails closed for unknown keys in known semantic mappings. Ruleset and project-extension loaders also fail closed for structurally invalid YAML entries instead of filtering wrong node types away.
+
+The VSIR document and its validation environment are separate facts:
+
+```text
+DomainTypeVsir
+  = parsed semantic document
+
+VsirValidationContext
+  = project-admitted external vocabulary
+```
 
 The first normalization semantic demonstrated by the TicketCode consumer is:
 
@@ -114,7 +131,7 @@ The first normalization semantic demonstrated by the TicketCode consumer is:
     intrinsic: trim
 ```
 
-The current authority split is:
+The core authority split is:
 
 ```text
 VSlices.Vsir
@@ -127,9 +144,31 @@ Ruleset
   -> supplies target-specific realization of intrinsic.trim
 ```
 
-An unknown normalize intrinsic is rejected by VSIR before Ruleset lookup. This prevents a target rule from inventing domain semantics accidentally.
+A project may explicitly extend the normalize vocabulary through `.vslices/extensions`:
 
-The demonstrated `trim` renderer is pure. Current lowering may repeat the rendered expression in validation and construction; broader normalization will require either referential transparency or single-evaluation lowering.
+```yaml
+# .vslices/extensions/manifest.yaml
+version: 0.1
+catalogs:
+  - ticketing.yaml
+```
+
+```yaml
+# .vslices/extensions/ticketing.yaml
+extensions:
+  - node: intrinsic.normalize-rut
+    semantic:
+      kind: normalize
+    targets:
+      csharp:
+        mode: deterministic
+        renderer: expression
+        template: "Rut.Normalize({value})"
+```
+
+`semantic.kind` admits the operation; `targets.csharp` realizes that already-admitted operation. A C# renderer without semantic admission still leaves an unknown normalize intrinsic rejected as `VSIR221`. A declared semantic without C# realization reaches `CSL031`.
+
+The demonstrated core `trim` renderer is pure. Current lowering may repeat the rendered expression in validation and construction; broader normalization will require either referential transparency or single-evaluation lowering.
 
 ## .NET target context and namespace policy
 
@@ -176,7 +215,7 @@ See [`docs/configuration.md`](docs/configuration.md).
 
 ## Lowering, rebase and lineage
 
-`transpile` requests one deterministic witness when VSIR, Ruleset and target context are sufficient.
+`transpile` requests one deterministic witness when VSIR, Ruleset, project extensions and target context are sufficient.
 
 `rebase` is the textual primitive:
 
@@ -270,19 +309,21 @@ Startup health checks, same-build `vslices update --self` repair, downloaded-arc
 
 The standalone Native AOT CLI emits `UPD016` when it detects an incomplete companion and directs the user to run `vslices update --self`.
 
-## Rulesets and updates
+## Rulesets, project extensions and updates
 
-`vslices init` and `vslices update --ruleset` share ruleset-source materialization and snapshot installation mechanisms.
+`vslices init` and `vslices update --ruleset` share Ruleset-source materialization and snapshot installation mechanisms.
 
 ```text
 source
   -> materialize
   -> prepare selected-target snapshot
   -> validate with the real target loader
-  -> atomic replace with backup/rollback
+  -> atomic replace .vslices/ruleset with backup/rollback
 ```
 
-For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current `.vslices/ruleset` can be replaced.
+For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current `.vslices/ruleset` can be replaced. The installed Ruleset manifest does not own project extension catalogs.
+
+Project extensions are loaded independently from `.vslices/extensions`. Their manifest and referenced catalogs are validated as a single project-owned model before parsing/lowering. `init --force` and `update --ruleset` intentionally do not replace this directory.
 
 For supported GitHub repository sources, `ruleset.ref` is treated as a real Git reference candidate: branch, tag, then direct commit/archive reference.
 
@@ -294,13 +335,13 @@ Relevant test layers are:
 
 ```text
 tests/VSlices.Vsir.CSharp.Tests
-  = VSIR / C# semantic and lowering behavior
+  = VSIR / validation-context / C# semantic and lowering behavior
 
 tests/VSlices.Tooling.Tests
-  = Tooling orchestration, semantic-refactoring safety and installation health
+  = Tooling orchestration, project-extension lifecycle, semantic-refactoring safety and installation health
 ```
 
-CI also exercises Roslyn/MSBuildWorkspace, non-destructive lineage bootstrap, subsequent rebase, target context and namespace patterns, complete managed companion packaging, and Native AOT artifacts for Linux, win-x64 and win-arm64.
+CI also exercises Roslyn/MSBuildWorkspace, non-destructive lineage bootstrap, subsequent rebase, target context and namespace patterns, complete managed companion packaging, Native AOT artifacts, extension fail-closed behavior and Ruleset-update preservation of project-owned extensions.
 
 ## Evidence from Ticket Support
 
@@ -327,6 +368,15 @@ TicketCode
   -> explicit analysis cost authority
   -> namespace path policy
   -> review hardening of semantic ownership and fail-closed guarantees
+
+Risk
+  -> trim + not-whitespace composition
+  -> validation over normalized value
+
+ActionDescription
+  -> explicit project semantic extension
+  -> semantic admission separate from C# realization
+  -> project-owned extension lifecycle outside Ruleset replacement
 ```
 
 The repository deliberately preserves this chain because each mechanism was added only after the real consumer exposed the next unjustified boundary.
@@ -335,7 +385,8 @@ The repository deliberately preserves this chain because each mechanism was adde
 
 Recorded but not implemented in this baseline:
 
-- normalization intrinsics beyond `trim`;
+- core normalization intrinsics beyond `trim`;
+- extension kinds beyond the observed project `normalize` case;
 - namespace-pattern negation, precedence or regex semantics;
 - semantic refactoring kinds beyond the observed namespace move;
 - non-interactive semantic-refactoring approval policy;
@@ -343,6 +394,7 @@ Recorded but not implemented in this baseline:
 - Roslyn workspace-scope optimization that could weaken blast-radius completeness;
 - killing the Roslyn child process tree on cancellation;
 - interpretive lowering;
+- project/folder/batch lowering and `--path` selection;
 - general provenance graphs or Git-history ancestry reconstruction;
 - aggregate `vslices update` semantics;
 - configurable terminal themes.

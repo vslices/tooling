@@ -21,8 +21,24 @@ public sealed record NormalizeStep(string Target, string Intrinsic) : Constructi
 public sealed record EnsureStep(Condition Condition, string FailureMessage) : ConstructionStep;
 public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;
+public sealed record NotWhitespaceCondition(string Value) : Condition;
 public sealed record LengthAtMostCondition(string Value, int Max) : Condition;
 public sealed record VsirDiagnostic(string Code, string Message);
+
+public sealed record VsirSemanticExtensions(IReadOnlySet<string> NormalizeIntrinsics)
+{
+    public static VsirSemanticExtensions None { get; } =
+        new(new HashSet<string>(StringComparer.Ordinal));
+
+    public bool DeclaresNormalize(string intrinsic) =>
+        NormalizeIntrinsics.Contains(intrinsic);
+}
+
+public sealed record VsirValidationContext(VsirSemanticExtensions SemanticExtensions)
+{
+    public static VsirValidationContext Empty { get; } =
+        new(VsirSemanticExtensions.None);
+}
 
 public sealed record VsirParseResult(
     DomainTypeVsir? Document,
