@@ -95,9 +95,9 @@ public static class VsirParser
                         "construction.steps[].refine",
                         diagnostics);
 
-                    var value = Scalar(refine, "value");
-                    var target = Scalar(refine, "as");
-                    if (string.IsNullOrWhiteSpace(value) || string.IsNullOrWhiteSpace(target))
+                    var refineValue = Scalar(refine, "value");
+                    var refineTarget = Scalar(refine, "as");
+                    if (string.IsNullOrWhiteSpace(refineValue) || string.IsNullOrWhiteSpace(refineTarget))
                     {
                         diagnostics.Add(new(
                             "VSIR110",
@@ -105,7 +105,7 @@ public static class VsirParser
                         continue;
                     }
 
-                    steps.Add(new RefineStep(value, target));
+                    steps.Add(new RefineStep(refineValue, refineTarget));
                     continue;
                 }
 
