@@ -111,22 +111,26 @@ public sealed class NormalizeSemanticExtensionTests
         if (!declareExtension)
             return;
 
-        var realization = extensionRenderer
+        var extensionCatalog = extensionRenderer
             ? """
+              extensions:
+                - node: intrinsic.normalize-boundary-probe
+                  semantic:
+                    kind: normalize
                   targets:
                     csharp:
                       mode: deterministic
                       renderer: expression
                       template: "{value}.Trim()"
               """
-            : string.Empty;
+            : """
+              extensions:
+                - node: intrinsic.normalize-boundary-probe
+                  semantic:
+                    kind: normalize
+              """;
 
-        File.WriteAllText(Path.Combine(root, "extensions", "normalize.yaml"), """
-            extensions:
-              - node: intrinsic.normalize-boundary-probe
-                semantic:
-                  kind: normalize
-            """ + realization);
+        File.WriteAllText(Path.Combine(root, "extensions", "normalize.yaml"), extensionCatalog);
     }
 
     private static string WriteProbe(string root)
