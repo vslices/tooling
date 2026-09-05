@@ -34,7 +34,7 @@ public sealed record Construction(ConstructionInput Input, IReadOnlyList<Constru
 
 public sealed record EqualitySemantics(
     string? Intrinsic,
-    string? Domain,
+    string? Over,
     string By);
 
 public sealed record RepresentationMapping(
