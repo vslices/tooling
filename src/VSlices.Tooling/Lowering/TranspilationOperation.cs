@@ -87,6 +87,13 @@ internal static class TranspilationOperation
         if (!parsed.IsSuccess)
             return TranspilationResult.Failure(parsed.Diagnostics);
 
+        var typeResolution = await DotNetTypeResolutionClient.ResolveImports(
+            parsed.Document!,
+            targetContext.Context!,
+            cancellationToken);
+        if (!typeResolution.IsSuccess)
+            return TranspilationResult.Failure(typeResolution.Diagnostics);
+
         var lowered = CSharpLowerer.Lower(
             parsed.Document!,
             new CSharpLoweringContext(
@@ -94,15 +101,20 @@ internal static class TranspilationOperation
                 environment.RuleSet,
                 environment.Extensions.ValidationContext));
 
-        return lowered.IsSuccess
-            ? TranspilationResult.Success(
-                lowered.Source!,
-                vsirPath,
-                parsed.Document!.Name,
-                environment.Target,
-                environment.Project,
-                targetContext.Context!)
-            : TranspilationResult.Failure(lowered.Diagnostics);
+        if (!lowered.IsSuccess)
+            return TranspilationResult.Failure(lowered.Diagnostics);
+
+        var source = DotNetTypeResolutionClient.ApplyImports(
+            lowered.Source!,
+            typeResolution.Imports);
+
+        return TranspilationResult.Success(
+            source,
+            vsirPath,
+            parsed.Document!.Name,
+            environment.Target,
+            environment.Project,
+            targetContext.Context!);
     }
 }
 
