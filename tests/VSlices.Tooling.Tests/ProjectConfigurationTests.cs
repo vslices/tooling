@@ -23,8 +23,9 @@ public sealed class ProjectConfigurationTests
                     namespace:
                       ignore-folders:
                         - Entities
-                        - "*Internal"
-                        - "Generated?"
+                        - "Aggregates/*"
+                        - "Aggregates/**/Entities"
+                        - "Aggregates/**/*"
                         - Entities
                 """);
 
@@ -32,7 +33,7 @@ public sealed class ProjectConfigurationTests
 
             Assert.NotNull(configuration);
             Assert.Equal(
-                ["Entities", "*Internal", "Generated?"],
+                ["Entities", "Aggregates/*", "Aggregates/**/Entities", "Aggregates/**/*"],
                 configuration.CSharpNamespaceIgnoredFolders);
         }
         finally
@@ -53,7 +54,12 @@ public sealed class ProjectConfigurationTests
         {
             var configuration = ProjectConfiguration.Default() with
             {
-                CSharpNamespaceIgnoredFolders = ["Entities", "*Internal"]
+                CSharpNamespaceIgnoredFolders =
+                [
+                    "Aggregates/*",
+                    "Aggregates/**/Entities",
+                    "Aggregates/**/*"
+                ]
             };
 
             await ProjectConfiguration.WriteAsync(root, configuration, CancellationToken.None);
@@ -62,8 +68,9 @@ public sealed class ProjectConfigurationTests
             Assert.Contains("csharp:", text, StringComparison.Ordinal);
             Assert.Contains("namespace:", text, StringComparison.Ordinal);
             Assert.Contains("ignore-folders:", text, StringComparison.Ordinal);
-            Assert.Contains("Entities", text, StringComparison.Ordinal);
-            Assert.Contains("*Internal", text, StringComparison.Ordinal);
+            Assert.Contains("Aggregates/*", text, StringComparison.Ordinal);
+            Assert.Contains("Aggregates/**/Entities", text, StringComparison.Ordinal);
+            Assert.Contains("Aggregates/**/*", text, StringComparison.Ordinal);
         }
         finally
         {
