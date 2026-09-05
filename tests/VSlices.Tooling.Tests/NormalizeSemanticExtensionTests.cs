@@ -3,18 +3,14 @@ namespace VSlices.Tooling.Tests;
 public sealed class NormalizeSemanticExtensionTests
 {
     [Fact]
-    public async Task Undeclared_normalize_semantic_remains_VSIR221_even_with_project_ruleset()
+    public async Task Undeclared_normalize_semantic_remains_VSIR221()
     {
         using var project = new ToolingTestProject();
         project.WriteConfiguration();
-        WriteRuleset(project.RulesetRoot, declareExtension: false);
+        WriteRuleset(project.RulesetRoot, declareExtension: false, extensionRenderer: false, targetRenderer: false);
         var vsir = WriteProbe(project.Root);
 
-        var result = await project.Run(
-            project.Root,
-            "transpile", vsir,
-            "--namespace", "Tests.Domain",
-            "--stdout");
+        var result = await Run(project, vsir);
 
         Assert.Equal(1, result.ExitCode);
         var output = result.StandardError + result.StandardOutput;
@@ -23,18 +19,14 @@ public sealed class NormalizeSemanticExtensionTests
     }
 
     [Fact]
-    public async Task Declared_normalize_semantic_reaches_missing_target_rule_as_CSL031()
+    public async Task Declared_normalize_semantic_without_CSharp_realization_reaches_CSL031()
     {
         using var project = new ToolingTestProject();
         project.WriteConfiguration();
-        WriteRuleset(project.RulesetRoot, declareExtension: true);
+        WriteRuleset(project.RulesetRoot, declareExtension: true, extensionRenderer: false, targetRenderer: false);
         var vsir = WriteProbe(project.Root);
 
-        var result = await project.Run(
-            project.Root,
-            "transpile", vsir,
-            "--namespace", "Tests.Domain",
-            "--stdout");
+        var result = await Run(project, vsir);
 
         Assert.Equal(1, result.ExitCode);
         var output = result.StandardError + result.StandardOutput;
@@ -43,28 +35,98 @@ public sealed class NormalizeSemanticExtensionTests
         Assert.Contains("intrinsic.normalize-boundary-probe", output, StringComparison.Ordinal);
     }
 
-    private static void WriteRuleset(string root, bool declareExtension)
+    [Fact]
+    public async Task Declared_normalize_semantic_and_co_located_CSharp_realization_lower_successfully()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        WriteRuleset(project.RulesetRoot, declareExtension: true, extensionRenderer: true, targetRenderer: false);
+        var vsir = WriteProbe(project.Root);
+
+        var result = await Run(project, vsir);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.DoesNotContain("VSIR221", result.StandardError + result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("new(input.Value.Trim())", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Renderer_without_semantic_declaration_still_fails_as_VSIR221()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        WriteRuleset(project.RulesetRoot, declareExtension: false, extensionRenderer: false, targetRenderer: true);
+        var vsir = WriteProbe(project.Root);
+
+        var result = await Run(project, vsir);
+
+        Assert.Equal(1, result.ExitCode);
+        var output = result.StandardError + result.StandardOutput;
+        Assert.Contains("VSIR221", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("CSL031", output, StringComparison.Ordinal);
+    }
+
+    private static Task<CliResult> Run(ToolingTestProject project, string vsir) =>
+        project.Run(
+            project.Root,
+            "transpile", vsir,
+            "--namespace", "Tests.Domain",
+            "--stdout");
+
+    private static void WriteRuleset(
+        string root,
+        bool declareExtension,
+        bool extensionRenderer,
+        bool targetRenderer)
     {
         Directory.CreateDirectory(Path.Combine(root, "csharp"));
-        var extensions = declareExtension
+        Directory.CreateDirectory(Path.Combine(root, "extensions"));
+
+        var extensionReference = declareExtension
             ? """
-              semantic-extensions:
-                normalize-boundary-probe:
-                  kind: normalize
+              extensions:
+                - extensions/normalize.yaml
 
               """
             : string.Empty;
 
-        File.WriteAllText(Path.Combine(root, "manifest.yaml"), extensions + """
+        File.WriteAllText(Path.Combine(root, "manifest.yaml"), extensionReference + """
             targets:
               csharp:
                 rules:
                   - csharp/intrinsics.yaml
             """);
 
-        File.WriteAllText(Path.Combine(root, "csharp", "intrinsics.yaml"), """
-            rules: []
-            """);
+        var targetRule = targetRenderer
+            ? """
+              rules:
+                - node: intrinsic.normalize-boundary-probe
+                  mode: deterministic
+                  renderer: expression
+                  template: "{value}.Trim()"
+              """
+            : "rules: []";
+        File.WriteAllText(Path.Combine(root, "csharp", "intrinsics.yaml"), targetRule);
+
+        if (!declareExtension)
+            return;
+
+        var realization = extensionRenderer
+            ? """
+                  targets:
+                    csharp:
+                      mode: deterministic
+                      renderer: expression
+                      template: "{value}.Trim()"
+              """
+            : string.Empty;
+
+        File.WriteAllText(Path.Combine(root, "extensions", "normalize.yaml"), """
+            extensions:
+              - node: intrinsic.normalize-boundary-probe
+                semantic:
+                  kind: normalize
+            """ + realization);
     }
 
     private static string WriteProbe(string root)
