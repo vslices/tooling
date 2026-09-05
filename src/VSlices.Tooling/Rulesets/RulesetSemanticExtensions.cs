@@ -16,7 +16,8 @@ internal static class RulesetSemanticExtensions
     {
         try
         {
-            var manifestPath = Path.Combine(rulesetRoot, "manifest.yaml");
+            var root = Path.GetFullPath(rulesetRoot);
+            var manifestPath = Path.Combine(root, "manifest.yaml");
             if (!File.Exists(manifestPath))
             {
                 return Failure(
@@ -24,43 +25,77 @@ internal static class RulesetSemanticExtensions
                     $"Ruleset manifest was not found at '{manifestPath}'.");
             }
 
-            using var reader = File.OpenText(manifestPath);
-            var yaml = new YamlStream();
-            yaml.Load(reader);
-
-            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
-                return Failure("RSE002", "Ruleset manifest must contain one YAML mapping document.");
-
-            if (!TryMapping(root, "semantic-extensions", out var extensionsNode))
+            var manifest = LoadMapping(manifestPath);
+            if (!TrySequence(manifest, "extensions", out var extensionFiles))
                 return new(VsirSemanticExtensions.None, []);
 
             var normalize = new HashSet<string>(StringComparer.Ordinal);
             var diagnostics = new List<VsirDiagnostic>();
 
-            foreach (var entry in extensionsNode.Children)
+            foreach (var fileNode in extensionFiles.Children.OfType<YamlScalarNode>())
             {
-                if (entry.Key is not YamlScalarNode idNode || string.IsNullOrWhiteSpace(idNode.Value))
+                var relativePath = fileNode.Value ?? string.Empty;
+                var fullPath = Path.GetFullPath(relativePath, root);
+                if (!IsWithin(root, fullPath))
                 {
-                    diagnostics.Add(new("RSE003", "Semantic extension ids must be non-empty scalar keys."));
+                    diagnostics.Add(new("RSE003", $"Semantic extension path '{relativePath}' escapes the ruleset root."));
                     continue;
                 }
 
-                if (entry.Value is not YamlMappingNode declaration)
+                if (!File.Exists(fullPath))
                 {
-                    diagnostics.Add(new("RSE004", $"Semantic extension '{idNode.Value}' must be a mapping."));
+                    diagnostics.Add(new("RSE004", $"Semantic extension file '{relativePath}' does not exist."));
                     continue;
                 }
 
-                var kind = Scalar(declaration, "kind");
-                if (!kind.Equals("normalize", StringComparison.Ordinal))
+                var document = LoadMapping(fullPath);
+                if (!TrySequence(document, "extensions", out var entries))
                 {
-                    diagnostics.Add(new(
-                        "RSE005",
-                        $"Semantic extension '{idNode.Value}' uses unsupported kind '{kind}'. Only 'normalize' is supported by this experiment."));
+                    diagnostics.Add(new("RSE005", $"Semantic extension file '{relativePath}' must declare an extensions sequence."));
                     continue;
                 }
 
-                normalize.Add(idNode.Value);
+                foreach (var entry in entries.Children.OfType<YamlMappingNode>())
+                {
+                    var node = Scalar(entry, "node");
+                    if (string.IsNullOrWhiteSpace(node))
+                    {
+                        diagnostics.Add(new("RSE006", $"Semantic extension file '{relativePath}' contains an extension without a node."));
+                        continue;
+                    }
+
+                    if (!TryMapping(entry, "semantic", out var semantic))
+                    {
+                        diagnostics.Add(new("RSE007", $"Semantic extension '{node}' must declare semantic metadata."));
+                        continue;
+                    }
+
+                    var kind = Scalar(semantic, "kind");
+                    if (!kind.Equals("normalize", StringComparison.Ordinal))
+                    {
+                        diagnostics.Add(new(
+                            "RSE008",
+                            $"Semantic extension '{node}' uses unsupported kind '{kind}'. Only 'normalize' is supported by this experiment."));
+                        continue;
+                    }
+
+                    const string intrinsicPrefix = "intrinsic.";
+                    if (!node.StartsWith(intrinsicPrefix, StringComparison.Ordinal) || node.Length == intrinsicPrefix.Length)
+                    {
+                        diagnostics.Add(new(
+                            "RSE009",
+                            $"Normalize semantic extension '{node}' must use an 'intrinsic.<name>' node identity."));
+                        continue;
+                    }
+
+                    var intrinsic = node[intrinsicPrefix.Length..];
+                    if (!normalize.Add(intrinsic))
+                    {
+                        diagnostics.Add(new(
+                            "RSE010",
+                            $"Normalize semantic extension '{intrinsic}' is declared more than once."));
+                    }
+                }
             }
 
             return diagnostics.Count == 0
@@ -75,6 +110,16 @@ internal static class RulesetSemanticExtensions
 
     private static RulesetSemanticExtensionsLoadResult Failure(string code, string message) =>
         new(null, [new(code, message)]);
+
+    private static YamlMappingNode LoadMapping(string path)
+    {
+        using var reader = File.OpenText(path);
+        var yaml = new YamlStream();
+        yaml.Load(reader);
+        return yaml.Documents.Count == 1 && yaml.Documents[0].RootNode is YamlMappingNode root
+            ? root
+            : throw new InvalidDataException($"Expected one YAML mapping document in '{path}'.");
+    }
 
     private static string Scalar(YamlMappingNode node, string key) =>
         node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar
@@ -91,5 +136,26 @@ internal static class RulesetSemanticExtensions
 
         mapping = null!;
         return false;
+    }
+
+    private static bool TrySequence(YamlMappingNode node, string key, out YamlSequenceNode sequence)
+    {
+        if (node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlSequenceNode result)
+        {
+            sequence = result;
+            return true;
+        }
+
+        sequence = null!;
+        return false;
+    }
+
+    private static bool IsWithin(string root, string path)
+    {
+        var normalizedRoot = Path.TrimEndingDirectorySeparator(root) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        return path.StartsWith(normalizedRoot, comparison);
     }
 }
