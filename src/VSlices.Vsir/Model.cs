@@ -24,6 +24,7 @@ public sealed record NormalizeStep(string Target, string Intrinsic) : Constructi
 public sealed record EnsureStep(Condition Condition, string FailureMessage) : ConstructionStep;
 public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;
+public sealed record NotWhitespaceCondition(string Value) : Condition;
 public sealed record LengthAtMostCondition(string Value, int Max) : Condition;
 public sealed record VsirDiagnostic(string Code, string Message);
 
