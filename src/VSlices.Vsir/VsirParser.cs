@@ -86,6 +86,15 @@ public static class VsirParser
                     continue;
                 }
 
+                if (TryMapping(stepNode, "apply", out var apply))
+                {
+                    RejectUnknownKeys(stepNode, ["apply"], "construction.steps[]", diagnostics);
+                    var parsedApply = ParseApply(apply, diagnostics);
+                    if (parsedApply is not null)
+                        steps.Add(parsedApply);
+                    continue;
+                }
+
                 if (TryMapping(stepNode, "refine", out var refine))
                 {
                     RejectUnknownKeys(stepNode, ["refine"], "construction.steps[]", diagnostics);
@@ -113,7 +122,7 @@ public static class VsirParser
                 {
                     diagnostics.Add(new(
                         "VSIR100",
-                        "Only construction steps 'normalize', 'ensure', and 'refine' are supported by the experimental parser."));
+                        "Only construction steps 'normalize', 'ensure', 'apply', and 'refine' are supported by the experimental parser."));
                     continue;
                 }
 
@@ -185,6 +194,73 @@ public static class VsirParser
         {
             return Failure("VSIR000", ex.Message);
         }
+    }
+
+    private static ApplyStep? ParseApply(
+        YamlMappingNode apply,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        RejectUnknownKeys(
+            apply,
+            ["over", "input", "as"],
+            "construction.steps[].apply",
+            diagnostics);
+
+        var over = Scalar(apply, "over");
+        var target = Scalar(apply, "as");
+        if (string.IsNullOrWhiteSpace(over) || string.IsNullOrWhiteSpace(target))
+        {
+            diagnostics.Add(new("VSIR119", "Apply step requires both 'over' and 'as'."));
+            return null;
+        }
+
+        if (!apply.Children.TryGetValue(new YamlScalarNode("input"), out var inputNode) ||
+            inputNode is not YamlMappingNode input)
+        {
+            diagnostics.Add(new("VSIR120", "Apply step requires a mapping 'input'."));
+            return null;
+        }
+
+        var hasSource = input.Children.ContainsKey(new YamlScalarNode("source"));
+        var hasMap = input.Children.ContainsKey(new YamlScalarNode("map"));
+        if (hasSource || hasMap)
+        {
+            RejectUnknownKeys(
+                input,
+                ["source", "map"],
+                "construction.steps[].apply.input",
+                diagnostics);
+
+            var source = Scalar(input, "source");
+            if (string.IsNullOrWhiteSpace(source) || !TryMapping(input, "map", out var mapNode))
+            {
+                diagnostics.Add(new(
+                    "VSIR121",
+                    "Mapped apply input requires both scalar 'source' and mapping 'map'."));
+                return null;
+            }
+
+            var map = ReadScalarMap(
+                mapNode,
+                "construction.steps[].apply.input.map",
+                diagnostics);
+            if (map.Count == 0)
+            {
+                diagnostics.Add(new("VSIR122", "Mapped apply input requires at least one mapped field."));
+                return null;
+            }
+
+            return new ApplyStep(over, new MappedApplyInput(source, map), target);
+        }
+
+        var fields = ReadScalarMap(input, "construction.steps[].apply.input", diagnostics);
+        if (fields.Count == 0)
+        {
+            diagnostics.Add(new("VSIR123", "Direct apply input requires at least one mapped field."));
+            return null;
+        }
+
+        return new ApplyStep(over, new DirectApplyInput(fields), target);
     }
 
     private static ConstructionInput ParseConstructionInput(
@@ -321,6 +397,29 @@ public static class VsirParser
                     ? $"Unsupported root semantic '{key}'."
                     : $"Unsupported semantic '{semanticPath}.{key}'."));
         }
+    }
+
+    private static IReadOnlyDictionary<string, string> ReadScalarMap(
+        YamlMappingNode map,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var pair in map.Children)
+        {
+            if (pair.Key is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value) ||
+                pair.Value is not YamlScalarNode value || string.IsNullOrWhiteSpace(value.Value))
+            {
+                diagnostics.Add(new(
+                    "VSIR124",
+                    $"Semantic mapping '{semanticPath}' requires non-empty scalar keys and values."));
+                continue;
+            }
+
+            values[key.Value!] = value.Value!;
+        }
+
+        return values;
     }
 
     private static IReadOnlyList<string> ReadScalarSequence(
