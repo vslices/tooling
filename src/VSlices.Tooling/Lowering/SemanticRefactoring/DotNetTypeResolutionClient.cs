@@ -148,7 +148,7 @@ internal static class DotNetTypeResolutionClient
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
 
-        void Add(string? type)
+        void AddName(string? type)
         {
             if (string.IsNullOrWhiteSpace(type) ||
                 BuiltInTypes.Contains(type) ||
@@ -161,30 +161,30 @@ internal static class DotNetTypeResolutionClient
             names.Add(type);
         }
 
-        void Add(VsirType? type)
+        void AddType(VsirType? type)
         {
             switch (type)
             {
                 case NamedVsirType named:
-                    Add(named.Name);
+                    AddName(named.Name);
                     break;
                 case UnaryVsirType unary:
-                    Add(unary.Value);
+                    AddType(unary.Value);
                     break;
             }
         }
 
-        Add(document.RefinedFrom);
-        Add(document.Equality?.Over);
+        AddName(document.RefinedFrom);
+        AddName(document.Equality?.Over);
         foreach (var field in document.State.Fields)
-            Add(field.Type);
+            AddType(field.Type);
         foreach (var field in document.Representation.Fields)
-            Add(field.Type);
+            AddType(field.Type);
         if (document.Construction.Input.IsScalar)
-            Add(document.Construction.Input.ScalarType);
+            AddName(document.Construction.Input.ScalarType);
         else
             foreach (var field in document.Construction.Input.Fields)
-                Add(field.Type);
+                AddType(field.Type);
 
         return names.OrderBy(x => x, StringComparer.Ordinal);
     }
