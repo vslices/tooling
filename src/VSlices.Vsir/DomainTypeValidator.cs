@@ -10,8 +10,12 @@ public static class DomainTypeValidator
     private static readonly HashSet<string> SupportedNormalizeIntrinsics =
         new(["trim"], StringComparer.Ordinal);
 
-    private static readonly Regex TypeReferencePattern = new(
+    private static readonly Regex NamedTypeReferencePattern = new(
         "^[A-Za-z_][A-Za-z0-9_.]*(<[A-Za-z0-9_.,<> ]+>)?$",
+        RegexOptions.CultureInvariant);
+
+    private static readonly Regex TypeConstructorPattern = new(
+        "^[A-Za-z_][A-Za-z0-9_.-]*$",
         RegexOptions.CultureInvariant);
 
     public static IReadOnlyList<VsirDiagnostic> Validate(
@@ -50,7 +54,7 @@ public static class DomainTypeValidator
             Require(IsTypeReference(document.Construction.Input.ScalarType!), "VSIR208", $"Invalid construction input type reference '{document.Construction.Input.ScalarType}'.");
 
         if (document.RefinedFrom is not null)
-            Require(IsTypeReference(document.RefinedFrom), "VSIR222", $"Invalid refined-from type reference '{document.RefinedFrom}'.");
+            Require(IsNamedTypeReference(document.RefinedFrom), "VSIR222", $"Invalid refined-from type reference '{document.RefinedFrom}'.");
 
         var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
         if (isRefined)
@@ -61,7 +65,7 @@ public static class DomainTypeValidator
             if (document.RefinedFrom is not null && document.Construction.Input.IsScalar)
             {
                 Require(
-                    string.Equals(document.RefinedFrom, document.Construction.Input.ScalarType, StringComparison.Ordinal),
+                    document.Construction.Input.ScalarType == new NamedVsirType(document.RefinedFrom),
                     "VSIR225",
                     $"Refined construction input '{document.Construction.Input.ScalarType}' must match refined-from '{document.RefinedFrom}'.");
             }
@@ -77,7 +81,7 @@ public static class DomainTypeValidator
         foreach (var stateField in document.State.Fields)
         {
             var established = TryConstructionSourceForState(stateField.Name, out var sourceType);
-            Require(established && string.Equals(sourceType, stateField.Type, StringComparison.Ordinal), "VSIR209",
+            Require(established && sourceType == stateField.Type, "VSIR209",
                 $"Cannot establish state.{stateField.Name} deterministically from construction input. A mapping/refinement is required.");
         }
 
@@ -140,11 +144,11 @@ public static class DomainTypeValidator
             }
             else if (equality.Over is not null)
             {
-                Require(IsTypeReference(equality.Over), "VSIR227", $"Invalid equality over type reference '{equality.Over}'.");
+                Require(IsNamedTypeReference(equality.Over), "VSIR227", $"Invalid equality over type reference '{equality.Over}'.");
                 if (equalityField is not null)
                 {
                     Require(
-                        string.Equals(equalityField.Type, equality.Over, StringComparison.Ordinal),
+                        equalityField.Type == new NamedVsirType(equality.Over),
                         "VSIR228",
                         $"Equality over '{equality.Over}' does not match state field type '{equalityField.Type}'.");
                 }
@@ -157,8 +161,9 @@ public static class DomainTypeValidator
 
         if (isRefined && document.RefinedFrom is not null)
         {
+            var baseType = new NamedVsirType(document.RefinedFrom);
             var baseStateFields = document.State.Fields
-                .Where(x => string.Equals(x.Type, document.RefinedFrom, StringComparison.Ordinal))
+                .Where(x => x.Type == baseType)
                 .ToArray();
             Require(baseStateFields.Length == 1, "VSIR229",
                 $"The currently evidenced refined domain-type shape requires exactly one state field of refined-from type '{document.RefinedFrom}'.");
@@ -186,7 +191,7 @@ public static class DomainTypeValidator
             if (stateField is not null)
             {
                 Require(
-                    string.Equals(stateField.Type, inputType, StringComparison.Ordinal),
+                    stateField.Type == inputType,
                     "VSIR233",
                     $"Refine source type '{inputType}' does not match state.{stateName} type '{stateField.Type}'.");
             }
@@ -209,7 +214,7 @@ public static class DomainTypeValidator
                 {
                     case StringifyProjection stringify:
                     {
-                        Require(representationField.Type == "string", "VSIR235",
+                        Require(representationField.Type == new NamedVsirType("string"), "VSIR235",
                             $"Stringify projection requires representation.{pair.Key} to be string, got '{representationField.Type}'.");
                         Require(stringify.Value.StartsWith("state.", StringComparison.Ordinal), "VSIR236",
                             $"Stringify projection requires a state reference, got '{stringify.Value}'.");
@@ -225,7 +230,7 @@ public static class DomainTypeValidator
             }
         }
 
-        bool TryConstructionSourceForState(string stateName, out string? type)
+        bool TryConstructionSourceForState(string stateName, out VsirType? type)
         {
             if (!document.Construction.Input.IsScalar)
             {
@@ -250,7 +255,7 @@ public static class DomainTypeValidator
             return false;
         }
 
-        bool TryInputReferenceType(string reference, out string? type)
+        bool TryInputReferenceType(string reference, out VsirType? type)
         {
             if (document.Construction.Input.IsScalar)
             {
@@ -283,6 +288,17 @@ public static class DomainTypeValidator
         }
     }
 
-    private static bool IsTypeReference(string type) =>
-        !string.IsNullOrWhiteSpace(type) && TypeReferencePattern.IsMatch(type);
+    private static bool IsTypeReference(VsirType type) =>
+        type switch
+        {
+            NamedVsirType named => IsNamedTypeReference(named.Name),
+            UnaryVsirType unary =>
+                !string.IsNullOrWhiteSpace(unary.Constructor) &&
+                TypeConstructorPattern.IsMatch(unary.Constructor) &&
+                IsTypeReference(unary.Value),
+            _ => false
+        };
+
+    private static bool IsNamedTypeReference(string type) =>
+        !string.IsNullOrWhiteSpace(type) && NamedTypeReferencePattern.IsMatch(type);
 }
