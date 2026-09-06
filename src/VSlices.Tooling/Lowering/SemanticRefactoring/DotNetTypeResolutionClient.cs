@@ -181,7 +181,7 @@ internal static class DotNetTypeResolutionClient
         foreach (var field in document.Representation.Fields)
             AddType(field.Type);
         if (document.Construction.Input.IsScalar)
-            AddName(document.Construction.Input.ScalarType);
+            AddType(document.Construction.Input.ScalarType);
         else
             foreach (var field in document.Construction.Input.Fields)
                 AddType(field.Type);
