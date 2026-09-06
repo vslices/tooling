@@ -23,6 +23,8 @@ public static class CSharpLowerer
         if (diagnostics.Count > 0)
             return new(null, diagnostics);
 
+        ValidateTypeRules(document, context.Rules, diagnostics);
+
         var validationReferences = InitialInputReferences(document.Construction.Input);
         foreach (var step in document.Construction.Steps)
         {
@@ -74,7 +76,7 @@ public static class CSharpLowerer
             return new(null, diagnostics);
 
         var typeName = document.Name;
-        var inputType = InputType(document);
+        var inputType = InputType(document, context.Rules);
         var inputFields = document.Construction.Input.Fields;
         var reprFields = document.Representation.Fields;
         var stateFields = document.State.Fields;
@@ -106,25 +108,25 @@ public static class CSharpLowerer
         source.AppendLine();
         source.AppendLine($"public sealed class {typeName} :");
 
-        var contracts = Contracts(document, inputType).ToArray();
+        var contracts = Contracts(document, inputType, context.Rules).ToArray();
         for (var i = 0; i < contracts.Length; i++)
             source.AppendLine($"    {contracts[i]}{(i == contracts.Length - 1 ? string.Empty : ",")}");
 
         source.AppendLine("{");
-        source.AppendLine($"    public readonly record struct Repr({Parameters(reprFields)});");
+        source.AppendLine($"    public readonly record struct Repr({Parameters(reprFields, context.Rules)});");
 
         if (!document.Construction.Input.IsScalar)
         {
             source.AppendLine();
-            source.AppendLine($"    public readonly record struct Input({Parameters(inputFields)});");
+            source.AppendLine($"    public readonly record struct Input({Parameters(inputFields, context.Rules)});");
         }
 
         source.AppendLine();
         foreach (var field in stateFields)
-            source.AppendLine($"    private readonly {CSharpType(field.Type)} _{Camel(field.Name)};");
+            source.AppendLine($"    private readonly {CSharpType(field.Type, context.Rules)} _{Camel(field.Name)};");
 
         source.AppendLine();
-        source.AppendLine($"    private {typeName}({Parameters(stateFields, camelNames: true)}) =>");
+        source.AppendLine($"    private {typeName}({Parameters(stateFields, context.Rules, camelNames: true)}) =>");
         source.AppendLine($"        {ConstructorAssignment(stateFields)};");
         source.AppendLine();
         source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {typeName}>.Full Invariants =>");
@@ -156,9 +158,10 @@ public static class CSharpLowerer
 
         if (document.RefinedFrom is not null)
         {
-            var baseField = stateFields.Single(x => x.Type == document.RefinedFrom);
+            var baseType = new NamedVsirType(document.RefinedFrom);
+            var baseField = stateFields.Single(x => x.Type == baseType);
             source.AppendLine();
-            source.AppendLine($"    public {CSharpType(document.RefinedFrom)} ToBase() =>");
+            source.AppendLine($"    public {document.RefinedFrom} ToBase() =>");
             source.AppendLine($"        _{Camel(baseField.Name)};");
         }
 
@@ -170,7 +173,10 @@ public static class CSharpLowerer
         return new(source.ToString(), []);
     }
 
-    private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
+    private static IEnumerable<string> Contracts(
+        DomainTypeVsir document,
+        string inputType,
+        CSharpLoweringRuleSet rules)
     {
         var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
         var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
@@ -181,14 +187,14 @@ public static class CSharpLowerer
             yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
 
         if (isRefined)
-            yield return $"Refined<{document.Name}, {CSharpType(document.RefinedFrom!)}, {document.Name}.Repr>";
+            yield return $"Refined<{document.Name}, {document.RefinedFrom}, {document.Name}.Repr>";
 
         yield return $"Transform<{document.Name}, {inputType}>";
     }
 
-    private static string InputType(DomainTypeVsir document) =>
+    private static string InputType(DomainTypeVsir document, CSharpLoweringRuleSet rules) =>
         document.Construction.Input.IsScalar
-            ? CSharpType(document.Construction.Input.ScalarType!)
+            ? CSharpType(document.Construction.Input.ScalarType!, rules)
             : document.Name + ".Input";
 
     private static IReadOnlyDictionary<string, string> ResolveStateExpressions(
@@ -209,6 +215,43 @@ public static class CSharpLowerer
         }
 
         return result;
+    }
+
+    private static void ValidateTypeRules(
+        DomainTypeVsir document,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        foreach (var type in document.State.Fields
+                     .Concat(document.Representation.Fields)
+                     .Concat(document.Construction.Input.Fields)
+                     .Select(field => field.Type))
+        {
+            ValidateTypeRule(type, rules, diagnostics);
+        }
+
+        if (document.Construction.Input.ScalarType is not null)
+            ValidateTypeRule(document.Construction.Input.ScalarType, rules, diagnostics);
+    }
+
+    private static void ValidateTypeRule(
+        VsirType type,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (type is not UnaryVsirType unary)
+            return;
+
+        ValidateTypeRule(unary.Value, rules, diagnostics);
+        if (!rules.TryRenderDeterministicType(
+                $"type.{unary.Constructor}",
+                new Dictionary<string, string> { ["value"] = "T" },
+                out _))
+        {
+            diagnostics.Add(new(
+                "CSL050",
+                $"Target Ruleset does not provide a deterministic type realization for semantic constructor '{unary.Constructor}'."));
+        }
     }
 
     private static void ValidateRepresentationRules(
@@ -452,14 +495,37 @@ public static class CSharpLowerer
         return $"({left}) = ({right})";
     }
 
-    private static string Parameters(IReadOnlyList<Field> fields, bool camelNames = false) =>
+    private static string Parameters(
+        IReadOnlyList<Field> fields,
+        CSharpLoweringRuleSet rules,
+        bool camelNames = false) =>
         string.Join(", ", fields.Select(field =>
         {
             var name = camelNames ? Camel(field.Name) : field.Name;
-            return $"{CSharpType(field.Type)} {name}";
+            return $"{CSharpType(field.Type, rules)} {name}";
         }));
 
-    private static string CSharpType(string type) => type;
+    private static string CSharpType(VsirType type, CSharpLoweringRuleSet rules) =>
+        type switch
+        {
+            NamedVsirType named => named.Name,
+            UnaryVsirType unary => RenderUnaryType(unary, rules),
+            _ => throw new InvalidOperationException($"Unsupported semantic type model '{type.GetType().Name}'.")
+        };
+
+    private static string RenderUnaryType(UnaryVsirType unary, CSharpLoweringRuleSet rules)
+    {
+        var value = CSharpType(unary.Value, rules);
+        if (!rules.TryRenderDeterministicType(
+                $"type.{unary.Constructor}",
+                new Dictionary<string, string> { ["value"] = value },
+                out var rendered))
+        {
+            throw new InvalidOperationException($"Validated type rule 'type.{unary.Constructor}' became unavailable.");
+        }
+
+        return rendered;
+    }
 
     private static string Camel(string value) =>
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
