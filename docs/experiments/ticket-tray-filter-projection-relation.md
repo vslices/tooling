@@ -148,6 +148,38 @@ A Ruleset change becomes justified only after Tooling can represent the relevant
 
 The companion branch in `vslices/ruleset` records the same evidence gate without pre-authorizing a projection primitive.
 
+## Ruleset extensibility enters implementation scope
+
+The current implementation already separates document semantics from environment-provided semantic extensions, but it does not yet establish a general architectural rule for how far Rulesets may extend vocabulary. This experiment makes that rule explicit and treats it as an implementation objective rather than a future aspiration.
+
+The intended ownership boundary is:
+
+```text
+Tooling
+  -> owns the constrained rule language and execution mechanisms
+  -> validates structure, bindings, composition and allowed effects
+
+Ruleset
+  -> owns the semantic vocabulary expressed with that language
+  -> owns target realizations for that vocabulary
+```
+
+Tooling must therefore be restrictive about **how** a Ruleset can express and execute knowledge, but not about **which** semantic capabilities or relations a Ruleset may define.
+
+Built-in semantic names are bootstrap vocabulary, not a whitelist. A new semantic node should not require a Tooling code change merely because its name is new. If an active Ruleset can express the node through already-admitted rule-language mechanisms and Tooling can validate and execute that contract without interpreting undeclared meaning, the node is eligible for use.
+
+Conversely, renderer lookup remains insufficient authority. A Ruleset extension fails closed when it needs an execution/validation mechanism Tooling does not expose, when bindings/types cannot be validated, or when its contract would require Tooling to infer missing semantics.
+
+This PR will use the `Identities.Domain` coverage run to identify existing closed semantic switches that are acting as accidental vocabulary gates. The implementation goal is to generalize only the gates reached by real consumer evidence, while preserving fail-closed behavior.
+
+The review criterion is:
+
+> adding a new Ruleset vocabulary item should require a Tooling change only when the item needs a genuinely new rule-language, validation or execution mechanism.
+
+This criterion applies to the current semantic surfaces under investigation, including type forms, intrinsics, representation projections, construction operations, equality relations, condition operators and traits.
+
+This does **not** place a universal semantic plugin system or arbitrary executable extensions into scope. The extension surface remains constrained by Tooling-owned declarative mechanisms.
+
 ## Explicit non-scope inherited from PR #6
 
 The PR #6 baseline was:
@@ -163,7 +195,9 @@ purity/determinism/idempotence metadata without evidence
 project/folder/batch lowering
 ```
 
-This experiment has now taken **project lowering only** out of the final item. Folder/path-scoped lowering and stronger batch semantics remain outside the current slice as described above.
+This experiment has now taken **project lowering** out of the final item and takes a narrower, constrained form of **Ruleset vocabulary extensibility** into scope. This is not a universal plugin system: Tooling still owns and limits the declarative mechanisms available to Rulesets.
+
+Folder/path-scoped lowering and stronger batch semantics remain outside the current slice as described above.
 
 ## Nominal C# type resolution
 
@@ -203,3 +237,5 @@ private readonly global::Shared.Domain.ValueObjects.Rut _value;
 The first projection iteration succeeds when the CLI exposes the earliest unsupported boundary for `TicketTrayFilter` without inventing semantics, and the result is specific enough to design the next discriminating experiment.
 
 The project-lowering iteration succeeds when a real existing project can be used as a coverage probe: supported artifacts use the existing lowering/lineage behavior, unsupported artifacts remain explicit, and the project shares one prepared Ruleset/extension/target environment rather than rediscovering semantic authority independently for every file.
+
+The Ruleset-extensibility iteration succeeds when a consumer-driven semantic vocabulary addition that is expressible through existing Tooling mechanisms can be supplied by Ruleset/environment knowledge without adding a Tooling-specific semantic-name branch, while vocabulary that requires a genuinely new mechanism still fails explicitly at that mechanism boundary.
