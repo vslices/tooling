@@ -15,18 +15,34 @@ public sealed record DomainTypeVsir(
     EqualitySemantics? Equality);
 
 public sealed record ProductShape(IReadOnlyList<Field> Fields);
-public sealed record Field(string Name, string Type);
+public sealed record Field(string Name, VsirType Type);
+
+public abstract record VsirType
+{
+    public abstract string Display { get; }
+    public override string ToString() => Display;
+}
+
+public sealed record NamedVsirType(string Name) : VsirType
+{
+    public override string Display => Name;
+}
+
+public sealed record UnaryVsirType(string Constructor, VsirType Value) : VsirType
+{
+    public override string Display => $"{Constructor}<{Value.Display}>";
+}
 
 public sealed record ConstructionInput(
     IReadOnlyList<Field> Fields,
-    string? ScalarType)
+    VsirType? ScalarType)
 {
-    public bool IsScalar => !string.IsNullOrWhiteSpace(ScalarType);
+    public bool IsScalar => ScalarType is not null;
 
     public static ConstructionInput Product(IReadOnlyList<Field> fields) =>
         new(fields, null);
 
-    public static ConstructionInput Scalar(string type) =>
+    public static ConstructionInput Scalar(VsirType type) =>
         new([], type);
 }
 
