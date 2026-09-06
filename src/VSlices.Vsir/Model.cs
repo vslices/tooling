@@ -62,7 +62,15 @@ public sealed record StringifyProjection(string Value) : RepresentationProjectio
 public abstract record ConstructionStep;
 public sealed record NormalizeStep(string Target, string Intrinsic) : ConstructionStep;
 public sealed record EnsureStep(Condition Condition, string FailureMessage) : ConstructionStep;
+public sealed record ApplyStep(string Over, ApplyInput Input, string As) : ConstructionStep;
 public sealed record RefineStep(string Value, string As) : ConstructionStep;
+
+public abstract record ApplyInput;
+public sealed record DirectApplyInput(
+    IReadOnlyDictionary<string, string> Fields) : ApplyInput;
+public sealed record MappedApplyInput(
+    string Source,
+    IReadOnlyDictionary<string, string> Map) : ApplyInput;
 
 public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;
