@@ -161,6 +161,19 @@ internal static class DotNetTypeResolutionClient
             names.Add(type);
         }
 
+        void Add(VsirType? type)
+        {
+            switch (type)
+            {
+                case NamedVsirType named:
+                    Add(named.Name);
+                    break;
+                case UnaryVsirType unary:
+                    Add(unary.Value);
+                    break;
+            }
+        }
+
         Add(document.RefinedFrom);
         Add(document.Equality?.Over);
         foreach (var field in document.State.Fields)
