@@ -108,18 +108,31 @@ public sealed class CSharpLoweringRuleSet
     public bool TryRenderDeterministicExpression(
         string node,
         IReadOnlyDictionary<string, string> bindings,
-        out string expression)
+        out string expression) =>
+        TryRenderDeterministic(node, "expression", bindings, out expression);
+
+    public bool TryRenderDeterministicType(
+        string node,
+        IReadOnlyDictionary<string, string> bindings,
+        out string type) =>
+        TryRenderDeterministic(node, "type", bindings, out type);
+
+    private bool TryRenderDeterministic(
+        string node,
+        string renderer,
+        IReadOnlyDictionary<string, string> bindings,
+        out string rendered)
     {
-        expression = string.Empty;
+        rendered = string.Empty;
         if (!_rules.TryGetValue(node, out var rule) ||
             !rule.Mode.Equals("deterministic", StringComparison.OrdinalIgnoreCase) ||
-            !rule.Renderer.Equals("expression", StringComparison.OrdinalIgnoreCase) ||
+            !rule.Renderer.Equals(renderer, StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(rule.Template))
         {
             return false;
         }
 
-        expression = bindings.Aggregate(
+        rendered = bindings.Aggregate(
             rule.Template,
             static (current, pair) => current.Replace(
                 "{" + pair.Key + "}",
@@ -181,8 +194,11 @@ public sealed class CSharpLoweringRuleSet
 
         if (!rule.Mode.Equals("deterministic", StringComparison.OrdinalIgnoreCase))
             diagnostics.Add(new("CSR008", $"Lowering rule '{rule.Node}' uses unsupported mode '{rule.Mode}'."));
-        if (!rule.Renderer.Equals("expression", StringComparison.OrdinalIgnoreCase))
+        if (!rule.Renderer.Equals("expression", StringComparison.OrdinalIgnoreCase) &&
+            !rule.Renderer.Equals("type", StringComparison.OrdinalIgnoreCase))
+        {
             diagnostics.Add(new("CSR009", $"Lowering rule '{rule.Node}' uses unsupported renderer '{rule.Renderer}'."));
+        }
         if (string.IsNullOrWhiteSpace(rule.Template))
             diagnostics.Add(new("CSR010", $"Lowering rule '{rule.Node}' must declare a non-empty template."));
 
