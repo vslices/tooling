@@ -44,8 +44,8 @@ public static class VsirParser
             var shape = Scalar(root, "shape");
             var traits = ReadScalarSequence(root, "traits", "traits", diagnostics);
             var refinedFrom = OptionalScalar(root, "refined-from");
-            var state = Product(root, "state");
-            var representation = Product(root, "representation");
+            var state = Product(root, "state", "state", diagnostics);
+            var representation = Product(root, "representation", "representation", diagnostics);
             var representationMapping = ParseRepresentationMapping(root, diagnostics);
             var equality = ParseEquality(root, diagnostics);
 
@@ -199,14 +199,18 @@ public static class VsirParser
 
         if (node is YamlScalarNode scalar)
         {
-            var type = scalar.Value ?? string.Empty;
-            if (string.IsNullOrWhiteSpace(type))
+            var value = scalar.Value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(value))
+            {
                 diagnostics.Add(new("VSIR111", "Construction scalar input requires a type."));
-            return ConstructionInput.Scalar(type);
+                return ConstructionInput.Product([]);
+            }
+
+            return ConstructionInput.Scalar(new NamedVsirType(value));
         }
 
         if (node is YamlMappingNode mapping)
-            return ConstructionInput.Product(ReadFields(mapping));
+            return ConstructionInput.Product(ReadFields(mapping, "construction.input", diagnostics));
 
         diagnostics.Add(new("VSIR111", "Construction input must be either a scalar type or a product mapping."));
         return ConstructionInput.Product([]);
@@ -386,17 +390,74 @@ public static class VsirParser
 
     private static int Int(YamlMappingNode node, string key) => int.Parse(Scalar(node, key));
 
-    private static ProductShape Product(YamlMappingNode node, string key) =>
+    private static ProductShape Product(
+        YamlMappingNode node,
+        string key,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics) =>
         TryMapping(node, key, out var map)
-            ? new(ReadFields(map))
+            ? new(ReadFields(map, semanticPath, diagnostics))
             : new([]);
 
-    private static IReadOnlyList<Field> ReadFields(YamlMappingNode map) =>
-        map.Children
-            .Select(pair => new Field(
-                ((YamlScalarNode)pair.Key).Value ?? string.Empty,
-                ((YamlScalarNode)pair.Value).Value ?? string.Empty))
-            .ToArray();
+    private static IReadOnlyList<Field> ReadFields(
+        YamlMappingNode map,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var fields = new List<Field>(map.Children.Count);
+        foreach (var pair in map.Children)
+        {
+            if (pair.Key is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
+            {
+                diagnostics.Add(new("VSIR116", $"Semantic product '{semanticPath}' requires scalar field names."));
+                continue;
+            }
+
+            var type = ParseType(pair.Value, $"{semanticPath}.{key.Value}", diagnostics);
+            if (type is not null)
+                fields.Add(new Field(key.Value!, type));
+        }
+
+        return fields;
+    }
+
+    private static VsirType? ParseType(
+        YamlNode node,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (node is YamlScalarNode scalar)
+        {
+            var name = scalar.Value ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                diagnostics.Add(new("VSIR117", $"Semantic type '{semanticPath}' requires a non-empty type reference."));
+                return null;
+            }
+
+            return new NamedVsirType(name);
+        }
+
+        if (node is not YamlMappingNode mapping || mapping.Children.Count != 1)
+        {
+            diagnostics.Add(new(
+                "VSIR118",
+                $"Semantic type '{semanticPath}' must be a scalar reference or a single unary type-constructor mapping."));
+            return null;
+        }
+
+        var pair = mapping.Children.Single();
+        if (pair.Key is not YamlScalarNode constructorNode || string.IsNullOrWhiteSpace(constructorNode.Value))
+        {
+            diagnostics.Add(new("VSIR118", $"Semantic type '{semanticPath}' requires a scalar unary type-constructor name."));
+            return null;
+        }
+
+        var value = ParseType(pair.Value, $"{semanticPath}.{constructorNode.Value}", diagnostics);
+        return value is null
+            ? null
+            : new UnaryVsirType(constructorNode.Value!, value);
+    }
 
     private static bool TryMapping(YamlMappingNode node, string key, out YamlMappingNode mapping)
     {
