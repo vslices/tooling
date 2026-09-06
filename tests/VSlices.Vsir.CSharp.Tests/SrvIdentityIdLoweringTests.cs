@@ -47,7 +47,7 @@ public sealed class SrvIdentityIdLoweringTests
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
         Assert.Equal("Rut", parsed.Document!.RefinedFrom);
         Assert.True(parsed.Document.Construction.Input.IsScalar);
-        Assert.Equal("Rut", parsed.Document.Construction.Input.ScalarType);
+        Assert.Equal(new NamedVsirType("Rut"), parsed.Document.Construction.Input.ScalarType);
         Assert.IsType<RefineStep>(Assert.Single(parsed.Document.Construction.Steps));
         Assert.IsType<StringifyProjection>(Assert.Single(parsed.Document.RepresentationMapping!.Fields).Value);
         Assert.Equal("Rut", parsed.Document.Equality!.Over);
