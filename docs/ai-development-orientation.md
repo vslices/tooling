@@ -86,6 +86,32 @@ Known semantic mappings are fail-closed: unknown keys at root, construction, con
 
 Traits are unordered capabilities. Duplicates and unknown traits fail explicitly. Current subset requires `transform`; `identifier` separately requires equality.
 
+## Ruleset extensibility contract
+
+Tooling owns the constrained language in which Rulesets may express semantic knowledge and target realizations. Rulesets own the vocabulary they build with that language.
+
+The intended boundary is:
+
+```text
+Tooling
+  -> constrains available rule forms, inputs/outputs, bindings, composition,
+     validation, renderers and allowed execution mechanisms
+
+Ruleset
+  -> defines semantic capabilities/relations and target realizations using
+     those constrained mechanisms
+```
+
+Tooling must not treat its built-in vocabulary as the exhaustive universe of valid Ruleset semantics. Built-ins bootstrap the language; they are not a whitelist of what third-party or future Rulesets may define.
+
+Therefore a new Ruleset semantic node must not require a Tooling code change merely because its semantic name is new. If the node can be expressed, validated and executed through already-admitted Tooling mechanisms, Tooling should accept it from the active Ruleset environment.
+
+Conversely, Ruleset extensibility does not grant arbitrary execution. Tooling remains fail-closed when a Ruleset requires a mechanism that the rule language does not expose or when the declared contract is insufficient to validate composition safely. Renderer/template existence alone never grants semantic authority.
+
+When adding new built-in semantics, prefer expressing them as instances of reusable rule-language mechanisms instead of adding another closed `switch`/enum branch. A Tooling code change is justified when the new evidence requires a genuinely new expression/validation/execution mechanism, not merely a new Ruleset vocabulary item.
+
+This extensibility rule applies across the existing semantic surfaces, including intrinsics, projections, construction operations, equality relations, condition operators, traits and type forms. Existing closed implementations may remain as bootstrap machinery while they are progressively generalized, but they must not be treated as architectural limits of what a Ruleset may ultimately express.
+
 ## Ruleset update contract
 
 ```text
