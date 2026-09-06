@@ -10,7 +10,10 @@ Read current repository evidence before relying on chat history. Suggested order
 4. `docs/context.vslices-tooling.md`
 5. `docs/rulesets.md`
 6. `docs/configuration.md`
-7. implementation/tests for the concrete case.
+7. `src/VSlices.Vsir/README.md` when work touches VSIR semantics, parsing or validation.
+8. implementation/tests for the concrete case.
+
+For VSIR semantics, `src/VSlices.Vsir/README.md` is the closest orientation surface. Consumer-project documents are evidence about real cases, not schema authority merely because they were written first.
 
 ## Cross-repository authority map
 
