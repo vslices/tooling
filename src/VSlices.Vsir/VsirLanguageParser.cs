@@ -155,6 +155,9 @@ public static class VsirLanguageParser
 
             switch (operation.Value)
             {
+                case "normalize":
+                    ParseNormalize(payload, diagnostics, result);
+                    break;
                 case "ensure":
                     ParseEnsure(payload, diagnostics, result);
                     break;
@@ -178,6 +181,23 @@ public static class VsirLanguageParser
         }
 
         return result;
+    }
+
+    private static void ParseNormalize(
+        YamlMappingNode normalize,
+        ICollection<VsirDiagnostic> diagnostics,
+        ICollection<ConstructionStep> result)
+    {
+        RejectUnknownKeys(normalize, ["target", "intrinsic"], "construction[].normalize", diagnostics);
+        var target = Scalar(normalize, "target");
+        var intrinsic = Scalar(normalize, "intrinsic");
+        if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(intrinsic))
+        {
+            diagnostics.Add(new("VSIR120", "Normalize requires target and intrinsic."));
+            return;
+        }
+
+        result.Add(new NormalizeStep(target, intrinsic));
     }
 
     private static void ParseEnsure(
@@ -217,9 +237,17 @@ public static class VsirLanguageParser
             return;
         }
 
-        var failureMessage = TryMapping(ensure, "failure", out var failure)
-            ? Scalar(failure, "message")
-            : string.Empty;
+        string failureMessage;
+        if (TryMapping(ensure, "failure", out var failure))
+        {
+            RejectUnknownKeys(failure, ["message"], "construction[].ensure.failure", diagnostics);
+            failureMessage = Scalar(failure, "message");
+        }
+        else
+        {
+            failureMessage = string.Empty;
+        }
+
         if (string.IsNullOrWhiteSpace(failureMessage))
         {
             diagnostics.Add(new("VSIR103", "Ensure step requires failure.message."));
@@ -238,9 +266,16 @@ public static class VsirLanguageParser
         var source = Scalar(resolve, "source");
         var id = Scalar(resolve, "id");
         var binding = Scalar(resolve, "as");
-        var failureMessage = TryMapping(resolve, "failure", out var failure)
-            ? Scalar(failure, "message")
-            : string.Empty;
+        string failureMessage;
+        if (TryMapping(resolve, "failure", out var failure))
+        {
+            RejectUnknownKeys(failure, ["message"], "construction[].resolve.failure", diagnostics);
+            failureMessage = Scalar(failure, "message");
+        }
+        else
+        {
+            failureMessage = string.Empty;
+        }
 
         if (string.IsNullOrWhiteSpace(source) || string.IsNullOrWhiteSpace(id) ||
             string.IsNullOrWhiteSpace(binding) || string.IsNullOrWhiteSpace(failureMessage))
