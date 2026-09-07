@@ -1,22 +1,26 @@
 # VSlices CLI specification
 
-Status: experimental. This document describes the intended command semantics of the `vslices` CLI while the progressive migration workflow is being explored. Implementation may temporarily lag behind the VSIR language specification; discrepancies must remain explicit.
+Status: experimental. This document describes the intended command semantics of the `vslices` CLI while progressive VSIR authoring is being explored. Language-level VSIR semantics are owned by `vslices/intermediate-representation`; this document specifies CLI interaction semantics.
 
 ## 1. Purpose
 
-The CLI is an operational surface for creating, discovering, refining, locating and materializing VSlices artifacts without requiring a human or AI agent to know the final structure in advance.
+The CLI supports progressive creation, discovery, refinement, location and materialization of VSlices artifacts without requiring the final structure to be known up front.
 
-The primary authoring rule is:
+The primary authoring rule remains:
 
 > Declare only what is currently justified by evidence.
 
-The CLI therefore favors progressive transitions over one-shot generation.
+The current VSIR authoring protocol is:
 
-Language-level VSIR semantics are owned by `vslices/intermediate-representation`. This document specifies CLI interaction semantics, not the VSIR language itself.
+```text
+vslices new vsir <artifact>
+vslices discovery vsir <artifact>
+vslices update vsir <artifact> ...
+```
+
+`new` establishes known facts, `discovery` exposes the immediate authorized frontier, and `update` applies an atomic semantic transition.
 
 ## 2. General command families
-
-The general subject-oriented surface is:
 
 ```text
 vslices init
@@ -26,20 +30,16 @@ vslices search --filter <property>:<operator>:<value>
 vslices update <subject>
 ```
 
-VSIR-specific transformation commands such as `lower`, `rebase` and `transpile` remain separate because they operate on VSIR lifecycle or materialization rather than general artifact-management verbs.
-
-Implemented update subjects also include:
+VSIR lifecycle commands such as `lower`, `rebase` and `transpile` remain separate. Implemented update subjects also include:
 
 ```text
 vslices update self
 vslices update ruleset
 ```
 
-No flag-oriented compatibility aliases are retained while the CLI is experimental.
-
 ## 3. Progressive `new vsir`
 
-The minimum useful act during reconstruction is naming a concept:
+The minimum useful act remains naming a concept:
 
 ```text
 vslices new vsir StreetName
@@ -52,44 +52,46 @@ vsir: 0.1
 name: StreetName
 ```
 
-The absence of `kind` or `classification` is not permission to infer them.
-
 The currently implemented authoring flags are:
 
 ```text
 --kind
+--shape
 --classification
 --tags
 ```
 
+`--shape` and `--classification` require `--kind` because their validity is kind-specific.
+
 For example:
-
-```text
-vslices new vsir StreetName --kind domain-type
-```
-
-or:
 
 ```text
 vslices new vsir StreetName \
   --kind domain-type \
+  --shape product \
   --classification value-object \
   --tags addressing,street
 ```
 
-which may produce:
+may produce:
 
 ```yaml
 vsir: 0.1
 kind: domain-type
 name: StreetName
 tags: ['addressing', 'street']
+shape: product
 classification: value-object
 ```
 
-`--classification` requires `--kind` because classification validity is kind-specific.
+Current Domain Type shapes are:
 
-For the current `domain-type` authoring contract, the accepted classifications are:
+```text
+product
+sum
+```
+
+Current Domain Type classifications are:
 
 ```text
 value-object
@@ -99,235 +101,216 @@ maintained
 aggregate-root
 ```
 
-Tags are different: they are organizational and associative metadata, so `--tags` does not require a kind or classification and does not imply either one.
+Tags remain organizational metadata. They do not require a kind, shape or classification and imply no semantic behavior.
 
-No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, values, equality, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
+## 4. Domain Type core frontier
 
-## 4. Tags
-
-Tags preserve provisional organizational knowledge without pretending that such knowledge is semantic classification.
+Once `kind: domain-type` is established, discovery exposes the core Domain Type contract:
 
 ```text
-tags
-  -> association / organization knowledge
+shape
+  status: required
+  value kind: enum
+  operations: set
+  values: product, sum
 
-kind / classification
-  -> semantic knowledge
-```
-
-Tags do not imply kind, classification, traits, sections, lowering rules or target realizations.
-
-They form a set of non-empty, single-line, unique strings. Their order is preserved when possible, but order has no semantic meaning.
-
-Because tags may evolve independently from semantic classification, they remain available throughout progressive authoring rather than occupying one step in the `name -> kind -> classification` semantic sequence.
-
-## 5. `search`
-
-`search` locates VSIR artifacts beneath the current directory using an explicit property filter.
-
-The filter grammar is:
-
-```text
-<property>:<operator>:<value>
-```
-
-For example:
-
-```text
-vslices search --filter tags:contains:identity-service
-```
-
-returns VSIR files whose root `tags` sequence contains the exact `identity-service` value.
-
-The first implemented operators are:
-
-```text
-contains
-  -> for a sequence, exact member containment
-  -> for a scalar, ordinal substring containment
-
-equals
-  -> ordinal scalar equality
-```
-
-Examples:
-
-```text
-vslices search --filter tags:contains:identity-service
-vslices search --filter classification:equals:value-object
-vslices search --filter name:contains:Ticket
-```
-
-The first implementation filters root properties only. Unknown properties do not match. Unsupported operators fail closed rather than being guessed.
-
-Search is read-only. It does not mutate VSIR artifacts, infer missing properties, or treat a textual match as semantic authority.
-
-Search respects the existing artifact discovery policy, including built-in exclusions such as `.git`, `.vslices`, `bin` and `obj`, plus project `.vslices/.ignore` rules when available.
-
-## 6. `discovery vsir`
-
-`discovery vsir` exposes the immediate semantic frontier currently implemented by Tooling, together with always-available organizational surfaces.
-
-Each discovered attribute explains both its role and its current obligation status:
-
-```text
-status: required | optional
-meaning: <semantic explanation>
-value kind: <expected structure>
-operations: <currently supported mutations>
-values: <currently supported values, when the contract is enumerated>
-```
-
-A required attribute is part of the contract activated by the artifact's current semantic declarations. An optional attribute is available but is not required merely by the current state.
-
-For a named artifact without `kind`:
-
-```text
-vslices discovery vsir StreetName
-
-Immediate frontier:
-
-  tags
-    status: optional
-    meaning: Organizational labels used to associate and search artifacts. Tags do not imply semantic behavior.
-    value kind: set<string>
-    operations: add, remove, set
-
-  kind
-    status: required
-    meaning: Selects the VSIR artifact family and determines which declarations are meaningful for the artifact.
-    value kind: enum
-    operations: set
-    values: domain-type
-```
-
-After `kind: domain-type` is established, `classification` becomes available while tags remain available.
-
-For a classified value object such as:
-
-```yaml
-vsir: 0.1
-kind: domain-type
-name: StreetName
-tags: ['addressing', 'street']
-classification: value-object
-```
-
-classification obligations become visible:
-
-```text
 state
   status: required
-  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties support add, remove and set; derived state may declare a direct state source through state.<property>.from.
-  value kind: map<property, declaration>
   operations: add, remove, set
 
 representation
   status: required
-  meaning: Declares the observable form through which a valid Domain Type can be represented. Child properties support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.
-  value kind: map<property, declaration>
   operations: add, remove, set
 
-traits
-  status: optional
-  meaning: Declares additional semantic capabilities that are not already implied by the Domain Type classification.
-  value kind: set<string>
-  operations: add, remove, set
-  values: transform
+classification
+  status: required
+  value kind: enum
+  operations: set
 ```
 
-A maintained Domain Type activates additional required surfaces:
+This reflects the current language rule:
+
+```text
+kind: domain-type
+  -> requires shape
+  -> requires state
+  -> requires representation
+  -> requires classification
+```
+
+Progressive authoring may temporarily leave one or more of these obligations unresolved. Discovery reports the obligation without inventing its value.
+
+## 5. Shapes
+
+### `shape: product`
+
+A product-shaped Domain Type treats top-level `state` entries as simultaneous properties.
 
 ```yaml
-vsir: 0.1
-kind: domain-type
-name: IdentityType
-classification: maintained
+shape: product
+state:
+  Street: StreetName
+  Number: string
 ```
+
+Product state authoring uses child property paths:
+
+```text
+vslices update vsir Location --add state.Street=StreetName
+vslices update vsir Location --add state.Number=string
+vslices update vsir Location --set state.Number=int
+vslices update vsir Location --remove state.Number
+```
+
+A product state property may also declare direct semantic provenance:
+
+```text
+vslices update vsir Location \
+  --set state.Region.from=state.Commune.InProvince.InRegion
+```
+
+which may expand shorthand into:
+
+```yaml
+state:
+  Region:
+    type: Region
+    from: state.Commune.InProvince.InRegion
+```
+
+`state.<property>.from` accepts direct `state.*` references. Removing `from` preserves the field type and collapses back to shorthand when possible.
+
+### `shape: sum`
+
+A sum-shaped Domain Type treats top-level `state` entries as mutually exclusive variants. Exactly one variant is active in one valid instance.
+
+Discovery exposes sum state as:
 
 ```text
 state
   status: required
-  value kind: map<property, declaration>
+  value kind: map<variant, product-payload>
   operations: add, remove, set
+```
 
-representation
-  status: required
-  value kind: map<property, declaration>
-  operations: add, remove, set
+Each variant is authored at the variant boundary with a product payload mapping:
 
-values
-  status: required
-  meaning: Declares the maintained members and the semantic state associated with each member.
-  value kind: map<member, state>
-  operations: add, remove, set
+```text
+vslices update vsir ContactMethod \
+  --add "state.Email={Value: EmailAddress}"
 
+vslices update vsir ContactMethod \
+  --add "state.Phone={Number: PhoneNumber}"
+```
+
+which materializes as:
+
+```yaml
+shape: sum
+state:
+  Email:
+    Value: EmailAddress
+  Phone:
+    Number: PhoneNumber
+```
+
+Variants may carry an empty payload:
+
+```text
+vslices update vsir ApprovalState --add "state.Pending={}"
+```
+
+A scalar declaration such as `state.Pending=string` is rejected for `shape: sum` because a sum entry is a variant with a product payload, not a product state property.
+
+Changing an existing product-style state to `shape: sum` fails closed when the existing state cannot be interpreted as sum variants.
+
+Nested authoring inside a sum variant payload is not yet exposed. The current operation changes the complete payload at `state.<variant>`.
+
+### Shape mutation
+
+Shape itself supports only `set`:
+
+```text
+vslices update vsir StreetName --set shape=product
+vslices update vsir ContactMethod --set shape=sum
+```
+
+Unknown shapes fail closed.
+
+## 6. Representation
+
+Every Domain Type exposes `representation` as a required writable map.
+
+For product-shaped Domain Types, direct child authoring is available:
+
+```text
+vslices update vsir StreetName --add representation.Value=string
+```
+
+A representation property can declare a direct state source:
+
+```text
+vslices update vsir IdentityType \
+  --set representation.Value.from=state.Name
+```
+
+which may materialize as:
+
+```yaml
+representation:
+  Value:
+    type: string
+    from: state.Name
+```
+
+`representation.<property>.from` is direct reuse of a state value and is mutually exclusive with `mapping`.
+
+For `shape: sum`, discovery additionally states that the representation must preserve enough information to reconstruct which state variant is active. The normalized discriminator / variant-specific mapping grammar is not yet exposed by the CLI; Tooling must not invent one.
+
+## 7. Classification-specific obligations
+
+Classification adds obligations on top of the Domain Type core contract.
+
+### `classification: identifier`
+
+```text
+identifier
+  -> equality required
+```
+
+Discovery exposes:
+
+```text
 equality
   status: required
-  meaning: Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.
   value kind: strategy
-  operations: not implemented
-
-traits
-  status: optional
-  values: transform
+  operations: set
 ```
 
-`classification: maintained` requires `state`, `representation`, and `equality`, and semantically implies the `maintained` trait. The implied trait is reflected by the required `values` frontier; `maintained` is not offered as an explicit value under `traits`.
-
-The current evidenced `IdentityType` equality contract is:
-
-```yaml
-equality:
-  intrinsic: ordinal-equals
-  by: state.Name
-```
-
-Discovery exposes `equality` as a required semantic obligation, but equality mutation is intentionally not implemented yet. The CLI therefore does not invent a generic equality-editing grammar before that authoring contract is specified.
-
-The `values` line on `traits` is authoritative for the explicit trait vocabulary currently supported by Tooling. At this stage the only explicitly authorable trait is:
+Example:
 
 ```text
-transform
-  -> declares that the Domain Type can be established from an explicit input contract
-  -> requires input
-  -> requires construction
+vslices update vsir SrvIdentityId \
+  --set "equality={over: Rut, by: state.Value}"
 ```
 
-Classification-implied traits such as `maintained`, `identifier`, `entity`, or `aggregate-root` are not offered as explicit choices merely because they exist in the effective trait model. Additional explicit traits must be introduced deliberately as their contracts are specified.
-
-Once `transform` is present, discovery follows the trait contract and exposes any missing obligations:
+or:
 
 ```text
-input
-  status: required
-  meaning: Declares what enters the transform before Domain Type validity has been established.
-  value kind: map<property, declaration>
-  operations: not implemented
-
-construction
-  status: required
-  meaning: Declares the semantic conditions and steps that establish a valid Domain Type from the transform input.
-  value kind: sequence<step>
-  operations: not implemented
+vslices update vsir SrvIdentityId \
+  --set "equality={intrinsic: ordinal-equals, by: state.Value}"
 ```
 
-These entries are obligations derived from the effective trait, not optional authoring suggestions. They disappear from the immediate frontier once the corresponding sections exist. Their mutation syntax remains intentionally unavailable until the input and construction authoring contracts are specified; discovery exposes the obligation without inventing an editing grammar.
-
-`state`, `representation`, and `values` where applicable remain visible after their first content is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing. `equality` is likewise reported as a required maintained contract even though its authoring operations are not yet exposed.
-
-The current structured state/representation authoring subset operates on child properties rather than replacing a whole map:
+### `classification: maintained`
 
 ```text
-vslices update vsir StreetName --add state.Value=string
-vslices update vsir StreetName --add representation.Value=string
-vslices update vsir StreetName --set state.Value=Rut
-vslices update vsir StreetName --remove state.Value
+maintained
+  -> equality required
+  -> implied trait maintained
+       -> values required
 ```
 
-For direct property declarations, `add` requires that the property is absent, `set` requires that it already exists, and `remove` requires that it already exists. Attempting to remove the final property of a required `state` or `representation` map fails closed.
-
-Maintained `values` uses the same add/remove/set distinction at the member boundary. A member declaration is supplied as a constrained inline YAML mapping whose only current top-level member field is `state`:
+`values` supports add/remove/set at the member boundary:
 
 ```text
 vslices update vsir IdentityType \
@@ -339,128 +322,60 @@ vslices update vsir IdentityType \
 vslices update vsir IdentityType --remove values.Natural
 ```
 
-This materializes as:
+A maintained member name does not imply its state. Add/set requires an explicit non-empty `state` mapping. Removing the final maintained member fails closed.
 
-```yaml
-values:
-  Natural:
-    state:
-      Name: Natural
-  Juridical:
-    state:
-      Name: Juridica
-```
-
-The member name and member state remain distinct. Tooling does not infer `Name: Natural` merely from the member name `Natural`. A maintained member declaration therefore requires an explicit non-empty `state` mapping. Removing the final maintained member fails closed because `values` is required by the effective `maintained` trait.
-
-A derived state property exposes its provenance through `from`:
+Equality uses the same `set` authoring surface as identifiers:
 
 ```text
-vslices update vsir Location --set state.Region.from=state.Commune.InProvince.InRegion
+vslices update vsir IdentityType \
+  --set "equality={intrinsic: ordinal-equals, by: state.Name}"
 ```
 
-If `state.Region` was declared in scalar shorthand, Tooling preserves its type while expanding the declaration:
+`maintained` is classification-implied and is not offered as an explicit trait value.
 
-```yaml
-state:
-  Region:
-    type: Region
-    from: state.Commune.InProvince.InRegion
-```
+## 8. Traits
 
-`state.<property>.from` accepts direct `state.*` references. Removing the relation collapses the declaration back to scalar shorthand when only `type` remains.
-
-A representation property can now declare the direct state value that supplies it:
+The currently explicitly authorable trait vocabulary is:
 
 ```text
-vslices update vsir IdentityType --set representation.Value.from=state.Name
+transform
 ```
 
-which expands a scalar declaration as needed:
+Traits support:
 
-```yaml
-representation:
-  Value:
-    type: string
-    from: state.Name
+```text
+add
+remove
+set
 ```
 
-`representation.<property>.from` is for direct reuse of a state value only. It accepts `state.*` references and is mutually exclusive with a representation `mapping`. Semantic transformations such as stringify/select/map continue to belong to `mapping`; deeper mapping authoring is not implemented yet.
-
-`traits` is currently writable after a Domain Type classification is known:
+Example:
 
 ```text
 vslices update vsir StreetName --add traits=transform
 ```
 
-Unknown explicit trait values fail closed rather than being accepted as opaque strings.
+Unknown explicit traits fail closed.
 
-Discovery may project supported mutations without mutating the artifact:
+An effective `transform` trait requires:
 
 ```text
-vslices discovery vsir StreetName --set kind=domain-type
-vslices discovery vsir StreetName --add tags=addressing
-vslices discovery vsir StreetName --add traits=transform
-vslices discovery vsir StreetName --add state.Value=string
-vslices discovery vsir IdentityType --add "values.Natural={state: {Name: Natural}}"
-vslices discovery vsir IdentityType --set representation.Value.from=state.Name
+input
+construction
 ```
 
-Projecting `--add traits=transform` therefore also projects the newly activated `input` and `construction` obligations in the returned frontier.
+Discovery reports missing `input` and `construction` as required obligations. Their mutation grammar is not yet implemented.
 
-The projected candidate is validated in memory and discarded after discovery.
+## 9. Tags
 
-## 7. `update vsir`
-
-The current progressive VSIR update surface supports:
+Tags are organizational and associative metadata:
 
 ```text
-kind
-  -> set
-
-classification
-  -> set
-
 tags
   -> add, remove, set
-
-traits
-  -> add, remove, set
-  -> current explicit values: transform
-
-state.<property>
-  -> add, remove, set
-
-representation.<property>
-  -> add, remove, set
-
-values.<member>
-  -> add, remove, set
-  -> only when classification: maintained
-  -> add/set value: {state: {<property>: <value>, ...}}
-
-state.<property>.from
-  -> add, remove, set
-  -> value must be a state.* reference
-
-representation.<property>.from
-  -> add, remove, set
-  -> value must be a state.* reference
-  -> mutually exclusive with representation mapping
 ```
-
-`equality` is currently a discovered required contract for `classification: maintained`, but it is not yet writable through `update vsir`.
 
 Examples:
-
-```text
-vslices update vsir StreetName --set kind=domain-type
-```
-
-```text
-vslices update vsir StreetName \
-  --set "kind=domain-type;classification=value-object"
-```
 
 ```text
 vslices update vsir StreetName --add tags=addressing,street
@@ -468,156 +383,136 @@ vslices update vsir StreetName --remove tags=street
 vslices update vsir StreetName --set tags=identity,addressing
 ```
 
-```text
-vslices update vsir StreetName --add traits=transform
-```
+Tags are non-empty, single-line and unique. Their order has no semantic meaning.
+
+## 10. `search`
+
+`search` locates VSIR artifacts beneath the current directory using:
 
 ```text
-vslices update vsir StreetName \
-  --add "state.Value=string;representation.Value=string"
+<property>:<operator>:<value>
 ```
+
+Current operators:
 
 ```text
-vslices update vsir IdentityType \
-  --add "values.Natural={state: {Name: Natural}}"
+contains
+  -> sequence: exact member containment
+  -> scalar: ordinal substring containment
+
+equals
+  -> scalar: ordinal equality
 ```
+
+Examples:
 
 ```text
-vslices update vsir IdentityType \
-  --set representation.Value.from=state.Name
+vslices search --filter tags:contains:identity-service
+vslices search --filter classification:equals:value-object
+vslices search --filter shape:equals:sum
+vslices search --filter name:contains:Ticket
 ```
 
-For map-property or maintained-member removal the value is unnecessary, so the concise form is valid:
+The current implementation filters root properties only. Unsupported operators fail closed. Search is read-only and respects artifact discovery exclusions.
+
+## 11. Discovery projections
+
+Discovery may project supported mutations without persisting them:
 
 ```text
-vslices update vsir Location --remove state.Number
-vslices update vsir Location --remove state.Region.from
-vslices update vsir IdentityType --remove representation.Value.from
-vslices update vsir IdentityType --remove values.Natural
+vslices discovery vsir StreetName --set kind=domain-type
+vslices discovery vsir StreetName --set shape=product
+vslices discovery vsir ContactMethod --set shape=sum
+vslices discovery vsir StreetName --add tags=addressing
+vslices discovery vsir StreetName --add traits=transform
+vslices discovery vsir StreetName --add state.Value=string
+vslices discovery vsir ContactMethod --add "state.Email={Value: EmailAddress}"
+vslices discovery vsir IdentityType --add "values.Natural={state: {Name: Natural}}"
 ```
 
-Set-valued removal still names the values being removed:
+Projection uses the same candidate mutation and validation path as `update`, then discards the candidate.
 
-```text
-vslices update vsir StreetName --remove tags=street
-```
+## 12. Atomic update semantics
 
-A complete invocation is one semantic/organizational transaction:
+One `update vsir` invocation is one transaction:
 
 ```text
 read current artifact
   -> apply requested mutations to an in-memory candidate
-  -> validate the candidate
+  -> validate candidate
   -> serialize candidate
   -> commit atomically
 ```
 
-If validation or persistence fails, the original artifact remains unchanged.
+If any mutation, authorization, validation, serialization or persistence step fails, the original artifact remains unchanged.
 
-Unsupported semantic paths, operations, or enumerated semantic values fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
+Unsupported semantic paths, operations or enumerated semantic values fail closed. `update` is not a generic YAML editor.
 
-## 8. Current authoring frontier
-
-The implemented semantic sequence now reaches maintained and trait-derived obligations:
+## 13. Current authoring frontier
 
 ```text
 name
   -> kind
-  -> classification
-       -> value-object/entity/aggregate-root
-            -> state / representation
-       -> maintained
-            -> state / representation
-            -> values
-            -> equality (required, authoring not implemented)
-  -> optional explicit traits
-       -> transform
-            -> required input
-            -> required construction
+       -> domain-type
+            -> shape
+                 -> product | sum
+            -> state
+            -> representation
+            -> classification
+                 -> value-object
+                 -> identifier
+                      -> equality
+                 -> maintained
+                      -> equality
+                      -> implied maintained
+                           -> values
+                 -> entity
+                 -> aggregate-root
+            -> optional explicit traits
+                 -> transform
+                      -> input required
+                      -> construction required
 ```
 
-Tags remain orthogonal to that sequence:
+Tags remain orthogonal and writable throughout progressive authoring.
+
+Current deliberate limits include:
 
 ```text
-tags
-  <-> may be added, removed or replaced at any current authoring stage
+representation mapping authoring
+sum discriminator / variant-specific representation grammar
+nested sum-variant payload mutation
+input authoring
+construction authoring
+additional explicit traits
+entity-specific state.Id validation
 ```
 
-Concretely:
-
-```text
-new vsir
-  -> may establish --tags
-  -> may establish --kind
-  -> may establish --classification when kind is known
-
-discovery vsir
-  -> always exposes tags
-  -> exposes kind, then classification
-  -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
-  -> after maintained, exposes state, representation, values and equality as required contracts
-  -> equality currently reports operations: not implemented
-  -> explains the direct state-source relation available under both state and representation
-  -> after classification, exposes traits as optional and transform as the currently available explicit value
-  -> when transform is effective, exposes missing input and construction as required obligations
-
-search
-  -> may filter current VSIR artifacts by an implemented root property filter
-
-update vsir
-  -> can add/remove/set tags and traits
-  -> validates explicit traits against the currently supported vocabulary
-  -> can set kind and classification atomically
-  -> can add/remove/set direct state and representation properties
-  -> can add/remove/set maintained members under values
-  -> can establish/change/remove state.<property>.from
-  -> can establish/change/remove representation.<property>.from
-  -> rejects representation declarations that combine from and mapping
-  -> does not yet author equality, representation mapping, input or construction
-```
-
-Equality authoring, input/construction authoring, representation mapping authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
-
-## 9. Agent-facing invariants
+## 14. Agent-facing invariants
 
 - creating or updating an artifact must not silently infer unsupported semantic knowledge;
-- tags remain organizational metadata and must not imply semantic declarations;
-- tags are non-empty, single-line and unique;
-- `classification` is not writable before a compatible `kind` is established in the resulting candidate;
-- `maintained` is an accepted Domain Type classification;
-- `value-object`, `entity`, `maintained`, and `aggregate-root` expose `state` and `representation` as required writable maps;
-- `classification: maintained` requires `equality`;
-- `classification: maintained` implies the `maintained` trait and exposes `values` as a required writable map;
-- discovery reports `equality` as required for `maintained` while equality mutation remains unavailable;
-- `maintained` is not offered as an explicit trait because it is classification-implied;
-- maintained `values` supports add/remove/set at `values.<member>`;
-- add/set of a maintained member requires an explicit non-empty `state` mapping;
-- a maintained member name does not imply its state;
-- removing the final maintained member fails closed;
-- `values` is rejected for non-maintained classifications;
-- discovery distinguishes required obligations from optional authoring surfaces;
-- every discovered attribute carries a concise explanation of what it means;
-- map-level operations apply to explicitly authorized child paths, not arbitrary YAML structure;
-- adding an existing state/representation property fails rather than silently replacing it;
-- setting a missing state/representation property fails rather than silently creating it;
-- removing the final property of a required state/representation map fails closed;
-- `state.<property>.from` declares direct semantic provenance from a `state.*` reference;
-- `representation.<property>.from` declares a direct `state.*` source without transformation;
-- representation `from` and `mapping` are mutually exclusive;
-- removing a local `from` relation preserves the field type and collapses back to shorthand when possible;
-- unsupported deeper state/representation paths remain fail-closed;
-- `traits` is an optional Domain Type capability surface and supports add/remove/set after a Domain Type kind is established;
-- discovery exposes the currently supported explicit trait vocabulary;
+- `kind: domain-type` activates required `shape`, `state`, `representation`, and `classification` frontiers;
+- shape is explicit and supports only `product` and `sum` today;
+- shape mutation supports only `set`;
+- product state top-level entries are simultaneous properties;
+- sum state top-level entries are mutually exclusive variants;
+- sum variants are authored as product payload mappings and may be empty;
+- scalar top-level state entries are invalid once `shape: sum` is established;
+- variant identity must not be inferred from payload structure;
+- a sum representation must preserve the active variant, even though its normalized authoring grammar is still open;
+- state and representation remain required for every Domain Type regardless of classification;
+- removing the final state or representation entry fails closed when the map is required;
+- `classification: identifier` requires `equality`;
+- `classification: maintained` requires `equality` and implies `maintained`, which requires `values`;
+- equality supports only `set`;
+- maintained values support add/remove/set at `values.<member>`;
+- `state.<property>.from` is product-state semantic provenance from a direct `state.*` reference;
+- `representation.<property>.from` is a direct `state.*` source and is mutually exclusive with mapping;
 - the currently supported explicit trait vocabulary contains only `transform`;
-- unknown explicit trait values fail closed;
-- an effective `transform` trait requires both `input` and `construction`;
-- discovery reports missing `input` and `construction` as required obligations while `transform` is effective;
-- reporting those obligations does not authorize input/construction mutation before their editing contracts exist;
-- `search` is read-only and explicit about its filter operator;
-- unsupported search operators fail closed;
-- `discovery` must not mutate filesystem or artifact state;
-- discovery projections use the same candidate validation as update;
-- a complete `update` invocation is one transaction;
+- an effective `transform` requires both `input` and `construction`;
+- discovery does not authorize mutation of a semantic surface whose editing contract is not implemented;
+- tags remain organizational metadata and imply no semantic declarations;
+- discovery projections are non-persistent;
 - candidate validation occurs before persistence;
 - failure leaves the original artifact unchanged;
 - unsupported paths and operations fail closed;
