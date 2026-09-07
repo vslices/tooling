@@ -7,44 +7,6 @@ public sealed class VsirMutationEngineTests
         name: StreetName
         """;
 
-    [Fact]
-    public void Add_and_remove_tags_are_one_set_transition()
-    {
-        var source = """
-            vsir: 0.1
-            name: StreetName
-            tags: [addressing, street]
-            """;
-
-        var result = VsirMutationEngine.Apply(
-            source,
-            [
-                new(VsirMutationKind.Remove, "tags", "street"),
-                new(VsirMutationKind.Add, "tags", "identity,location")
-            ]);
-
-        Assert.True(result.IsSuccess, result.Error);
-        Assert.Contains("addressing", result.Source);
-        Assert.Contains("identity", result.Source);
-        Assert.Contains("location", result.Source);
-        Assert.DoesNotContain("street", result.Source);
-    }
-
-    [Fact]
-    public void Add_and_remove_same_tag_is_rejected_before_candidate_is_returned()
-    {
-        var result = VsirMutationEngine.Apply(
-            Named,
-            [
-                new(VsirMutationKind.Add, "tags", "identity"),
-                new(VsirMutationKind.Remove, "tags", "identity")
-            ]);
-
-        Assert.False(result.IsSuccess);
-        Assert.StartsWith("UPDATE019:", result.Error);
-        Assert.Null(result.Source);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -82,15 +44,12 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_from_named_artifact_exposes_explained_tags_and_kind()
+    public void Discovery_from_named_artifact_exposes_kind_without_non_semantic_metadata_surfaces()
     {
         var frontier = VsirMutationEngine.Discover(Named, out var error);
 
         Assert.Null(error);
-        var tags = Assert.Single(frontier, item => item.Path == "tags");
-        Assert.Equal(VsirFrontierStatus.Optional, tags.Status);
-        Assert.Contains("Organizational", tags.Meaning, StringComparison.Ordinal);
-
+        Assert.DoesNotContain(frontier, item => item.Path == "tags");
         var kind = Assert.Single(frontier, item => item.Path == "kind");
         Assert.Equal(VsirFrontierStatus.Required, kind.Status);
         Assert.Contains("artifact family", kind.Meaning, StringComparison.Ordinal);
@@ -109,7 +68,7 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-        Assert.Contains(frontier, item => item.Path == "tags");
+        Assert.DoesNotContain(frontier, item => item.Path == "tags");
         var classification = Assert.Single(frontier, item => item.Path == "classification");
         Assert.Equal(VsirFrontierStatus.Required, classification.Status);
         Assert.Contains("semantic class", classification.Meaning, StringComparison.Ordinal);
@@ -125,7 +84,7 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
-            tags: [addressing, street]
+            shape: product
             classification: value-object
             """;
 
@@ -161,6 +120,7 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             traits: [transform]
             state:
@@ -172,7 +132,6 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
         Assert.Equal("map<property, declaration> | scalar semantic type", input.ValueKind);
@@ -195,6 +154,7 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             traits: [transform]
             state:
@@ -228,6 +188,7 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             state:
               Value: string
@@ -241,7 +202,7 @@ public sealed class VsirMutationEngineTests
         Assert.Contains(frontier, item => item.Path == "state");
         Assert.Contains(frontier, item => item.Path == "representation");
         Assert.Contains(frontier, item => item.Path == "traits");
-        Assert.Contains(frontier, item => item.Path == "tags");
+        Assert.DoesNotContain(frontier, item => item.Path == "tags");
     }
 
     [Fact]
@@ -251,12 +212,11 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             """;
 
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "traits", "transform")]);
+        var result = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Add, "traits", "transform")]);
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("traits: [transform]", result.Source);
@@ -269,12 +229,11 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             """;
 
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "traits", "unknown")]);
+        var result = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Add, "traits", "unknown")]);
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE026:", result.Error);
@@ -288,6 +247,7 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             """;
 
@@ -311,20 +271,17 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             state:
               Value: string
             """;
 
-        var duplicate = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "state.Value", "Rut")]);
+        var duplicate = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Add, "state.Value", "Rut")]);
         Assert.False(duplicate.IsSuccess);
         Assert.StartsWith("UPDATE021:", duplicate.Error);
 
-        var missing = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "state.Other", "string")]);
+        var missing = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Set, "state.Other", "string")]);
         Assert.False(missing.IsSuccess);
         Assert.StartsWith("UPDATE022:", missing.Error);
     }
@@ -336,14 +293,13 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: WrappedRut
+            shape: product
             classification: value-object
             state:
               Value: string
             """;
 
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "state.Value", "Rut")]);
+        var result = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Set, "state.Value", "Rut")]);
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("Value: Rut", result.Source);
@@ -356,23 +312,18 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: Location
+            shape: product
             classification: value-object
             state:
               Street: string
               Number: string
             """;
 
-        var first = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Remove, "state.Number", "ignored")]);
-
+        var first = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Remove, "state.Number", "ignored")]);
         Assert.True(first.IsSuccess, first.Error);
         Assert.DoesNotContain("Number:", first.Source);
 
-        var last = VsirMutationEngine.Apply(
-            first.Source!,
-            [new(VsirMutationKind.Remove, "state.Street", "ignored")]);
-
+        var last = VsirMutationEngine.Apply(first.Source!, [new(VsirMutationKind.Remove, "state.Street", "ignored")]);
         Assert.False(last.IsSuccess);
         Assert.StartsWith("UPDATE024:", last.Error);
     }
@@ -384,30 +335,22 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: Location
+            shape: product
             classification: value-object
             state:
               Region: Region
             """;
 
-        var established = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.InProvince.InRegion")]);
-
+        var established = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.InProvince.InRegion")]);
         Assert.True(established.IsSuccess, established.Error);
         Assert.Contains("type: Region", established.Source);
         Assert.Contains("from: state.Commune.InProvince.InRegion", established.Source);
 
-        var changed = VsirMutationEngine.Apply(
-            established.Source!,
-            [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.Region")]);
-
+        var changed = VsirMutationEngine.Apply(established.Source!, [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.Region")]);
         Assert.True(changed.IsSuccess, changed.Error);
         Assert.Contains("from: state.Commune.Region", changed.Source);
 
-        var removed = VsirMutationEngine.Apply(
-            changed.Source!,
-            [new(VsirMutationKind.Remove, "state.Region.from", "ignored")]);
-
+        var removed = VsirMutationEngine.Apply(changed.Source!, [new(VsirMutationKind.Remove, "state.Region.from", "ignored")]);
         Assert.True(removed.IsSuccess, removed.Error);
         Assert.Contains("Region: Region", removed.Source);
         Assert.DoesNotContain("from:", removed.Source);
@@ -420,14 +363,13 @@ public sealed class VsirMutationEngineTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             representation:
               Value: string
             """;
 
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "representation.Value.mapping.stringify", "state.Value")]);
+        var result = VsirMutationEngine.Apply(source, [new(VsirMutationKind.Set, "representation.Value.mapping.stringify", "state.Value")]);
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE004:", result.Error);
