@@ -6,9 +6,9 @@ internal static class DiscoveryCommands
 {
     /// <summary>Shows the immediate semantic mutation frontier for a VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Projected add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state/representation/input properties, local from relations, sum variants and maintained values.</param>
-    /// <param name="remove">Projected remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties, local from relations, input properties, variants and maintained members may use path alone.</param>
-    /// <param name="set">Projected set mutations as semicolon-separated path=value clauses. Current writable surfaces include kind, shape, classification, state, representation, representation.&lt;property&gt;.mapping, input, construction, equality, traits, variants and maintained values.</param>
+    /// <param name="add">Projected collection additions as semicolon-separated path=value clauses. Add is reserved for collection-valued surfaces such as tags and traits.</param>
+    /// <param name="remove">Projected removals as semicolon-separated clauses. Set-valued surfaces use path=value; removable assertions use path alone.</param>
+    /// <param name="set">Projected semantic assertions as semicolon-separated path=value clauses. Set establishes a missing assertion or replaces an existing one when the advertised path permits it.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -71,10 +71,78 @@ internal static class DiscoveryCommands
                 : $"  operations: {string.Join(", ", path.Operations.Select(DisplayOperation))}");
             if (path.AllowedValues is { Count: > 0 })
                 Console.WriteLine($"  values: {string.Join(", ", path.AllowedValues)}");
+
+            foreach (var template in CommandTemplates(artifact, path))
+                Console.WriteLine($"  command: {template}");
         }
 
         return 0;
     }
+
+    internal static IReadOnlyList<string> CommandTemplates(
+        string artifact,
+        VsirPathContract contract)
+    {
+        var result = new List<string>();
+        var commandPath = CommandPath(contract.Path);
+        var placeholder = ValuePlaceholder(contract);
+
+        foreach (var operation in contract.Operations.OrderBy(OperationOrder))
+        {
+            switch (operation)
+            {
+                case VsirMutationKind.Set:
+                    result.Add($"vslices update vsir {artifact} --set \"{commandPath}={placeholder}\"");
+                    if (contract.Path == "input")
+                        result.Add($"vslices update vsir {artifact} --set \"input=<scalar-semantic-type>\"");
+                    break;
+
+                case VsirMutationKind.Add:
+                    result.Add($"vslices update vsir {artifact} --add \"{commandPath}=<value>\"");
+                    break;
+
+                case VsirMutationKind.Remove:
+                    result.Add(contract.Path is "tags" or "traits"
+                        ? $"vslices update vsir {artifact} --remove \"{commandPath}=<value>\""
+                        : $"vslices update vsir {artifact} --remove \"{commandPath}\"");
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    private static string CommandPath(string path) => path switch
+    {
+        "state" => "state.<property>",
+        "representation" => "representation.<property>",
+        "input" => "input.<property>",
+        "variants" => "variants.<variant>",
+        "values" => "values.<member>",
+        _ => path
+    };
+
+    private static string ValuePlaceholder(VsirPathContract contract)
+    {
+        if (contract.AllowedValues is { Count: > 0 })
+            return $"<one-of:{string.Join('|', contract.AllowedValues)}>";
+
+        return contract.Path switch
+        {
+            "state" or "representation" or "input" => "<semantic-field-declaration>",
+            "variants" => "<variant-declaration>",
+            "values" => "<maintained-member-declaration>",
+            _ => $"<{contract.ValueKind.Replace(' ', '-').ToLowerInvariant()}>"
+        };
+    }
+
+    private static int OperationOrder(VsirMutationKind kind) => kind switch
+    {
+        VsirMutationKind.Set => 0,
+        VsirMutationKind.Add => 1,
+        VsirMutationKind.Remove => 2,
+        _ => 3
+    };
 
     private static string DisplayOperation(VsirMutationKind kind) =>
         kind.ToString().ToLowerInvariant();
