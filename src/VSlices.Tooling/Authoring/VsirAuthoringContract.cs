@@ -28,24 +28,26 @@ internal static class VsirAuthoringContract
 
     public static IReadOnlyList<string> Kinds { get; } = [DomainTypeKind];
 
+    // Public authoring advertises only shapes that the canonical parser,
+    // validator and lowering pipeline can currently consume end-to-end.
     public static IReadOnlyList<string> DomainTypeShapes { get; } =
     [
-        "product",
-        "sum"
+        "product"
     ];
 
+    // Classification is deliberately narrower than the historical authoring
+    // experiment. Identifier/refined semantics are expressed as traits on the
+    // currently evidenced value-object classification, matching canonical VSIR.
     public static IReadOnlyList<string> DomainTypeClassifications { get; } =
     [
-        "value-object",
-        "entity",
-        "identifier",
-        "maintained",
-        "aggregate-root"
+        "value-object"
     ];
 
     public static IReadOnlyList<string> ExplicitDomainTypeTraits { get; } =
     [
-        "transform"
+        "transform",
+        "identifier",
+        "refined"
     ];
 
     public static IReadOnlyList<VsirPathContract> Discover(
@@ -79,48 +81,32 @@ internal static class VsirAuthoringContract
             "shape",
             "enum",
             VsirFrontierStatus.Required,
-            "Declares how one valid Domain Type instance is structurally composed. Product means all state coordinates coexist; sum means shared state plus exactly one named variant is active.",
+            "Declares how one valid Domain Type instance is structurally composed. The current canonical end-to-end surface admits product shape.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set },
             DomainTypeShapes));
 
         if (string.IsNullOrWhiteSpace(shape) || !DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
             return result;
 
-        var sumShape = string.Equals(shape, "sum", StringComparison.Ordinal);
-
         result.Add(new(
             "state",
             "map<property, declaration>",
             VsirFrontierStatus.Required,
-            sumShape
-                ? "Declares state shared by every variant of the sum-shaped Domain Type. The map may be empty; establish a named shared coordinate with set over state.<property>."
-                : "Declares the observable semantic properties that constitute a valid instance. Establish a named coordinate such as state.Value with set over state.<property>; derived coordinates may declare semantic provenance through state.<property>.from.",
+            "Declares the observable semantic properties that constitute a valid instance. Establish a named coordinate such as state.Value with set over state.<property>; derived coordinates may declare semantic provenance through state.<property>.from.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
 
         result.Add(new(
             "representation",
             "map<property, declaration>",
             VsirFrontierStatus.Required,
-            sumShape
-                ? "Declares representation shared by every variant. Establish a named shared coordinate with set over representation.<property>; the effective representation must preserve the active variant."
-                : "Declares the observable representation. Establish a named coordinate such as representation.Value with set over representation.<property>; direct reuse uses representation.<property>.from and semantic transformation uses representation.<property>.mapping.",
+            "Declares the observable representation. Establish a named coordinate such as representation.Value with set over representation.<property>; direct reuse uses representation.<property>.from and semantic transformation uses representation.<property>.mapping.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
-
-        if (sumShape)
-        {
-            result.Add(new(
-                "variants",
-                "map<variant, declaration>",
-                VsirFrontierStatus.Required,
-                "Declares mutually exclusive alternatives. Establish a named alternative with set over variants.<variant>; existing variants are exposed separately when removable or replaceable.",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
-        }
 
         result.Add(new(
             "classification",
             "enum",
             VsirFrontierStatus.Required,
-            "Declares the base semantic class of the Domain Type and activates classification-specific obligations.",
+            "Declares the base semantic class of the Domain Type. The current canonical end-to-end surface admits value-object; additional capabilities are expressed through traits.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set },
             DomainTypeClassifications));
 
@@ -130,33 +116,14 @@ internal static class VsirAuthoringContract
             return result;
         }
 
-        if (classification == "maintained")
-        {
-            result.Add(new(
-                "values",
-                "map<member, state>",
-                VsirFrontierStatus.Required,
-                "Declares maintained members and their semantic state. Establish a named member with set over values.<member>; existing members are exposed separately when replaceable or removable.",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
-        }
-
-        if (classification is "identifier" or "maintained")
-        {
-            result.Add(new(
-                "equality",
-                "strategy",
-                VsirFrontierStatus.Required,
-                classification == "identifier"
-                    ? "Declares the authoritative equality strategy for the identifier."
-                    : "Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
-        }
-
+        var hasTransform = explicitTraits.Contains("transform", StringComparer.Ordinal);
         result.Add(new(
             "traits",
             "set<string>",
-            VsirFrontierStatus.Optional,
-            "Declares additional semantic capabilities that are not already implied by the Domain Type classification.",
+            hasTransform ? VsirFrontierStatus.Optional : VsirFrontierStatus.Required,
+            hasTransform
+                ? "Declares additional semantic capabilities beyond the required transform capability. Identifier and refined are currently evidenced end-to-end."
+                : "Declares semantic capabilities. The current canonical Domain Type surface requires transform; identifier and refined may add further obligations.",
             new HashSet<VsirMutationKind>
             {
                 VsirMutationKind.Add,
@@ -165,15 +132,39 @@ internal static class VsirAuthoringContract
             },
             ExplicitDomainTypeTraits));
 
-        if (explicitTraits.Contains("transform", StringComparer.Ordinal))
+        if (explicitTraits.Contains("identifier", StringComparer.Ordinal))
+        {
+            result.Add(new(
+                "equality",
+                "strategy",
+                VsirFrontierStatus.Required,
+                "Declares the authoritative equality strategy required by identifier semantics.",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
+        }
+
+        if (explicitTraits.Contains("refined", StringComparer.Ordinal))
+        {
+            result.Add(new(
+                "refined-from",
+                "semantic-type",
+                VsirFrontierStatus.Required,
+                "Declares the semantic base type refined by this Domain Type. Canonical VSIR uses kebab-case 'refined-from'.",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
+        }
+
+        if (hasTransform)
         {
             if (!hasInput)
             {
                 result.Add(new(
                     "input",
-                    "map<property, declaration> | scalar semantic type",
+                    explicitTraits.Contains("refined", StringComparer.Ordinal)
+                        ? "scalar semantic type"
+                        : "map<property, declaration> | scalar semantic type",
                     VsirFrontierStatus.Required,
-                    "Declares what enters the transform before Domain Type validity has been established. Establish scalar input with set input=<type>, or establish a named product field with set over input.<property>.",
+                    explicitTraits.Contains("refined", StringComparer.Ordinal)
+                        ? "Declares the scalar base value entering refined construction. It must match refined-from for a conforming refined Domain Type."
+                        : "Declares what enters the transform before Domain Type validity has been established. Establish scalar input with set input=<type>, or establish a named product field with set over input.<property>.",
                     new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
             }
 
@@ -203,11 +194,11 @@ internal static class VsirAuthoringContract
             "shape" when !string.Equals(currentKind, DomainTypeKind, StringComparison.Ordinal) =>
                 "UPDATE033: 'shape' is not writable until kind 'domain-type' is established.",
             "shape" when !DomainTypeShapes.Contains(value, StringComparer.Ordinal) =>
-                $"UPDATE034: Shape '{value}' is not valid for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeShapes)}.",
+                $"UPDATE034: Shape '{value}' is not part of the current end-to-end authoring/lowering surface for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeShapes)}.",
             "classification" when !string.Equals(currentKind, DomainTypeKind, StringComparison.Ordinal) =>
                 "UPDATE007: 'classification' is not writable until kind 'domain-type' is established.",
             "classification" when !DomainTypeClassifications.Contains(value, StringComparer.Ordinal) =>
-                $"UPDATE008: Classification '{value}' is not valid for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeClassifications)}.",
+                $"UPDATE008: Classification '{value}' is not part of the current end-to-end authoring/lowering surface for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeClassifications)}.",
             _ => null
         };
     }
