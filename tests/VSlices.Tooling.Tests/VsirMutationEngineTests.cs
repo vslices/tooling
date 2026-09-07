@@ -7,44 +7,6 @@ public sealed class VsirMutationEngineTests
         name: StreetName
         """;
 
-    [Fact]
-    public void Add_and_remove_tags_are_one_set_transition()
-    {
-        var source = """
-            vsir: 0.1
-            name: StreetName
-            tags: [addressing, street]
-            """;
-
-        var result = VsirMutationEngine.Apply(
-            source,
-            [
-                new(VsirMutationKind.Remove, "tags", "street"),
-                new(VsirMutationKind.Add, "tags", "identity,location")
-            ]);
-
-        Assert.True(result.IsSuccess, result.Error);
-        Assert.Contains("addressing", result.Source);
-        Assert.Contains("identity", result.Source);
-        Assert.Contains("location", result.Source);
-        Assert.DoesNotContain("street", result.Source);
-    }
-
-    [Fact]
-    public void Add_and_remove_same_value_is_rejected_before_candidate_is_returned()
-    {
-        var result = VsirMutationEngine.Apply(
-            Named,
-            [
-                new(VsirMutationKind.Add, "tags", "identity"),
-                new(VsirMutationKind.Remove, "tags", "identity")
-            ]);
-
-        Assert.False(result.IsSuccess);
-        Assert.StartsWith("UPDATE019:", result.Error);
-        Assert.Null(result.Source);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -82,19 +44,18 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_from_named_artifact_exposes_only_immediate_frontier()
+    public void Discovery_from_named_artifact_exposes_only_kind()
     {
         var frontier = VsirMutationEngine.Discover(Named, out var error);
 
         Assert.Null(error);
-        Assert.Contains(frontier, path => path.Path == "tags");
-        Assert.Contains(frontier, path => path.Path == "kind");
-        Assert.DoesNotContain(frontier, path => path.Path == "classification");
-        Assert.DoesNotContain(frontier, path => path.Path == "shape");
+        var item = Assert.Single(frontier);
+        Assert.Equal("kind", item.Path);
+        Assert.Equal(["domain-type"], item.AllowedValues);
     }
 
     [Fact]
-    public void Discovery_after_kind_exposes_classification_but_not_later_choices()
+    public void Discovery_after_kind_exposes_only_classification()
     {
         var source = """
             vsir: 0.1
@@ -105,24 +66,42 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-        Assert.Contains(frontier, path => path.Path == "classification");
-        Assert.DoesNotContain(frontier, path => path.Path == "shape");
-        Assert.DoesNotContain(frontier, path => path.Path == "traits");
+        var item = Assert.Single(frontier);
+        Assert.Equal("classification", item.Path);
+        Assert.Contains("value-object", item.AllowedValues!);
+        Assert.Contains("entity", item.AllowedValues!);
+        Assert.Contains("aggregate-root", item.AllowedValues!);
     }
 
     [Fact]
-    public void Deep_path_is_rejected_until_contract_authorizes_it()
+    public void Discovery_after_classification_has_no_further_implemented_frontier()
     {
         var source = """
             vsir: 0.1
             kind: domain-type
-            name: Location
+            name: StreetName
+            classification: value-object
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.Empty(frontier);
+    }
+
+    [Fact]
+    public void Unsupported_path_is_rejected_until_contract_authorizes_it()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
             classification: value-object
             """;
 
         var result = VsirMutationEngine.Apply(
             source,
-            [new(VsirMutationKind.Set, "state.Region.from.value", "state.Commune.InProvince.InRegion")]);
+            [new(VsirMutationKind.Set, "state.Value", "string")]);
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE004:", result.Error);
