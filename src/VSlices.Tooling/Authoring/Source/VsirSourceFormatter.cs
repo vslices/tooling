@@ -10,7 +10,7 @@ internal static class VsirSourceFormatter
         yaml.Load(new StringReader(source));
 
         if (yaml.Documents.Count == 1)
-            ForceBlockStyle(yaml.Documents[0].RootNode);
+            ForceReadableStyle(yaml.Documents[0].RootNode);
 
         using var writer = new StringWriter();
         yaml.Save(writer, assignAnchors: false);
@@ -18,20 +18,26 @@ internal static class VsirSourceFormatter
         return RemoveDocumentMarkers(writer.ToString(), source);
     }
 
-    private static void ForceBlockStyle(YamlNode node)
+    private static void ForceReadableStyle(YamlNode node, bool forceSequenceBlock = false)
     {
         switch (node)
         {
             case YamlMappingNode mapping:
                 mapping.Style = YamlDotNet.Core.Events.MappingStyle.Block;
-                foreach (var child in mapping.Children.Values)
-                    ForceBlockStyle(child);
+                foreach (var (keyNode, valueNode) in mapping.Children)
+                {
+                    var isConstruction = keyNode is YamlScalarNode key &&
+                        string.Equals(key.Value, "construction", StringComparison.Ordinal);
+                    ForceReadableStyle(valueNode, forceSequenceBlock || isConstruction);
+                }
                 break;
 
             case YamlSequenceNode sequence:
-                sequence.Style = YamlDotNet.Core.Events.SequenceStyle.Block;
+                if (forceSequenceBlock)
+                    sequence.Style = YamlDotNet.Core.Events.SequenceStyle.Block;
+
                 foreach (var child in sequence.Children)
-                    ForceBlockStyle(child);
+                    ForceReadableStyle(child, forceSequenceBlock);
                 break;
         }
     }
