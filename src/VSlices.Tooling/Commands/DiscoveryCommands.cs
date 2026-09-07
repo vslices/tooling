@@ -4,11 +4,11 @@ namespace VSlices.Tooling;
 
 internal static class DiscoveryCommands
 {
-    /// <summary>Shows the immediate semantic mutation frontier for a VSIR artifact.</summary>
+    /// <summary>Shows the immediate semantic frontier plus always-available artifact metadata operations.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Projected collection additions as semicolon-separated path=value clauses. Add is reserved for genuinely collection-valued semantic surfaces such as traits.</param>
+    /// <param name="add">Projected collection additions as semicolon-separated path=value clauses. Add is available for searchable tags metadata and semantic traits.</param>
     /// <param name="remove">Projected removals as semicolon-separated clauses. Set-valued surfaces use path=value; removable assertions use path alone.</param>
-    /// <param name="set">Projected semantic assertions as semicolon-separated path=value clauses. Set establishes a missing assertion or replaces an existing one when the advertised path permits it.</param>
+    /// <param name="set">Projected assertions as semicolon-separated path=value clauses. Set establishes a missing assertion or replaces an existing one when the advertised path permits it.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -37,22 +37,46 @@ internal static class DiscoveryCommands
         var inspectedSource = source;
         if (projections.Count > 0)
         {
-            var projected = VsirMutationPipeline.Apply(source, projections);
-            if (!projected.IsSuccess)
+            var metadataProjections = projections
+                .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
+                .ToArray();
+            var semanticProjections = projections
+                .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
+                .ToArray();
+
+            if (semanticProjections.Length > 0)
             {
-                TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
-                return 2;
+                var projected = VsirMutationPipeline.Apply(inspectedSource, semanticProjections);
+                if (!projected.IsSuccess)
+                {
+                    TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
+                    return 2;
+                }
+
+                inspectedSource = projected.Source!;
             }
 
-            inspectedSource = projected.Source!;
+            if (metadataProjections.Length > 0)
+            {
+                var projected = VsirMetadataAuthoring.Apply(inspectedSource, metadataProjections);
+                if (!projected.IsSuccess)
+                {
+                    TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
+                    return 2;
+                }
+
+                inspectedSource = projected.Source!;
+            }
         }
 
-        var frontier = VsirMutationPipeline.Discover(inspectedSource, out var error);
+        var frontier = VsirMutationPipeline.Discover(inspectedSource, out var error).ToList();
         if (error is not null)
         {
             TerminalOutput.Error(error);
             return 2;
         }
+
+        frontier.Insert(0, VsirMetadataAuthoring.TagsContract);
 
         var state = VsirArtifactState.Assess(inspectedSource, frontier);
         Console.WriteLine("Artifact state:");
