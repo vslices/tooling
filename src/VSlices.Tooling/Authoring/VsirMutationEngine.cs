@@ -734,7 +734,7 @@ internal static class VsirMutationEngine
         var exists = declaration.Children.ContainsKey(fromKey);
 
         if (mutation.Kind == VsirMutationKind.Add && exists)
-            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.",
+            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.";
         if (mutation.Kind == VsirMutationKind.Remove && !exists)
             return $"UPDATE023: Semantic property 'representation.{fieldName}.from' does not exist and cannot be removed.";
 
