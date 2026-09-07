@@ -11,9 +11,10 @@ Read current repository evidence before relying on chat history. Suggested order
 5. `docs/rulesets.md`
 6. `docs/configuration.md`
 7. `src/VSlices.Vsir/README.md` when work touches VSIR semantics, parsing or validation.
-8. implementation/tests for the concrete case.
+8. the current VSIR language specification in `vslices/intermediate-representation/SPECIFICATION.md` when language semantics are involved.
+9. implementation/tests for the concrete case.
 
-For VSIR semantics, `src/VSlices.Vsir/README.md` is the closest orientation surface. Consumer-project documents are evidence about real cases, not schema authority merely because they were written first.
+For VSIR language semantics, `vslices/intermediate-representation` is the authority. `src/VSlices.Vsir/README.md` explains how Tooling relates to that authority and where executable support lives. Consumer-project documents are evidence about real cases, not schema authority merely because they were written first.
 
 ## Cross-repository authority map
 
@@ -33,11 +34,14 @@ config.yaml
 lineage
   = deterministic ancestry evidence
 
+vslices/intermediate-representation
+  = VSIR language semantics and reconstructible file contract
+
 vslices/ruleset
   = revisable target-lowering knowledge
 
 vslices/tooling
-  = mechanisms, coordination, guarantees, CLI and target adapters
+  = mechanisms, coordination, guarantees, CLI, VSIR executable support and target adapters
 
 target-native tooling
   = target-owned facts
@@ -183,4 +187,4 @@ An in-process Tooling test reference exposed a case-insensitive assembly-name co
 
 ## Continuity
 
-When command semantics, authority, project context, lineage or ruleset behavior changes materially, update the closest repository document in the same change. Repository artifacts must remain sufficient to reconstruct accepted behavior without conversation history.
+When command semantics, authority, project context, lineage, ruleset behavior or VSIR executable support changes materially, update the closest owning repository document in the same change. VSIR language changes belong in `vslices/intermediate-representation`; Tooling documentation should reference them rather than duplicate them.
