@@ -5,19 +5,20 @@ namespace VSlices.Vsir.CSharp.Tests;
 
 public sealed class VsirParserSemanticConservationTests
 {
-    [Theory]
-    [InlineData("identifier, transform")]
-    [InlineData("transform, identifier")]
-    public void TicketId_traits_are_unordered_capabilities(string traits)
+    [Fact]
+    public void TicketId_identifier_classification_does_not_require_an_identifier_trait()
     {
-        var parsed = VsirParser.Parse(TicketIdLike($"[{traits}]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
+
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        Assert.Equal("identifier", parsed.Document!.Classification);
+        Assert.Equal(["transform"], parsed.Document.Traits);
     }
 
     [Fact]
     public void TicketId_semantics_are_preserved_and_lowered_through_identifier_structure_and_ruleset_equality()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
         Assert.Equal(new EqualitySemantics("ordinal-equals", null, "state.Value"), parsed.Document!.Equality);
         var rules = CSharpLoweringRuleSet.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset"));
@@ -31,7 +32,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Identifier_lowering_stops_when_equality_ruleset_knowledge_is_missing()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
         Assert.True(parsed.IsSuccess);
         var temporary = Path.Combine(Path.GetTempPath(), "vslices-ruleset-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(temporary, "csharp"));
@@ -67,7 +68,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Identifier_requires_explicit_equality_semantics()
     {
-        var source = TicketIdLike("[identifier, transform]");
+        var source = TicketIdLike("[transform]");
         var equalityStart = source.IndexOf("\nequality:", StringComparison.Ordinal);
         Assert.True(equalityStart >= 0);
         source = source[..equalityStart];
@@ -79,7 +80,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Duplicate_traits_are_rejected()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform, identifier]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform, transform]"));
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR217");
     }
@@ -159,7 +160,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Unsupported_root_semantics_are_rejected()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]") + "\nlifecycle:\n  imaginary: true\n");
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]") + "\nlifecycle:\n  imaginary: true\n");
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR104" && d.Message.Contains("lifecycle", StringComparison.Ordinal));
     }
@@ -167,7 +168,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Unknown_equality_semantics_are_rejected()
     {
-        var source = TicketIdLike("[identifier, transform]").Replace("  by: state.Value", "  by: state.Value\n  imaginary-new-semantic: true", StringComparison.Ordinal);
+        var source = TicketIdLike("[transform]").Replace("  by: state.Value", "  by: state.Value\n  imaginary-new-semantic: true", StringComparison.Ordinal);
         var parsed = VsirParser.Parse(source);
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR104" && d.Message.Contains("equality.imaginary-new-semantic", StringComparison.Ordinal));
@@ -246,7 +247,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Equality_must_reference_known_state()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR215");
     }
@@ -281,7 +282,7 @@ public sealed class VsirParserSemanticConservationTests
         vsir: 0.1
         kind: domain-type
         name: TicketIdLike
-        classification: value-object
+        classification: identifier
         shape: product
         traits: {{traits}}
         state:
