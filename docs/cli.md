@@ -182,49 +182,63 @@ state:
 
 ### `shape: sum`
 
-A sum-shaped Domain Type treats top-level `state` entries as mutually exclusive variants. Exactly one variant is active in one valid instance.
+A sum-shaped Domain Type is represented as shared state and representation plus a required set of mutually exclusive variants:
 
-Discovery exposes sum state as:
+```text
+shared product × (VariantA + VariantB + ...)
+```
+
+Discovery exposes:
 
 ```text
 state
   status: required
-  value kind: map<variant, product-payload>
+  value kind: map<property, declaration>
+  operations: add, remove, set
+  meaning: shared state; may be empty
+
+representation
+  status: required
+  value kind: map<property, declaration>
+  operations: add, remove, set
+  meaning: shared representation; may be empty
+
+variants
+  status: required
+  value kind: map<variant, declaration>
   operations: add, remove, set
 ```
 
-Each variant is authored at the variant boundary with a product payload mapping:
+A sum without shared coordinates may establish the required empty maps explicitly:
 
 ```text
-vslices update vsir ContactMethod \
-  --add "state.Email={Value: EmailAddress}"
-
-vslices update vsir ContactMethod \
-  --add "state.Phone={Number: PhoneNumber}"
+vslices update vsir Name --set "state={};representation={}"
 ```
 
-which materializes as:
-
-```yaml
-shape: sum
-state:
-  Email:
-    Value: EmailAddress
-  Phone:
-    Number: PhoneNumber
-```
-
-Variants may carry an empty payload:
+Variants are authored at the complete variant boundary:
 
 ```text
-vslices update vsir ApprovalState --add "state.Pending={}"
+vslices update vsir Name \
+  --add "variants.CompanyName={traits: [transform], state: {Value: string}, representation: {Value: string}, input: {Value: string}, construction: [{refine: {state: {Value: input.Value}}}]}"
 ```
 
-A scalar declaration such as `state.Pending=string` is rejected for `shape: sum` because a sum entry is a variant with a product payload, not a product state property.
+A variant may declare local:
 
-Changing an existing product-style state to `shape: sum` fails closed when the existing state cannot be interpreted as sum variants.
+```text
+state
+representation
+traits
+input
+construction
+```
 
-Nested authoring inside a sum variant payload is not yet exposed. The current operation changes the complete payload at `state.<variant>`.
+and may also be empty when variant identity alone is meaningful:
+
+```text
+vslices update vsir Status --add "variants.Pending={}"
+```
+
+The final variant cannot be removed. `variants` is rejected for `shape: product`.
 
 ### Shape mutation
 
@@ -265,7 +279,7 @@ representation:
 
 `representation.<property>.from` is direct reuse of a state value and is mutually exclusive with `mapping`.
 
-For `shape: sum`, discovery additionally states that the representation must preserve enough information to reconstruct which state variant is active. The normalized discriminator / variant-specific mapping grammar is not yet exposed by the CLI; Tooling must not invent one.
+For `shape: sum`, shared representation is combined with the active variant's local representation. The effective representation must preserve the active variant.
 
 ## 7. Classification-specific obligations
 
@@ -333,7 +347,7 @@ vslices update vsir IdentityType \
 
 `maintained` is classification-implied and is not offered as an explicit trait value.
 
-## 8. Traits
+## 8. Traits and transform authoring
 
 The currently explicitly authorable trait vocabulary is:
 
@@ -357,14 +371,61 @@ vslices update vsir StreetName --add traits=transform
 
 Unknown explicit traits fail closed.
 
-An effective `transform` trait requires:
+An effective root `transform` trait requires:
 
 ```text
 input
 construction
 ```
 
-Discovery reports missing `input` and `construction` as required obligations. Their mutation grammar is not yet implemented.
+Discovery exposes both surfaces as required and writable:
+
+```text
+input
+  status: required
+  value kind: map<property, declaration> | scalar semantic type
+  operations: add, remove, set
+
+construction
+  status: required
+  value kind: sequence<step>
+  operations: set
+```
+
+Structured input may be authored progressively at property boundaries:
+
+```text
+vslices update vsir StreetName --add input.Value=string
+vslices update vsir StreetName --set input.Value=Rut
+vslices update vsir StreetName --remove input.Value
+```
+
+The complete input contract may also be set, including scalar input:
+
+```text
+vslices update vsir SrvIdentityId --set input=Rut
+vslices update vsir StreetName --set "input={Value: string}"
+```
+
+`construction` is an ordered sequence, so its current authoring boundary uses `set` over the complete sequence rather than pretending that ordered steps already have stable semantic identities.
+
+For `StreetName`:
+
+```text
+vslices update vsir StreetName \
+  --set "construction=[{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: Debes especificar una calle}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: Debe tener 30 caracteres o menos (Enviados {length})}}}, {refine: {state: {Value: input.Value}}}]"
+```
+
+The currently admitted construction step names are:
+
+```text
+ensure
+resolve
+apply
+refine
+```
+
+Unknown step names fail closed. Input and construction authoring is rejected until the root `transform` trait has been established.
 
 ## 9. Tags
 
@@ -426,7 +487,7 @@ vslices discovery vsir ContactMethod --set shape=sum
 vslices discovery vsir StreetName --add tags=addressing
 vslices discovery vsir StreetName --add traits=transform
 vslices discovery vsir StreetName --add state.Value=string
-vslices discovery vsir ContactMethod --add "state.Email={Value: EmailAddress}"
+vslices discovery vsir StreetName --add input.Value=string
 vslices discovery vsir IdentityType --add "values.Natural={state: {Name: Natural}}"
 ```
 
@@ -455,7 +516,11 @@ name
   -> kind
        -> domain-type
             -> shape
-                 -> product | sum
+                 -> product
+                 -> sum
+                      -> shared state
+                      -> shared representation
+                      -> variants
             -> state
             -> representation
             -> classification
@@ -470,8 +535,8 @@ name
                  -> aggregate-root
             -> optional explicit traits
                  -> transform
-                      -> input required
-                      -> construction required
+                      -> input
+                      -> construction
 ```
 
 Tags remain orthogonal and writable throughout progressive authoring.
@@ -479,12 +544,12 @@ Tags remain orthogonal and writable throughout progressive authoring.
 Current deliberate limits include:
 
 ```text
+structured semantic type authoring at ordinary state/representation fields
 representation mapping authoring
-sum discriminator / variant-specific representation grammar
-nested sum-variant payload mutation
-input authoring
-construction authoring
-additional explicit traits
+nested sum-variant mutation beneath variants.<variant>
+additional explicit traits such as refined
+refined-from authoring
+identity authoring
 entity-specific state.Id validation
 ```
 
@@ -493,24 +558,23 @@ entity-specific state.Id validation
 - creating or updating an artifact must not silently infer unsupported semantic knowledge;
 - `kind: domain-type` activates required `shape`, `state`, `representation`, and `classification` frontiers;
 - shape is explicit and supports only `product` and `sum` today;
-- shape mutation supports only `set`;
 - product state top-level entries are simultaneous properties;
-- sum state top-level entries are mutually exclusive variants;
-- sum variants are authored as product payload mappings and may be empty;
-- scalar top-level state entries are invalid once `shape: sum` is established;
-- variant identity must not be inferred from payload structure;
-- a sum representation must preserve the active variant, even though its normalized authoring grammar is still open;
+- sum state and representation are shared products and may be empty;
+- sum variants live under `variants` and are mutually exclusive;
+- variant-local declarations may add state, representation, traits, input and construction;
 - state and representation remain required for every Domain Type regardless of classification;
-- removing the final state or representation entry fails closed when the map is required;
 - `classification: identifier` requires `equality`;
 - `classification: maintained` requires `equality` and implies `maintained`, which requires `values`;
 - equality supports only `set`;
 - maintained values support add/remove/set at `values.<member>`;
 - `state.<property>.from` is product-state semantic provenance from a direct `state.*` reference;
 - `representation.<property>.from` is a direct `state.*` source and is mutually exclusive with mapping;
-- the currently supported explicit trait vocabulary contains only `transform`;
-- an effective `transform` requires both `input` and `construction`;
-- discovery does not authorize mutation of a semantic surface whose editing contract is not implemented;
+- the currently supported explicit root trait vocabulary contains only `transform`;
+- root transform input may be a scalar semantic type or product mapping;
+- structured root input supports add/remove/set at `input.<property>`;
+- construction is an ordered sequence and currently supports complete replacement through `set`;
+- admitted construction step names are `ensure`, `resolve`, `apply`, and `refine`;
+- input and construction authoring requires root trait `transform`;
 - tags remain organizational metadata and imply no semantic declarations;
 - discovery projections are non-persistent;
 - candidate validation occurs before persistence;
