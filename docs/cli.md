@@ -201,7 +201,142 @@ represents one requested transition from the current tag set to the resulting ta
 
 A future implementation must define conflict behavior explicitly if the same tag is present in both `--add-tags` and `--remove-tags`; it must not resolve that contradiction silently.
 
-## 6. Why this is `update`, not `replace`
+## 6. Generic semantic mutation model
+
+The tag-specific flags above are the first concrete form of a more general update model.
+
+The intended abstraction is:
+
+```text
+UpdateOperation =
+  target artifact
+  + semantic path
+  + mutation kind
+  + optional value
+```
+
+The generic mutation kinds are:
+
+```text
+add
+remove
+set
+```
+
+For example, a future generic surface may express operations equivalent to:
+
+```text
+vslices update vsir StreetName --add tags identity
+vslices update vsir StreetName --remove tags street
+vslices update vsir StreetName --set classification identifier
+vslices update vsir Location --set state.Region.from.value state.Commune.InProvince.InRegion
+```
+
+The exact CLI syntax is intentionally not fixed yet. The semantic model is.
+
+`add`, `remove` and `set` are structural mechanisms, not semantic authority. A path, mutation kind and value are valid only when the active artifact contract authorizes that combination.
+
+Therefore the CLI must not become a generic YAML editor.
+
+```text
+arbitrary path mutation
+  -> not authorized merely because the path can be written
+
+artifact specification / active contracts
+  -> determine which paths exist
+  -> determine which mutation kinds are valid
+  -> determine which values are admissible
+```
+
+Deeply nested paths are permitted conceptually when they address a semantic declaration recognized by the active contract. Depth itself is not authority.
+
+## 7. Atomic update semantics
+
+`update` is a semantic transition over an artifact, not a sequence of partial file edits.
+
+A single invocation may contain one or more requested mutations. The complete invocation is treated as one transaction over the artifact.
+
+Conceptually:
+
+```text
+read current artifact
+  -> parse current state
+  -> resolve and authorize every requested mutation
+  -> apply mutations to an in-memory candidate
+  -> validate the candidate result
+  -> serialize candidate
+  -> commit the resulting artifact atomically
+```
+
+The original artifact must remain unchanged if any part of that process fails.
+
+This gives `update` two forms of atomicity:
+
+```text
+semantic atomicity
+  -> the command represents one complete requested transition
+
+filesystem atomicity
+  -> the artifact is never persisted in a partially-written state
+```
+
+A conforming implementation should write through a temporary file or equivalent mechanism and atomically replace the original only after the complete candidate has been accepted.
+
+### Candidate-state validation
+
+Validation is performed against the resulting candidate artifact, not against partially persisted intermediate states.
+
+For example:
+
+```text
+current artifact A
+requested mutations m1, m2, m3
+
+A
+  -> apply m1 in memory
+  -> apply m2 in memory
+  -> apply m3 in memory
+  -> candidate B
+  -> validate B
+```
+
+Only `B` is eligible for persistence.
+
+If `m3` makes the candidate invalid, none of `m1`, `m2` or `m3` is persisted.
+
+This allows a transaction to introduce multiple mutually-dependent declarations together without requiring each intermediate in-memory state to be independently persistable.
+
+### Failure invariant
+
+The core guarantee is:
+
+> `update` applies one or more semantic mutations as a single atomic transition over an artifact. Either the resulting artifact is accepted and committed completely, or the original artifact remains unchanged.
+
+A mutation failure, authorization failure, validation failure, serialization failure or persistence failure must not leave a partially-updated artifact behind.
+
+### Why this matters for AI agents
+
+An AI agent should not need to rewrite an entire artifact merely to change one semantic fact.
+
+Instead of:
+
+```text
+read whole file
+  -> reconstruct whole file with one change
+  -> overwrite whole file
+```
+
+the preferred interaction is:
+
+```text
+identify one justified semantic change
+  -> express path + mutation
+  -> let Tooling preserve and validate the rest of the artifact
+```
+
+This reduces accidental loss, formatting drift, stale knowledge and unrelated edits while keeping the agent's requested authority narrowly scoped.
+
+## 8. Why this is `update`, not `replace`
 
 The artifact continues to represent the same concept while knowledge about it changes.
 
@@ -215,9 +350,9 @@ update
 
 A future `replace` command should be introduced only if evidence reveals an operation whose meaning is genuinely substitution of one whole subject/materialization by another and cannot be expressed coherently as an update.
 
-Editing a set-valued property such as tags is not sufficient reason to introduce a top-level `replace` verb.
+Editing a set-valued property such as tags, changing a nested semantic path, or applying several coordinated mutations atomically is not sufficient reason to introduce a top-level `replace` verb.
 
-## 7. Intended relationship with discovery
+## 9. Intended relationship with discovery
 
 Discovery should eventually expose both available declarations and valid mutations over already-known declarations.
 
@@ -241,6 +376,37 @@ available operations:
   set
 ```
 
+More generally, discovery should expose valid mutations over semantic paths rather than forcing the caller to guess them.
+
+Conceptually:
+
+```text
+path: tags
+value kind: set<string>
+operations:
+  add
+  remove
+  set
+```
+
+while another declaration may expose:
+
+```text
+path: classification
+value kind: enum
+operations:
+  set
+```
+
+and a nested declaration may eventually expose:
+
+```text
+path: state.Region.from.value
+value kind: expression
+operations:
+  set
+```
+
 Discovery does not choose the mutation. It exposes the valid action frontier so the caller can decide from external evidence and then apply that choice through `update`.
 
 This supports the migration loop:
@@ -255,22 +421,29 @@ inspect source
   -> eventually lower sufficiently defined concepts
 ```
 
-## 8. Agent-facing invariants
+## 10. Agent-facing invariants
 
 For progressive authoring, implementations should preserve these invariants:
 
 - creating or updating an artifact must not silently infer unsupported semantic knowledge;
 - `discovery` must not mutate filesystem or artifact state;
-- explicit mutation flags should describe their operation rather than rely on overloaded meaning;
+- explicit mutation operations should describe their operation rather than rely on overloaded meaning;
+- generic path mutation must remain constrained by the active artifact contract;
+- nested paths do not become valid merely because they are addressable syntactically;
 - additive and subtractive set updates should be idempotent where no semantic contradiction exists;
 - contradictory requested mutations must be reported rather than silently ordered away;
+- a complete `update` invocation is one semantic transaction;
+- candidate validation occurs before persistence;
+- failure leaves the original artifact unchanged;
 - current implementation limitations must not be mistaken for the conceptual limits of the CLI specification;
 - language-level VSIR semantics remain owned by `vslices/intermediate-representation`; this document specifies CLI interaction semantics, not the VSIR language itself.
 
-## 9. Current implementation status
+## 11. Current implementation status
 
 On the semantic-locality experiment, `new vsir` exists as the first progressive authoring operation, including optional `kind`, `classification`, `shape`, `traits` and `tags` support.
 
 The `update vsir --add-tags`, `--remove-tags` and `--set-tags` forms described above are specified here before implementation so their semantics are established before command mechanics are added.
+
+Generic semantic-path mutation, transactional multi-mutation updates and `discovery <subject>` are likewise specified before implementation. Their mechanisms must be derived from the active artifact specification rather than hardcoded as an unconstrained YAML editing surface.
 
 Likewise, the subject-oriented `update self`, `update ruleset` and `discovery <subject>` surface describes the intended CLI direction; older flag-oriented update behavior may remain temporarily while migration to that surface is evaluated.
