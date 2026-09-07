@@ -109,7 +109,7 @@ public sealed class VsirMutationEngineTests
         Assert.Contains(VsirMutationKind.Add, traits.Operations);
         Assert.Contains(VsirMutationKind.Remove, traits.Operations);
         Assert.Contains(VsirMutationKind.Set, traits.Operations);
-        Assert.Equal(["transform", "refined"], traits.AllowedValues);
+        Assert.Equal(["transform", "identifier", "refined"], traits.AllowedValues);
         Assert.Contains("requires transform", traits.Meaning, StringComparison.OrdinalIgnoreCase);
     }
 
