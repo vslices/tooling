@@ -4,29 +4,13 @@ namespace VSlices.Tooling;
 
 internal static class NewCommands
 {
-    /// <summary>Creates a progressive VSIR artifact from the semantic facts currently known.</summary>
+    /// <summary>Creates the minimal progressive VSIR artifact for a semantic name.</summary>
     /// <param name="name">Semantic name of the concept being introduced.</param>
-    /// <param name="kind">Optional VSIR artifact kind. Current supported value: domain-type.</param>
-    /// <param name="shape">Optional structural shape valid for the selected kind. Current domain-type values: product, sum.</param>
-    /// <param name="classification">Optional classification valid for the selected kind.</param>
-    /// <param name="output">-o, Optional output path. By default &lt;name&gt;.vsir is created in the current directory.</param>
-    /// <param name="stdout">Write the result to standard output instead of creating a file. Equivalent to -o -.</param>
-    /// <param name="force">Replace an existing output explicitly.</param>
     public static async Task<int> Vsir(
         [Argument] string name,
-        string? kind = null,
-        string? shape = null,
-        string? classification = null,
-        string? output = null,
-        bool stdout = false,
-        bool force = false,
         CancellationToken cancellationToken = default)
     {
-        var result = VsirTemplate.Create(
-            name,
-            kind,
-            shape,
-            classification);
+        var result = VsirTemplate.Create(name);
 
         if (!result.IsSuccess)
         {
@@ -43,9 +27,9 @@ internal static class NewCommands
         return await CommandInfrastructure.WriteResult(
             result.Source!,
             defaultPath,
-            output,
-            stdout,
-            overwrite: force,
+            output: null,
+            stdout: false,
+            overwrite: false,
             cancellationToken);
     }
 }
