@@ -39,4 +39,109 @@ public sealed class MaintainedAuthoringTests
         Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
         Assert.DoesNotContain("maintained", traits.AllowedValues ?? []);
     }
+
+    [Fact]
+    public void Maintained_values_support_add_and_set_as_member_mutations()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value: string
+            """;
+
+        var added = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "values.Natural", "{state: {Name: Natural}}")]);
+
+        Assert.True(added.IsSuccess, added.Error);
+        Assert.Contains("values:", added.Source);
+        Assert.Contains("Natural:", added.Source);
+        Assert.Contains("Name: Natural", added.Source);
+
+        var changed = VsirMutationEngine.Apply(
+            added.Source!,
+            [new(VsirMutationKind.Set, "values.Natural", "{state: {Name: NaturalPerson}}")]);
+
+        Assert.True(changed.IsSuccess, changed.Error);
+        Assert.Contains("Name: NaturalPerson", changed.Source);
+        Assert.DoesNotContain("Name: Natural\n", changed.Source);
+    }
+
+    [Fact]
+    public void Maintained_values_support_remove_but_keep_at_least_one_member()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value: string
+            values:
+              Natural:
+                state:
+                  Name: Natural
+              Juridical:
+                state:
+                  Name: Juridica
+            """;
+
+        var removed = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Remove, "values.Natural", null)]);
+
+        Assert.True(removed.IsSuccess, removed.Error);
+        Assert.DoesNotContain("Natural:", removed.Source);
+        Assert.Contains("Juridical:", removed.Source);
+
+        var last = VsirMutationEngine.Apply(
+            removed.Source!,
+            [new(VsirMutationKind.Remove, "values.Juridical", null)]);
+
+        Assert.False(last.IsSuccess);
+        Assert.StartsWith("UPDATE024:", last.Error);
+    }
+
+    [Fact]
+    public void Maintained_member_declaration_requires_non_empty_state()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "values.Natural", "{state: {}}")]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("UPDATE028:", result.Error);
+    }
+
+    [Fact]
+    public void Values_are_rejected_for_non_maintained_classifications()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "values.Natural", "{state: {Name: Natural}}")]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("UPDATE027:", result.Error);
+    }
 }
