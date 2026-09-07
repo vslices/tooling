@@ -45,7 +45,7 @@ classification: value-object | identifier
 traits: transform | identifier | refined
 ```
 
-Classification and traits are independent semantic axes. `TicketId` directly witnesses identifier classification. `TicketCode` witnesses value-object classification plus an explicit `identifier` capability trait. Either form establishes identifier semantics and therefore requires equality. `refined` is another semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
+Classification and traits are independent semantic axes. `TicketId` directly witnesses identifier classification. `TicketCode` witnesses value-object classification plus an explicit `identifier` capability trait. Either form establishes identifier semantics and therefore requires equality. Conversely, equality is rejected when neither form establishes identifier capability. `refined` is another semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
 
 | Semantic form | discover | author | parse | conform | lower | ruleset | Current witness / note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -70,6 +70,7 @@ Classification and traits are independent semantic axes. `TicketId` directly wit
 | identifier classification + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketId |
 | identifier trait on value-object + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketCode |
 | identifier classification + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
+| equality without identifier capability | n/a | rejected | parse | rejected | n/a | n/a | fail-closed: equality is meaningful only under identifier capability |
 | refined trait + `refined-from` | yes | yes | yes | yes | yes | n/a | SrvIdentityId authoring/parsing + lowering witness |
 | sum variants | gated | gated | open | open | open | open | historical authoring experiment retained as research only; Name is the next corpus witness |
 | maintained values | gated | gated | open | open | open | open | historical authoring experiment retained as research only; IdentityType is the next corpus witness |
