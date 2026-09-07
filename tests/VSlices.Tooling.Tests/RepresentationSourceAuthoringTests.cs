@@ -122,6 +122,7 @@ public sealed class RepresentationSourceAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: Location
+            shape: product
             classification: value-object
             state:
               Commune: Commune
