@@ -44,7 +44,7 @@ public sealed class TicketIdLoweringTests
     }
 
     [Fact]
-    public void TicketId_classification_lowers_to_identifier_with_direct_product_transform()
+    public void TicketId_classification_lowers_to_primitive_domain_type_and_identifier_contracts()
     {
         var parsed = VsirParser.Parse(Source);
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics.Select(x => $"{x.Code}: {x.Message}")));
@@ -57,7 +57,9 @@ public sealed class TicketIdLoweringTests
             new("TicketSupport.Domain", loaded.RuleSet!));
 
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
-        Assert.Contains("Identifier<TicketId, TicketId.Repr>", lowered.Source);
+        Assert.Contains("DomainType<TicketId, TicketId.Repr>", lowered.Source);
+        Assert.Contains("Identifier<TicketId>", lowered.Source);
+        Assert.DoesNotContain("Identifier<TicketId, TicketId.Repr>", lowered.Source);
         Assert.Contains("Transform<TicketId, TicketId.Input>", lowered.Source);
         Assert.Contains("record struct Input(string Value)", lowered.Source);
         Assert.Contains("Transform((TicketId.Input input) => Instance(input))", lowered.Source);
