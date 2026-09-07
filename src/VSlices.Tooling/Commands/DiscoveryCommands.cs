@@ -6,9 +6,9 @@ internal static class DiscoveryCommands
 {
     /// <summary>Shows the immediate semantic mutation frontier for a VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Projected add mutations as semicolon-separated path=value clauses. Current add-capable path: tags.</param>
-    /// <param name="remove">Projected remove mutations as semicolon-separated path=value clauses. Current remove-capable path: tags.</param>
-    /// <param name="set">Projected set mutations as semicolon-separated path=value clauses. Current writable paths: tags, kind, classification.</param>
+    /// <param name="add">Projected add mutations as semicolon-separated path=value clauses. Current add-capable paths: tags, traits.</param>
+    /// <param name="remove">Projected remove mutations as semicolon-separated path=value clauses. Current remove-capable paths: tags, traits.</param>
+    /// <param name="set">Projected set mutations as semicolon-separated path=value clauses. Current writable paths: tags, traits, kind, classification.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -63,8 +63,12 @@ internal static class DiscoveryCommands
         {
             Console.WriteLine();
             Console.WriteLine(path.Path);
+            Console.WriteLine($"  status: {DisplayStatus(path.Status)}");
+            Console.WriteLine($"  meaning: {path.Meaning}");
             Console.WriteLine($"  value kind: {path.ValueKind}");
-            Console.WriteLine($"  operations: {string.Join(", ", path.Operations.Select(DisplayOperation))}");
+            Console.WriteLine(path.Operations.Count == 0
+                ? "  operations: not implemented"
+                : $"  operations: {string.Join(", ", path.Operations.Select(DisplayOperation))}");
             if (path.AllowedValues is { Count: > 0 })
                 Console.WriteLine($"  values: {string.Join(", ", path.AllowedValues)}");
         }
@@ -74,4 +78,7 @@ internal static class DiscoveryCommands
 
     private static string DisplayOperation(VsirMutationKind kind) =>
         kind.ToString().ToLowerInvariant();
+
+    private static string DisplayStatus(VsirFrontierStatus status) =>
+        status.ToString().ToLowerInvariant();
 }
