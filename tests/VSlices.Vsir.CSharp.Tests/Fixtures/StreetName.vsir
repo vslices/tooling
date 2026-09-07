@@ -11,20 +11,22 @@ state:
 representation:
   Value: string
 
+input:
+  Value: string
+
 construction:
-  input:
-    Value: string
-  steps:
-    - ensure:
-        condition:
-          intrinsic: non-empty
+  - ensure:
+      condition:
+        intrinsic: non-empty
+        args:
           value: input.Value
-        failure:
-          message: Debes especificar una calle
-    - ensure:
-        condition:
-          intrinsic: length-at-most
+      failure:
+        message: Debes especificar una calle
+  - ensure:
+      condition:
+        intrinsic: length-at-most
+        args:
           value: input.Value
           max: 30
-        failure:
-          message: Debe tener 30 caracteres o menos (Enviados {length})
+      failure:
+        message: Debe tener 30 caracteres o menos (Enviados {length})
