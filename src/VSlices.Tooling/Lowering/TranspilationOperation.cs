@@ -94,7 +94,7 @@ internal static class TranspilationOperation
         if (!typeResolution.IsSuccess)
             return TranspilationResult.Failure(typeResolution.Diagnostics);
 
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new CSharpLoweringContext(
                 targetContext.Context!.Namespace,
