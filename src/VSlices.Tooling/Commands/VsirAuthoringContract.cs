@@ -45,9 +45,7 @@ internal static class VsirAuthoringContract
 
     public static IReadOnlyList<VsirPathContract> Discover(
         string? kind,
-        string? classification,
-        IReadOnlyCollection<string> tags,
-        IReadOnlyCollection<string> traits)
+        string? classification)
     {
         var result = new List<VsirPathContract>
         {
@@ -82,6 +80,7 @@ internal static class VsirAuthoringContract
                 "enum",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set },
                 DomainTypeClassifications));
+            return result;
         }
 
         result.Add(new(
