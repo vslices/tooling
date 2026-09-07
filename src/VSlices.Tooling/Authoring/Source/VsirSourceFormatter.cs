@@ -29,6 +29,7 @@ internal static class VsirSourceFormatter
                 break;
 
             case YamlSequenceNode sequence:
+                sequence.Style = YamlDotNet.Core.Events.SequenceStyle.Block;
                 foreach (var child in sequence.Children)
                     ForceBlockStyle(child);
                 break;
