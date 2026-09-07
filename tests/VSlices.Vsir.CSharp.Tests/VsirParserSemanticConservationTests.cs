@@ -48,6 +48,7 @@ public sealed class VsirParserSemanticConservationTests
                   - node: intrinsic.non-empty
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "!string.IsNullOrEmpty({value})"
                 """);
             var rules = CSharpLoweringRuleSet.Load(temporary);
