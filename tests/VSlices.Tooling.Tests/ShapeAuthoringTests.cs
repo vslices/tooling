@@ -67,8 +67,7 @@ public sealed class ShapeAuthoringTests
             "ContactMethod",
             "domain-type",
             "sum",
-            "value-object",
-            []);
+            "value-object");
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("kind: domain-type", result.Source);
