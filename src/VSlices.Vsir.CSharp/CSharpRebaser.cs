@@ -94,11 +94,31 @@ public static class CSharpRebaser
         var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
         if (directIndex < 0)
         {
+            if (resolution == CSharpRebaseResolution.Deterministic &&
+                TryLocateReplacementSlot(
+                    previousDeterministicSource,
+                    humanSource,
+                    prefixLength,
+                    previousChanged.Length,
+                    out var humanChangedStart,
+                    out var humanChangedLength))
+            {
+                var resolved = humanSource
+                    .Remove(humanChangedStart, humanChangedLength)
+                    .Insert(humanChangedStart, nextChanged);
+                return new(resolved, []);
+            }
+
+            const string resolutionGuidance =
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only the uniquely bounded conflicting region with the deterministic change while preserving unrelated human edits.";
+
             return new(null, [CreateConflictDiagnostic(
                 "REB001",
                 "The VSIR-generated region changed in the human projection and cannot be rebased deterministically.",
                 $"Previous deterministic region:{Environment.NewLine}{DisplayFull(previousChanged)}{Environment.NewLine}{Environment.NewLine}" +
-                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}",
+                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                resolutionGuidance,
                 BuildTrace(
                     previousDeterministicSource,
                     humanSource,
@@ -108,7 +128,8 @@ public static class CSharpRebaser
                     previousChanged,
                     nextChanged),
                 $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
-                $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
+                $"  Next deterministic region: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
+                resolutionGuidance)]);
         }
 
         if (humanSource.IndexOf(previousChanged, directIndex + previousChanged.Length, StringComparison.Ordinal) < 0)
@@ -242,6 +263,80 @@ public static class CSharpRebaser
 
             humanInsertionStart = leftEnd;
             humanInsertionLength = rightStart - leftEnd;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateReplacementSlot(
+        string previousDeterministicSource,
+        string humanSource,
+        int changedStart,
+        int changedLength,
+        out int humanChangedStart,
+        out int humanChangedLength)
+    {
+        humanChangedStart = -1;
+        humanChangedLength = 0;
+
+        var changedEnd = changedStart + changedLength;
+        var leftAvailable = changedStart;
+        var rightAvailable = previousDeterministicSource.Length - changedEnd;
+        var maxContext = Math.Max(leftAvailable, rightAvailable);
+
+        for (var context = 1; context <= maxContext; context = NextContextSize(context, maxContext))
+        {
+            var leftLength = Math.Min(context, leftAvailable);
+            var rightLength = Math.Min(context, rightAvailable);
+
+            var leftAnchor = leftLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(changedStart - leftLength, leftLength);
+            var rightAnchor = rightLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(changedEnd, rightLength);
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    leftAnchor,
+                    changedStart - leftLength,
+                    out var humanLeftStart))
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    rightAnchor,
+                    changedEnd,
+                    out var humanRightStart))
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            var leftEnd = leftAnchor.Length == 0
+                ? 0
+                : humanLeftStart + leftAnchor.Length;
+            var rightStart = rightAnchor.Length == 0
+                ? humanSource.Length
+                : humanRightStart;
+
+            if (rightStart < leftEnd)
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            humanChangedStart = leftEnd;
+            humanChangedLength = rightStart - leftEnd;
             return true;
         }
 
