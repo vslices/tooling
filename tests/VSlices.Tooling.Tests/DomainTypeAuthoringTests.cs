@@ -24,7 +24,7 @@ public sealed class DomainTypeAuthoringTests
 
         var classification = Assert.Single(frontier, item => item.Path == "classification");
         Assert.Equal(VsirFrontierStatus.Required, classification.Status);
-        Assert.Equal(["value-object"], classification.AllowedValues);
+        Assert.Equal(["value-object", "identifier"], classification.AllowedValues);
     }
 
     [Fact]
