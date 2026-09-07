@@ -16,6 +16,7 @@
   <ItemGroup>
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirTemplate.cs" Link="Linked/VsirTemplate.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirAuthoringContract.cs" Link="Linked/VsirAuthoringContract.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirArtifactState.cs" Link="Linked/VsirArtifactState.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirCommandTemplates.cs" Link="Linked/VsirCommandTemplates.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationArgumentParser.cs" Link="Linked/VsirMutationArgumentParser.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
