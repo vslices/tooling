@@ -3,12 +3,12 @@ using YamlDotNet.RepresentationModel;
 namespace VSlices.Vsir;
 
 /// <summary>
-/// Parses the currently normalized VSIR 0.1 surface used by progressive authoring,
-/// while preserving the legacy parser for older experimental fixtures.
+/// Parses the canonical VSIR 0.1 surface.
+/// Pre-normalized experimental grammars are intentionally not compatibility-parsed.
 /// </summary>
 public static class VsirLanguageParser
 {
-    private static readonly HashSet<string> NormalizedRootKeys = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> CanonicalRootKeys = new(StringComparer.Ordinal)
     {
         "vsir",
         "kind",
@@ -30,11 +30,10 @@ public static class VsirLanguageParser
     {
         validationContext ??= VsirValidationContext.Empty;
 
-        YamlStream yaml;
         YamlMappingNode root;
         try
         {
-            yaml = new YamlStream();
+            var yaml = new YamlStream();
             yaml.Load(new StringReader(text));
             if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
                 return Failure("VSIR001", "Expected one YAML mapping document.");
@@ -45,43 +44,15 @@ public static class VsirLanguageParser
             return Failure("VSIR000", ex.Message);
         }
 
-        return UsesNormalizedSurface(root)
-            ? ParseNormalized(root, validationContext)
-            : VsirParser.Parse(text, validationContext);
+        return ParseCanonical(root, validationContext);
     }
 
-    private static bool UsesNormalizedSurface(YamlMappingNode root)
-    {
-        if (root.Children.ContainsKey(new YamlScalarNode("input")))
-            return true;
-
-        if (root.Children.TryGetValue(new YamlScalarNode("construction"), out var construction) &&
-            construction is YamlSequenceNode)
-            return true;
-
-        foreach (var section in new[] { "state", "representation" })
-        {
-            if (!TryMapping(root, section, out var map))
-                continue;
-
-            foreach (var declaration in map.Children.Values.OfType<YamlMappingNode>())
-            {
-                if (declaration.Children.ContainsKey(new YamlScalarNode("from")) ||
-                    declaration.Children.ContainsKey(new YamlScalarNode("mapping")) ||
-                    declaration.Children.ContainsKey(new YamlScalarNode("type")))
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static VsirParseResult ParseNormalized(
+    private static VsirParseResult ParseCanonical(
         YamlMappingNode root,
         VsirValidationContext validationContext)
     {
         var diagnostics = new List<VsirDiagnostic>();
-        RejectUnknownKeys(root, NormalizedRootKeys, "root", diagnostics, rootDiagnostic: true);
+        RejectUnknownKeys(root, CanonicalRootKeys, "root", diagnostics, rootDiagnostic: true);
 
         var version = Scalar(root, "vsir");
         var kind = Scalar(root, "kind");
@@ -161,7 +132,7 @@ public static class VsirLanguageParser
         if (!root.Children.TryGetValue(new YamlScalarNode("construction"), out var node) ||
             node is not YamlSequenceNode sequence)
         {
-            diagnostics.Add(new("VSIR002", "Normalized construction must be an ordered sequence."));
+            diagnostics.Add(new("VSIR002", "Canonical construction must be an ordered sequence."));
             return [];
         }
 
@@ -201,7 +172,7 @@ public static class VsirLanguageParser
                     ParseRefine(payload, diagnostics, result);
                     break;
                 default:
-                    diagnostics.Add(new("VSIR100", $"Unsupported normalized construction step '{operation.Value}'."));
+                    diagnostics.Add(new("VSIR100", $"Unsupported construction step '{operation.Value}'."));
                     break;
             }
         }
@@ -349,6 +320,7 @@ public static class VsirLanguageParser
             return;
         }
 
+        RejectUnknownKeys(refine, ["value", "as"], "construction[].refine", diagnostics);
         var valueRef = Scalar(refine, "value");
         var target = Scalar(refine, "as");
         if (string.IsNullOrWhiteSpace(valueRef) || string.IsNullOrWhiteSpace(target))
