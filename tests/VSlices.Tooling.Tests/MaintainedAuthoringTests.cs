@@ -46,13 +46,92 @@ public sealed class MaintainedAuthoringTests
         var equality = Assert.Single(frontier, item => item.Path == "equality");
         Assert.Equal(VsirFrontierStatus.Required, equality.Status);
         Assert.Equal("strategy", equality.ValueKind);
-        Assert.Empty(equality.Operations);
+        Assert.Single(equality.Operations);
+        Assert.Contains(VsirMutationKind.Set, equality.Operations);
         Assert.Contains("ordinal-equals", equality.Meaning, StringComparison.Ordinal);
         Assert.Contains("state.Name", equality.Meaning, StringComparison.Ordinal);
 
         var traits = Assert.Single(frontier, item => item.Path == "traits");
         Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
         Assert.DoesNotContain("maintained", traits.AllowedValues ?? []);
+    }
+
+    [Fact]
+    public void Maintained_equality_supports_set()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value: string
+            values:
+              Natural:
+                state:
+                  Name: Natural
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: state.Name}")]);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("equality:", result.Source);
+        Assert.Contains("intrinsic: ordinal-equals", result.Source);
+        Assert.Contains("by: state.Name", result.Source);
+    }
+
+    [Fact]
+    public void Maintained_equality_rejects_add_and_remove()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            state:
+              Name: string
+            """;
+
+        var added = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "equality", "{intrinsic: ordinal-equals, by: state.Name}")]);
+        var removed = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Remove, "equality", null)]);
+
+        Assert.False(added.IsSuccess);
+        Assert.StartsWith("UPDATE012:", added.Error);
+        Assert.False(removed.IsSuccess);
+        Assert.StartsWith("UPDATE012:", removed.Error);
+    }
+
+    [Fact]
+    public void Maintained_equality_requires_one_strategy_and_a_state_reference()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            classification: maintained
+            state:
+              Name: string
+            """;
+
+        var missingStrategy = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "equality", "{by: state.Name}")]);
+        var invalidBy = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: input.Name}")]);
+
+        Assert.False(missingStrategy.IsSuccess);
+        Assert.StartsWith("UPDATE032:", missingStrategy.Error);
+        Assert.False(invalidBy.IsSuccess);
+        Assert.StartsWith("UPDATE032:", invalidBy.Error);
     }
 
     [Fact]
