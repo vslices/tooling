@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +26,11 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - run: dotnet build tooling.slnx --configuration Release
-      - run: dotnet test tooling.slnx --configuration Release --no-build
+      - name: Build
+        run: dotnet build tooling.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test tooling.slnx --configuration Release --no-build
 
       - name: Smoke test Roslyn semantic namespace blast radius
         shell: bash
@@ -199,7 +202,18 @@ jobs:
             > delegated.cs
           grep -q "namespace Demo.Identity.ValueObjects" delegated.cs
 
-      - name: Publish Native AOT CLI
+  linux-native-aot:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish linux-x64 Native AOT CLI
         shell: bash
         run: |
           VERSION_ARGS=()
@@ -211,11 +225,12 @@ jobs:
             --runtime linux-x64 \
             "${VERSION_ARGS[@]}"
 
-      - name: Smoke test Native AOT executable, version, init, config, and companion helper
+      - name: Smoke test linux-x64 executable, version, init, config, and companion helper
         shell: bash
         run: |
           PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish"
           VSLICES="$PUBLISH/vslices"
+          test -x "$VSLICES"
           test -f "$PUBLISH/refactor/VSlices.Targets.DotNet.Refactor.dll"
           "$VSLICES" --help | grep -q "init"
           "$VSLICES" --help | grep -q "lower"
@@ -271,7 +286,9 @@ jobs:
           if-no-files-found: error
 
   windows-native-aot:
+    needs: validate
     strategy:
+      fail-fast: false
       matrix:
         rid: [win-x64, win-arm64]
     runs-on: windows-latest
@@ -282,6 +299,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
       - name: Publish ${{ matrix.rid }} Native AOT CLI
         shell: pwsh
         run: |
@@ -298,6 +316,15 @@ jobs:
           if (-not (Test-Path "$publish/refactor/VSlices.Targets.DotNet.Refactor.dll")) {
             throw 'Roslyn semantic-refactoring companion helper was not published.'
           }
+
+      - name: Smoke test win-x64 executable
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/win-x64/publish"
+          $vslices = "$publish/vslices.exe"
+          & $vslices --version
+          if ($LASTEXITCODE -ne 0) { throw 'win-x64 executable smoke test failed.' }
 
       - name: Package ${{ matrix.rid }} PR build
         if: github.event_name == 'pull_request'
@@ -322,9 +349,97 @@ jobs:
           path: pr-build/${{ matrix.rid }}/*
           if-no-files-found: error
 
+  macos-native-aot:
+    needs: validate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify Apple Silicon runner
+        shell: bash
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Publish osx-arm64 Native AOT CLI
+        shell: bash
+        run: |
+          VERSION_ARGS=()
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            VERSION_ARGS=(-p:Version="0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}")
+          fi
+          dotnet publish src/VSlices.Tooling \
+            --configuration Release \
+            --runtime osx-arm64 \
+            "${VERSION_ARGS[@]}"
+
+      - name: Smoke test osx-arm64 executable and companion helper
+        shell: bash
+        run: |
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/osx-arm64/publish"
+          VSLICES="$PUBLISH/vslices"
+          test -x "$VSLICES"
+          test -f "$PUBLISH/refactor/VSlices.Targets.DotNet.Refactor.dll"
+          "$VSLICES" --help | grep -q "init"
+          "$VSLICES" --help | grep -q "lower"
+          "$VSLICES" --help | grep -q "transpile"
+          "$VSLICES" --help | grep -q "rebase"
+          "$VSLICES" --help | grep -q "update"
+
+          LONG_VERSION="$("$VSLICES" --version)"
+          SHORT_VERSION="$("$VSLICES" -v)"
+          test -n "$LONG_VERSION"
+          test "$LONG_VERSION" = "$SHORT_VERSION"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            test "$LONG_VERSION" = "build${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          fi
+
+          mkdir -p native-aot-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir native-aot-context/StreetName.vsir
+          cd native-aot-context
+
+          "$VSLICES" init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/config.yaml
+          test -f .vslices/.ignore
+          test -f .vslices/ruleset/manifest.yaml
+          test -d .vslices/ruleset/csharp
+
+          "$VSLICES" transpile StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects \
+            --stdout \
+            > native-transpiled.cs
+          grep -q "sealed class StreetName" native-transpiled.cs
+          grep -q "namespace Identities.Domain.ValueObjects" native-transpiled.cs
+
+      - name: Package osx-arm64 PR build
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p pr-build/osx-arm64
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/osx-arm64/publish"
+          (
+            cd "$PUBLISH"
+            zip -r "$GITHUB_WORKSPACE/pr-build/osx-arm64/vslices-osx-arm64.zip" vslices refactor
+          )
+          shasum -a 256 pr-build/osx-arm64/vslices-osx-arm64.zip | awk '{print $1}' > pr-build/osx-arm64/vslices-osx-arm64.zip.sha256
+
+      - name: Upload osx-arm64 PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-osx-arm64
+          path: pr-build/osx-arm64/*
+          if-no-files-found: error
+
   pr-build-summary:
     if: github.event_name == 'pull_request'
-    needs: [test, windows-native-aot]
+    needs:
+      - linux-native-aot
+      - windows-native-aot
+      - macos-native-aot
     runs-on: ubuntu-latest
     permissions:
       actions: read
