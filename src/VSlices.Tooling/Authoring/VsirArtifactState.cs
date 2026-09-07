@@ -54,7 +54,7 @@ internal sealed record VsirArtifactState(
         var missing = frontier
             .Where(item => item.Status == VsirFrontierStatus.Required)
             .Select(item => item.Path)
-            .Where(path => !RootAssertionExists(root, path))
+            .Where(path => !AssertionExists(root, path))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
@@ -82,9 +82,21 @@ internal sealed record VsirArtifactState(
                 parsed.Diagnostics);
     }
 
-    private static bool RootAssertionExists(YamlMappingNode root, string path)
+    private static bool AssertionExists(YamlMappingNode root, string path)
     {
-        var rootPath = path.Split('.', 2, StringSplitOptions.None)[0];
-        return root.Children.ContainsKey(new YamlScalarNode(rootPath));
+        if (string.IsNullOrWhiteSpace(path))
+            return false;
+
+        YamlNode current = root;
+        foreach (var segment in path.Split('.', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (current is not YamlMappingNode mapping ||
+                !mapping.Children.TryGetValue(new YamlScalarNode(segment), out current!))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
