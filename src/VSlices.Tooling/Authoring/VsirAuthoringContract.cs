@@ -58,20 +58,7 @@ internal static class VsirAuthoringContract
         bool hasInput,
         bool hasConstruction)
     {
-        var result = new List<VsirPathContract>
-        {
-            new(
-                "tags",
-                "set<string>",
-                VsirFrontierStatus.Optional,
-                "Declares organizational metadata used to index, group and search artifacts. Tags carry no domain-semantic authority and remain authorable independently of the semantic frontier.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Add,
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                })
-        };
+        var result = new List<VsirPathContract>();
 
         if (string.IsNullOrWhiteSpace(kind) || !Kinds.Contains(kind, StringComparer.Ordinal))
         {
