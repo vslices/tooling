@@ -119,7 +119,7 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Value_object_discovery_exposes_state_and_representation_operations_plus_optional_traits()
+    public void Value_object_discovery_exposes_set_based_state_and_representation_plus_optional_traits()
     {
         var source = """
             vsir: 0.1
@@ -135,15 +135,13 @@ public sealed class VsirMutationEngineTests
 
         var state = Assert.Single(frontier, item => item.Path == "state");
         Assert.Equal(VsirFrontierStatus.Required, state.Status);
-        Assert.Contains(VsirMutationKind.Add, state.Operations);
-        Assert.Contains(VsirMutationKind.Remove, state.Operations);
+        Assert.Single(state.Operations);
         Assert.Contains(VsirMutationKind.Set, state.Operations);
         Assert.Contains("state.Value", state.Meaning, StringComparison.Ordinal);
 
         var representation = Assert.Single(frontier, item => item.Path == "representation");
         Assert.Equal(VsirFrontierStatus.Required, representation.Status);
-        Assert.Contains(VsirMutationKind.Add, representation.Operations);
-        Assert.Contains(VsirMutationKind.Remove, representation.Operations);
+        Assert.Single(representation.Operations);
         Assert.Contains(VsirMutationKind.Set, representation.Operations);
         Assert.Contains("representation.Value", representation.Meaning, StringComparison.Ordinal);
 
@@ -177,9 +175,8 @@ public sealed class VsirMutationEngineTests
 
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
-        Assert.Equal("map<property, declaration>", input.ValueKind);
-        Assert.Contains(VsirMutationKind.Add, input.Operations);
-        Assert.Contains(VsirMutationKind.Remove, input.Operations);
+        Assert.Equal("map<property, declaration> | scalar semantic type", input.ValueKind);
+        Assert.Single(input.Operations);
         Assert.Contains(VsirMutationKind.Set, input.Operations);
         Assert.Contains("before Domain Type validity", input.Meaning, StringComparison.Ordinal);
 
