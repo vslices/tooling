@@ -15,7 +15,7 @@ public sealed record DomainTypeVsir(
     EqualitySemantics? Equality);
 
 public sealed record ProductShape(IReadOnlyList<Field> Fields);
-public sealed record Field(string Name, VsirType Type);
+public sealed record Field(string Name, VsirType Type, string? From = null);
 
 public abstract record VsirType
 {
@@ -57,11 +57,26 @@ public sealed record RepresentationMapping(
     IReadOnlyDictionary<string, RepresentationProjection> Fields);
 
 public abstract record RepresentationProjection;
+public sealed record ReferenceProjection(string Value) : RepresentationProjection;
 public sealed record StringifyProjection(string Value) : RepresentationProjection;
+public sealed record RepresentProjection(RepresentationProjection Value) : RepresentationProjection;
+public sealed record SelectProjection(RepresentationProjection Source, string Field) : RepresentationProjection;
+public sealed record MapProjection(
+    RepresentationProjection Source,
+    string Bind,
+    RepresentationProjection Value) : RepresentationProjection;
+public sealed record IntrinsicProjection(
+    string Intrinsic,
+    IReadOnlyList<RepresentationProjection> Values) : RepresentationProjection;
 
 public abstract record ConstructionStep;
 public sealed record NormalizeStep(string Target, string Intrinsic) : ConstructionStep;
 public sealed record EnsureStep(Condition Condition, string FailureMessage) : ConstructionStep;
+public sealed record ResolveStep(
+    string Source,
+    string Id,
+    string As,
+    string FailureMessage) : ConstructionStep;
 public sealed record ApplyStep(string Over, ApplyInput Input, string As) : ConstructionStep;
 public sealed record RefineStep(string Value, string As) : ConstructionStep;
 
@@ -76,6 +91,7 @@ public abstract record Condition;
 public sealed record NonEmptyCondition(string Value) : Condition;
 public sealed record NotWhitespaceCondition(string Value) : Condition;
 public sealed record LengthAtMostCondition(string Value, int Max) : Condition;
+public sealed record LengthBetweenCondition(string Value, int Min, int Max) : Condition;
 public sealed record VsirDiagnostic(
     string Code,
     string Message,
