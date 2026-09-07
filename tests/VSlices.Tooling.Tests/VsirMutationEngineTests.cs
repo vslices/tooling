@@ -45,15 +45,21 @@ public sealed class VsirMutationEngineTests
         Assert.Null(result.Source);
     }
 
-    [Fact]
-    public void Related_scalar_facts_can_be_established_in_one_transaction()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Related_scalar_facts_can_be_established_in_one_transaction_regardless_of_order(bool reverse)
     {
-        var result = VsirMutationEngine.Apply(
-            Named,
-            [
-                new(VsirMutationKind.Set, "kind", "domain-type"),
-                new(VsirMutationKind.Set, "classification", "identifier")
-            ]);
+        VsirMutation[] mutations =
+        [
+            new(VsirMutationKind.Set, "kind", "domain-type"),
+            new(VsirMutationKind.Set, "classification", "identifier")
+        ];
+
+        if (reverse)
+            Array.Reverse(mutations);
+
+        var result = VsirMutationEngine.Apply(Named, mutations);
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("kind: domain-type", result.Source);
