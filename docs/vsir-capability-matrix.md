@@ -42,10 +42,10 @@ The current public Domain Type envelope is deliberately narrower than every hist
 kind: domain-type
 shape: product
 classification: value-object | identifier
-traits: transform | refined
+traits: transform | identifier | refined
 ```
 
-`identifier` is an evidenced semantic classification; `TicketId` is the direct corpus witness. `refined` is a semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
+Classification and traits are independent semantic axes. `TicketId` directly witnesses identifier classification. `TicketCode` witnesses value-object classification plus an explicit `identifier` capability trait. Either form establishes identifier semantics and therefore requires equality. `refined` is another semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
 
 | Semantic form | discover | author | parse | conform | lower | ruleset | Current witness / note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -58,15 +58,17 @@ traits: transform | refined
 | representation `select` | yes | yes | yes | yes | yes | yes | Location |
 | representation `map` | yes | yes | yes | yes | yes | yes | Location `Ext` |
 | representation intrinsic | yes | yes | yes | yes | yes | yes when intrinsic exists | StreetExtension-style mapping |
-| transform product input | yes | yes | yes | yes | yes | n/a | StreetName / Location / TicketId |
+| transform product input | yes | yes | yes | yes | yes | n/a | StreetName / Location / TicketId / TicketCode |
 | transform scalar input | yes | yes | yes | yes | yes | n/a | SrvIdentityId |
 | direct product input -> state with no explicit construction steps | yes | yes | yes | yes | yes | n/a | TicketId; absence of `construction` means zero explicit steps and validation proves direct state establishment |
-| construction `ensure` | yes | yes | yes | yes | yes | yes when intrinsic exists | StreetName / StreetExtension |
+| construction `normalize` | yes | yes | yes | yes | yes | yes | TicketCode `input.Value` + `trim`; normalized value flows into ensure and state construction |
+| construction `ensure` | yes | yes | yes | yes | yes | yes when intrinsic exists | StreetName / StreetExtension / TicketCode |
 | construction `resolve` | yes | yes | yes | yes | yes | yes | Location `Commune` |
 | construction `apply`, direct | yes | yes | yes | yes | yes | yes | Location `StreetName` |
 | construction `apply`, mapped/container | yes | yes | yes | yes | yes | yes | Location `StreetExtension` |
 | construction `refine` | yes | yes | yes | yes | yes | n/a | Location / StreetName / SrvIdentityId |
 | identifier classification + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketId |
+| identifier trait on value-object + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketCode |
 | identifier classification + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
 | refined trait + `refined-from` | yes | yes | yes | yes | yes | n/a | SrvIdentityId authoring/parsing + lowering witness |
 | sum variants | gated | gated | open | open | open | open | historical authoring experiment retained as research only; Name is the next corpus witness |
@@ -112,7 +114,7 @@ historical authoring knows a form that parser/lower cannot consume
 
 A successful parity experiment should move a row from left to right using the same semantic artifact. It should not make the row look complete by translating that artifact into a different grammar between authoring and lowering.
 
-The TicketId correction adds an important evidence rule: an implementation restriction in the current validator is not stronger authority than an already admitted corpus artifact. When the two conflict, locate and repair the first stale layer instead of rewriting the corpus to match the accidental restriction.
+The TicketId/TicketCode corrections add an important evidence rule: an implementation restriction in the current validator or authoring surface is not stronger authority than admitted corpus evidence. When the two conflict, locate and repair the first stale layer instead of rewriting the corpus to match the accidental restriction.
 
 ## Canonical-surface rule
 
