@@ -81,7 +81,9 @@ public sealed class VsirParserSemanticConservationTests
         Assert.True(rules.IsSuccess, string.Join(Environment.NewLine, rules.Diagnostics));
         var lowered = CSharpLanguageLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
-        Assert.Contains("Identifier<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("DomainType<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("Identifier<TicketIdLike>", lowered.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Identifier<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("string.Equals(_value, other._value, StringComparison.Ordinal)", lowered.Source, StringComparison.Ordinal);
     }
 
