@@ -81,6 +81,30 @@ internal static class VsirAuthoringContract
         if (!kind.Equals(DomainTypeKind, StringComparison.Ordinal))
             return result;
 
+        result.Add(new(
+            "state",
+            "map<property, declaration>",
+            VsirFrontierStatus.Required,
+            "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties such as state.Value support add, remove and set; derived state may declare a direct state source through state.<property>.from.",
+            new HashSet<VsirMutationKind>
+            {
+                VsirMutationKind.Add,
+                VsirMutationKind.Remove,
+                VsirMutationKind.Set
+            }));
+
+        result.Add(new(
+            "representation",
+            "map<property, declaration>",
+            VsirFrontierStatus.Required,
+            "Declares the observable form through which a valid Domain Type can be represented. Child properties such as representation.Value support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.",
+            new HashSet<VsirMutationKind>
+            {
+                VsirMutationKind.Add,
+                VsirMutationKind.Remove,
+                VsirMutationKind.Set
+            }));
+
         if (string.IsNullOrWhiteSpace(classification))
         {
             result.Add(new(
@@ -91,33 +115,6 @@ internal static class VsirAuthoringContract
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set },
                 DomainTypeClassifications));
             return result;
-        }
-
-        if (classification is "value-object" or "entity" or "maintained" or "aggregate-root")
-        {
-            result.Add(new(
-                "state",
-                "map<property, declaration>",
-                VsirFrontierStatus.Required,
-                "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties such as state.Value support add, remove and set; derived state may declare a direct state source through state.<property>.from.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Add,
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                }));
-
-            result.Add(new(
-                "representation",
-                "map<property, declaration>",
-                VsirFrontierStatus.Required,
-                "Declares the observable form through which a valid Domain Type can be represented. Child properties such as representation.Value support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Add,
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                }));
         }
 
         if (classification == "maintained")
