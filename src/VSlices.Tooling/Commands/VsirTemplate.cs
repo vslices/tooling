@@ -18,6 +18,7 @@ internal static class VsirTemplate
     public static VsirTemplateResult Create(
         string name,
         string? kind = null,
+        string? shape = null,
         string? classification = null,
         IReadOnlyList<string>? tags = null)
     {
@@ -36,6 +37,12 @@ internal static class VsirTemplate
 
         var hasKind = !string.IsNullOrWhiteSpace(kind);
 
+        if (!hasKind && shape is not null)
+        {
+            return VsirTemplateResult.Failure(
+                "NEW009: --shape requires --kind because its validity is kind-specific.");
+        }
+
         if (!hasKind && classification is not null)
         {
             return VsirTemplateResult.Failure(
@@ -46,6 +53,14 @@ internal static class VsirTemplate
         {
             return VsirTemplateResult.Failure(
                 $"NEW003: Unsupported VSIR kind '{kind}'. Current supported values: {string.Join(", ", VsirAuthoringContract.Kinds)}.");
+        }
+
+        if (shape is not null &&
+            !VsirAuthoringContract.DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
+        {
+            return VsirTemplateResult.Failure(
+                $"NEW010: Shape '{shape}' is not valid for kind 'domain-type'. " +
+                $"Supported shapes: {string.Join(", ", VsirAuthoringContract.DomainTypeShapes)}.");
         }
 
         if (classification is not null &&
@@ -68,6 +83,9 @@ internal static class VsirTemplate
 
         if (explicitTags.Length > 0)
             lines.Add($"tags: [{string.Join(", ", explicitTags.Select(QuoteYamlScalar))}]");
+
+        if (shape is not null)
+            lines.Add($"shape: {shape}");
 
         if (classification is not null)
             lines.Add($"classification: {classification}");
