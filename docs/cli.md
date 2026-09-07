@@ -153,7 +153,7 @@ Repeated options are preserved as distinct mutations in one atomic invocation:
 
 ```text
 vslices update vsir TicketId --set shape=product --set classification=identifier
-vslices update vsir StreetName --set state.Value=string --set representation.Value=string --add traits=transform
+vslices update vsir TicketCode --set state.Value=string --set representation.Value=string --add traits=transform --add traits=identifier
 ```
 
 ### `add`
@@ -172,6 +172,7 @@ Examples:
 ```text
 vslices update vsir StreetName --add tags=ticket
 vslices update vsir StreetName --add traits=transform
+vslices update vsir TicketCode --add traits=identifier
 ```
 
 Using `add` on ordinary semantic assertions fails closed.
@@ -232,10 +233,10 @@ For `kind: domain-type`, the current public end-to-end envelope is:
 ```text
 shape: product
 classification: value-object | identifier
-traits: transform | refined
+traits: transform | identifier | refined
 ```
 
-`transform` is currently required by the canonical Domain Type validator. `identifier` is a semantic classification evidenced directly by `TicketId`; it is not a trait. `refined` is an additional semantic capability expressed through traits.
+Classification and traits are independent semantic axes. `TicketId` demonstrates `classification: identifier` with no identifier trait. `TicketCode` demonstrates `classification: value-object` plus explicit `identifier` capability. Either form activates equality semantics and lowers to the Framework `Identifier<T, T.Repr>` contract.
 
 The base structural decisions are:
 
@@ -264,15 +265,17 @@ Current explicit trait vocabulary:
 
 ```text
 transform
+identifier
 refined
 ```
 
 Obligations include:
 
 ```text
-transform               -> input
-identifier classification -> equality
-refined trait           -> refined-from + scalar refined input constraints
+transform                         -> input
+identifier classification        -> equality
+identifier trait                 -> equality
+refined trait                    -> refined-from + scalar refined input constraints
 ```
 
 `construction` is available for ordered semantic steps but is not universally required. If product input already establishes same-name state coordinates deterministically, zero explicit construction steps is valid; `TicketId` is the current witness.
@@ -317,13 +320,6 @@ Derived state uses:
 state.<property>.from
 ```
 
-Example:
-
-```text
-vslices update vsir Location \
-  --set "state.Region.from=state.Commune.InProvince.InRegion"
-```
-
 Representation may use either a direct source:
 
 ```text
@@ -346,34 +342,13 @@ Current forms exercised by the corpus include:
 
 ```text
 stringify
-  {stringify: <semantic-reference>}
-
 represent
-  {represent: <semantic-reference>}
-
 select
-  {select: {source: <expression>, field: <field>}}
-
 map
-  {map: {source: <expression>, bind: <name>, value: <expression>}}
-
 intrinsic
-  {intrinsic: <ruleset-intrinsic>, ...}
 ```
 
-The grammar is compositional. In particular:
-
-```text
-select(represent(state.Street), Value)
-```
-
-and:
-
-```text
-select(state.Street, Value)
-```
-
-are distinct semantic trees. Tooling does not insert `represent` implicitly.
+The grammar is compositional. In particular `select(represent(state.Street), Value)` and `select(state.Street, Value)` remain distinct semantic trees. Tooling does not insert `represent` implicitly.
 
 ## 11. Transform, identifier and refined authoring
 
@@ -381,78 +356,64 @@ The current trait vocabulary is:
 
 ```text
 transform
+identifier
 refined
 ```
 
-`identifier` belongs to `classification`.
-
 ### `transform`
 
-`transform` activates the root `input` obligation.
+`transform` activates the root `input` obligation. Root input may be scalar or product-shaped and authored progressively.
 
-Root input may be scalar:
+When product input already determines direct state coordinates, no explicit construction sequence is needed. `TicketId` demonstrates this form.
 
-```text
-vslices update vsir SrvIdentityId --set "input=Rut"
-```
-
-or product-shaped and authored progressively:
+When extra semantic work is needed, `construction` is ordered and uses whole-boundary `set`. Current construction forms exercised by grammar-driven discovery include:
 
 ```text
-vslices update vsir Location --set "input.CommuneId=CommuneId"
-vslices update vsir Location --set "input.Ext={sequence: string}"
-```
-
-When the product input already determines the direct state coordinates, no explicit construction sequence is needed. `TicketId` demonstrates this form:
-
-```yaml
-state:
-  Value: string
-input:
-  Value: string
-```
-
-The validator proves that `input.Value` can establish `state.Value`; the parser does not manufacture a no-op construction obligation.
-
-When extra semantic work is needed, `construction` is ordered and uses whole-boundary `set` because construction steps do not yet expose stable public member identities.
-
-Current construction forms exercised by grammar-driven discovery include:
-
-```text
+normalize
 ensure
 resolve
 apply
 refine
 ```
 
+`TicketCode` demonstrates normalization:
+
+```text
+vslices update vsir TicketCode --set "construction=[{normalize: {target: input.Value, intrinsic: trim}}, {ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar el correlativo de la solicitud'}}}]"
+```
+
 One semantic `apply` covers both direct and mapped/container input shapes. Target-specific realization such as `Apply` versus `ApplySeq` belongs to lowering/Ruleset knowledge, not VSIR command vocabulary.
 
 ### `identifier`
 
-`identifier` is selected as a classification:
+Identifier capability has two currently evidenced forms:
+
+```text
+classification: identifier
+```
+
+and:
+
+```text
+classification: value-object
+traits: [..., identifier]
+```
+
+The first is witnessed by `TicketId`; the second by `TicketCode`. They are not structurally synonymous declarations, but both establish identifier capability. Therefore both require an explicit `equality` boundary and both lower to `Identifier<T, T.Repr>`.
+
+Examples:
 
 ```text
 vslices update vsir TicketId --set classification=identifier
+vslices update vsir TicketCode --add traits=identifier
+vslices update vsir TicketCode --set "equality={intrinsic: ordinal-equals, by: state.Value}"
 ```
 
-It activates the `equality` obligation:
-
-```text
-vslices update vsir TicketId --set "equality={intrinsic: ordinal-equals, by: state.Value}"
-```
-
-Equality can use an admitted intrinsic or equality over a semantic type according to the canonical grammar.
+Equality without either identifier classification or identifier trait fails closed.
 
 ### `refined`
 
-`refined` remains a trait and activates `refined-from` plus the canonical refined construction constraints:
-
-```text
-vslices update vsir SrvIdentityId --add traits=refined
-vslices update vsir SrvIdentityId --set "refined-from=Rut"
-```
-
-For the current refined witness, scalar `input` matches the refined base and construction culminates in `refine`. A refined identifier combines `classification: identifier` with `traits: [transform, refined]`; identifier is not duplicated in traits.
+`refined` activates `refined-from` plus canonical refined construction constraints. A refined identifier such as `SrvIdentityId` combines `classification: identifier` with `traits: [transform, refined]`.
 
 ## 12. Gated semantic families
 
@@ -464,8 +425,6 @@ maintained values
 entity classification
 aggregate-root classification
 ```
-
-This does not claim those ideas are invalid VSIR concepts. It means the current Tooling branch has not yet earned public authoring parity for them.
 
 The rule is:
 
@@ -482,7 +441,7 @@ admitted corpus form conflicts with an implementation restriction
   -> do not rewrite the corpus to fit the restriction
 ```
 
-`TicketId` is the concrete witness for this second rule.
+`TicketId` and `TicketCode` are concrete witnesses for this second rule.
 
 ## 13. `search`
 
@@ -498,9 +457,7 @@ The motivating searchable metadata case is:
 vslices search --filter tags:contains:ticket
 ```
 
-Current operators include `contains` and `equals` for the supported root-property cases. Search is read-only and respects artifact discovery exclusions.
-
-Search may also inspect semantic root properties, but that does not make search metadata semantic or semantic fields free-form metadata.
+Search is read-only and respects artifact discovery exclusions. Search may also inspect semantic root properties, but that does not make search metadata semantic or semantic fields free-form metadata.
 
 ## 14. Lowering lifecycle
 
@@ -515,44 +472,11 @@ partial knowledge
   -> target witness
 ```
 
-The artifact boundary is shared. `VsirParser` validates and removes `tags` before semantic interpretation, so a tagged artifact accepted by authoring is also accepted by conformance and target-materialization paths without tags gaining semantic authority.
+`TicketId` adds evidence for identifier classification, intrinsic ordinal equality, product transform input, and direct input-to-state construction with no explicit construction sequence.
 
-`transpile` produces the deterministic target projection. `rebase` obtains its previous and next deterministic projections through that same transpilation operation. `lower` orchestrates the same deterministic projection with lineage/rebase behavior; it does not own a second semantic grammar.
+`TicketCode` adds evidence for value-object classification plus identifier trait, normalize/trim, equality, and normalized input flowing into validation and state construction.
 
-Current lowering evidence from `Location` includes:
-
-```text
-structured semantic types
-state.from
-representation reference/stringify/represent/select/map/intrinsic
-root input
-ensure
-resolve
-apply direct
-apply mapped/container
-refine
-```
-
-`TicketId` adds evidence for:
-
-```text
-identifier classification
-intrinsic ordinal equality
-product transform input
-direct input-to-state construction with no explicit construction sequence
-```
-
-`SrvIdentityId` adds evidence for:
-
-```text
-identifier classification
-refined trait
-scalar input
-refined-from
-equality over semantic type
-stringify
-refine
-```
+`SrvIdentityId` adds evidence for identifier classification combined with refined semantics.
 
 ## 15. Authoring parity
 
@@ -566,52 +490,26 @@ lower can consume it
 Ruleset can materialize it when target realization is required
 ```
 
-Because `new` now contributes only version and name, semantic authoring parity is specifically exercised through `discovery/update` from that minimal starting point.
-
-`Location.vsir` is the strongest structured semantic witness. `TicketId.vsir` is the direct identifier/intrinsic-equality/no-explicit-construction witness. `SrvIdentityId.vsir` combines identifier classification with refined semantics.
-
-Artifact metadata has a related but different requirement:
-
-```text
-authorable metadata
-  -> accepted by the common artifact parser
-  -> no semantic effect
-```
+Because `new` contributes only version and name, semantic authoring parity is specifically exercised through `discovery/update` from that minimal starting point.
 
 ## 16. Agent-facing invariants
 
 - `new vsir` has no flags and establishes only VSIR version plus semantic name;
 - every metadata or semantic fact after identity is authored through `discovery` / `update`;
 - `tags` is always an available metadata affordance once an artifact can be resolved;
-- `tags` exists to support indexing/grouping/search, including `vslices search --filter tags:contains:<value>`;
 - `tags` carries no semantic or lowering authority;
-- `traits` remains a distinct semantic capability surface;
+- `traits` is a distinct semantic capability surface;
 - conformance, transpile, lower and rebase use the common metadata-aware artifact parser;
-- discovery advertises only forms that belong to the current end-to-end public surface;
 - `product` with `value-object | identifier` is the current public Domain Type envelope;
-- `transform` and `refined` are current explicit semantic traits;
-- `identifier` is a classification and requires explicit equality semantics;
-- product transform input may establish matching state directly without an explicit `construction` sequence;
+- `transform`, `identifier`, and `refined` are current explicit semantic traits;
+- identifier capability may be established by identifier classification or identifier trait;
+- identifier capability requires explicit equality semantics and maps to the Framework Identifier contract;
+- construction grammar includes `normalize`, with TicketCode as the concrete witness;
+- product transform input may establish matching state directly without an explicit construction sequence;
 - `sum`, `maintained`, `entity`, and `aggregate-root` remain gated until corpus evidence crosses the complete pipeline;
 - no command may silently invent unsupported semantics;
-- `set` means establish-or-replace for ordinary assertions;
-- repeated `--set`, `--add`, and `--remove` options are preserved rather than overwritten by CLI binding;
-- `add` is reserved for genuine collection membership (`tags` and `traits` currently);
-- semantic discovery remains state-dependent and may be projected without persistence;
-- discovery command templates and grammar forms are part of the authoring contract;
-- grammar-driven discovery advertises valid forms but does not choose the domain decision;
-- structured field authoring does not authorize arbitrary YAML;
-- `from` and `mapping` remain mutually exclusive where specified;
-- explicit authored construction evidence outranks same-name convenience conventions;
-- concrete admitted corpus evidence outranks accidental implementation restrictions;
-- update is atomic and fail-closed;
-- lowering must preserve explicit semantic expression structure;
-- current implementation limitations must not be mistaken for conceptual VSIR limits;
-- VSIR language authority remains `vslices/intermediate-representation`.
-
-## 17. Cross-repository map
-
-- [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation) — VSIR semantic language.
-- [`vslices/tooling`](https://github.com/vslices/tooling) — CLI, artifact parser, validator, discovery, mutation, search metadata and lowering mechanisms.
-- [`vslices/ruleset`](https://github.com/vslices/ruleset) — deterministic target realization knowledge.
-- [`vslices/planifications`](https://github.com/vslices/planifications) — progressive source reconstruction process and feedback loops.
+- repeated `--set`, `--add`, and `--remove` occurrences are preserved;
+- ordinary named assertions use `set`; collection membership uses `add/remove`;
+- structured values use discovery-advertised grammar;
+- Ruleset owns target realization knowledge;
+- unknown semantics remain unknown.
