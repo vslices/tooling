@@ -100,8 +100,26 @@ internal static class VsirMutationEngine
         }
     }
 
-    private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation) =>
-        mutation.Path switch
+    private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation)
+    {
+        if (TryChildPath(mutation.Path, "state", out var stateField, out var stateTail))
+        {
+            return stateTail switch
+            {
+                null => ApplyMapFieldMutation(root, "state", stateField, mutation),
+                "from" => ApplyStateFromMutation(root, stateField, mutation),
+                _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
+            };
+        }
+
+        if (TryChildPath(mutation.Path, "representation", out var representationField, out var representationTail))
+        {
+            return representationTail is null
+                ? ApplyMapFieldMutation(root, "representation", representationField, mutation)
+                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+        }
+
+        return mutation.Path switch
         {
             "tags" => ApplySetMutation(root, "tags", mutation),
             "traits" => ApplySetMutation(root, "traits", mutation),
@@ -109,6 +127,131 @@ internal static class VsirMutationEngine
             "classification" => ApplyScalarMutation(root, "classification", mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
+    }
+
+    private static string? ApplyMapFieldMutation(
+        YamlMappingNode root,
+        string mapPath,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires a property name.";
+
+        var mapKey = new YamlScalarNode(mapPath);
+        YamlMappingNode map;
+        if (root.Children.TryGetValue(mapKey, out var existingMapNode))
+        {
+            if (existingMapNode is not YamlMappingNode existingMap)
+                return $"UPDATE025: Semantic path '{mapPath}' must be a mapping before its properties can be mutated.";
+            map = existingMap;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return $"UPDATE022: Semantic property '{mapPath}.{fieldName}' does not exist; use 'add' to establish it.";
+            map = new YamlMappingNode();
+            root.Children[mapKey] = map;
+        }
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        var exists = map.Children.ContainsKey(fieldKey);
+
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add when exists:
+                return $"UPDATE021: Semantic property '{mapPath}.{fieldName}' already exists; use 'set' to change it.";
+
+            case VsirMutationKind.Set when !exists:
+                return $"UPDATE022: Semantic property '{mapPath}.{fieldName}' does not exist; use 'add' to establish it.";
+
+            case VsirMutationKind.Remove when !exists:
+                return $"UPDATE023: Semantic property '{mapPath}.{fieldName}' does not exist and cannot be removed.";
+        }
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            if (map.Children.Count == 1 && IsRequiredMap(root, mapPath))
+                return $"UPDATE024: Cannot remove the last property from required semantic map '{mapPath}'.";
+
+            map.Children.Remove(fieldKey);
+            if (map.Children.Count == 0)
+                root.Children.Remove(mapKey);
+            return null;
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
+            return $"UPDATE013: Semantic property '{mapPath}.{fieldName}' requires a non-empty single-line type declaration.";
+
+        map.Children[fieldKey] = new YamlScalarNode(value);
+        return null;
+    }
+
+    private static string? ApplyStateFromMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (!TryMapping(root, "state", out var state))
+            return $"UPDATE022: Semantic property 'state.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        if (!state.Children.TryGetValue(fieldKey, out var fieldNode))
+            return $"UPDATE022: Semantic property 'state.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        YamlMappingNode declaration;
+        if (fieldNode is YamlScalarNode scalar)
+        {
+            if (string.IsNullOrWhiteSpace(scalar.Value))
+                return $"UPDATE025: Semantic property 'state.{fieldName}' has no type declaration.";
+
+            declaration = new YamlMappingNode
+            {
+                { "type", scalar.Value }
+            };
+        }
+        else if (fieldNode is YamlMappingNode mapping)
+        {
+            declaration = mapping;
+        }
+        else
+        {
+            return $"UPDATE025: Semantic property 'state.{fieldName}' has an unsupported declaration shape.";
+        }
+
+        var fromKey = new YamlScalarNode("from");
+        var exists = declaration.Children.ContainsKey(fromKey);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return $"UPDATE021: Semantic property 'state.{fieldName}.from' already exists; use 'set' to change it.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return $"UPDATE023: Semantic property 'state.{fieldName}.from' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            declaration.Children.Remove(fromKey);
+            if (declaration.Children.Count == 1 &&
+                declaration.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode) &&
+                typeNode is YamlScalarNode typeScalar)
+            {
+                state.Children[fieldKey] = new YamlScalarNode(typeScalar.Value);
+            }
+            else
+            {
+                state.Children[fieldKey] = declaration;
+            }
+            return null;
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
+            return $"UPDATE013: Semantic property 'state.{fieldName}.from' requires a non-empty single-line state reference.";
+
+        declaration.Children[fromKey] = new YamlScalarNode(value);
+        state.Children[fieldKey] = declaration;
+        return null;
+    }
 
     private static string? ApplyScalarMutation(
         YamlMappingNode root,
@@ -253,6 +396,39 @@ internal static class VsirMutationEngine
         return null;
     }
 
+    private static bool TryChildPath(
+        string path,
+        string rootPath,
+        out string fieldName,
+        out string? tail)
+    {
+        fieldName = string.Empty;
+        tail = null;
+
+        var prefix = rootPath + ".";
+        if (!path.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+
+        var remainder = path[prefix.Length..];
+        var separator = remainder.IndexOf('.');
+        if (separator < 0)
+        {
+            fieldName = remainder;
+            return true;
+        }
+
+        fieldName = remainder[..separator];
+        tail = remainder[(separator + 1)..];
+        return true;
+    }
+
+    private static bool IsRequiredMap(YamlMappingNode root, string mapPath)
+    {
+        var classification = Scalar(root, "classification");
+        return mapPath is "state" or "representation" &&
+               classification is "value-object" or "entity" or "aggregate-root";
+    }
+
     private static string? Scalar(YamlMappingNode root, string key) =>
         root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
             ? scalar.Value
@@ -260,6 +436,18 @@ internal static class VsirMutationEngine
 
     private static bool HasKey(YamlMappingNode root, string key) =>
         root.Children.ContainsKey(new YamlScalarNode(key));
+
+    private static bool TryMapping(YamlMappingNode root, string key, out YamlMappingNode mapping)
+    {
+        if (root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlMappingNode value)
+        {
+            mapping = value;
+            return true;
+        }
+
+        mapping = null!;
+        return false;
+    }
 
     private static IReadOnlyList<string> Sequence(YamlMappingNode root, string key)
     {
