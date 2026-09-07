@@ -491,7 +491,7 @@ public static class CSharpLanguageLowerer
         if (hasIdentifierCapability)
             yield return $"Identifier<{document.Name}>";
         if (isRefined)
-            yield return $"Refined<{document.Name}, {document.RefinedFrom}, {document.Name}.Repr>";
+            yield return $"Refined<{document.Name}, {document.RefinedFrom}>";
         yield return $"Transform<{document.Name}, {inputType}>";
     }
 
