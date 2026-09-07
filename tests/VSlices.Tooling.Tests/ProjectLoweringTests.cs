@@ -19,6 +19,31 @@ public sealed class ProjectLoweringTests
     }
 
     [Fact]
+    public async Task Lower_accepts_searchable_tags_metadata_without_giving_it_semantic_authority()
+    {
+        using var project = CreateProject("Identities.Domain");
+        var path = Path.Combine(project.Root, "TaggedValue.vsir");
+        WriteSupportedValueObject(path, "TaggedValue");
+
+        var source = File.ReadAllText(path);
+        source = source.Replace(
+            "name: TaggedValue\n",
+            "name: TaggedValue\ntags: [ticket, serviu]\n",
+            StringComparison.Ordinal);
+        File.WriteAllText(path, source);
+
+        var result = await project.Run(project.Root, "lower", "TaggedValue.vsir");
+
+        Assert.Equal(0, result.ExitCode);
+        var materialization = Path.Combine(project.Root, "TaggedValue.vsir.cs");
+        Assert.True(File.Exists(materialization));
+        var lowered = File.ReadAllText(materialization);
+        Assert.Contains("TaggedValue", lowered);
+        Assert.DoesNotContain("ticket", lowered, StringComparison.Ordinal);
+        Assert.DoesNotContain("serviu", lowered, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Lower_requires_extension_when_project_and_vsir_symbols_are_ambiguous()
     {
         using var project = CreateProject("Identities.Domain");
