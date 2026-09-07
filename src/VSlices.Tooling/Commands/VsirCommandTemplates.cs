@@ -1,5 +1,65 @@
 namespace VSlices.Tooling;
 
+internal sealed record VsirGrammarSlot(string Name, string ValueKind);
+
+internal sealed record VsirGrammarForm(
+    string Name,
+    string Template,
+    IReadOnlyList<VsirGrammarSlot> Slots);
+
+internal sealed record VsirValueGrammar(
+    string RootKind,
+    IReadOnlyList<VsirGrammarForm> Forms);
+
+internal static class VsirGrammarDiscovery
+{
+    private static readonly VsirValueGrammar RepresentationExpression = new(
+        "expression",
+        [
+            new(
+                "stringify",
+                "{stringify: <semantic-reference>}",
+                [new("value", "semantic-reference")]),
+            new(
+                "represent",
+                "{represent: <semantic-reference>}",
+                [new("value", "semantic-reference")]),
+            new(
+                "select",
+                "{select: {source: <expression>, field: <field>}}",
+                [
+                    new("source", "expression"),
+                    new("field", "field")
+                ]),
+            new(
+                "map",
+                "{map: {source: <semantic-reference>, bind: <name>, value: <expression>}}",
+                [
+                    new("source", "semantic-reference"),
+                    new("bind", "name"),
+                    new("value", "expression")
+                ]),
+            new(
+                "intrinsic",
+                "{intrinsic: <ruleset-intrinsic>, ...}",
+                [new("intrinsic", "ruleset-intrinsic")])
+        ]);
+
+    public static string ValueKind(VsirPathContract contract) =>
+        IsRepresentationMapping(contract.Path)
+            ? RepresentationExpression.RootKind
+            : contract.ValueKind;
+
+    public static VsirValueGrammar? For(VsirPathContract contract) =>
+        IsRepresentationMapping(contract.Path)
+            ? RepresentationExpression
+            : null;
+
+    private static bool IsRepresentationMapping(string path) =>
+        path.StartsWith("representation.", StringComparison.Ordinal) &&
+        path.EndsWith(".mapping", StringComparison.Ordinal);
+}
+
 internal static class VsirCommandTemplates
 {
     public static IReadOnlyList<string> For(
@@ -55,7 +115,7 @@ internal static class VsirCommandTemplates
             "state" or "representation" or "input" => "<semantic-field-declaration>",
             "variants" => "<variant-declaration>",
             "values" => "<maintained-member-declaration>",
-            _ => $"<{contract.ValueKind.Replace(' ', '-').ToLowerInvariant()}>"
+            _ => $"<{VsirGrammarDiscovery.ValueKind(contract).Replace(' ', '-').ToLowerInvariant()}>"
         };
     }
 
