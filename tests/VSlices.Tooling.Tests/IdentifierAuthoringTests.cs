@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class IdentifierAuthoringTests
 {
     [Fact]
-    public void Identifier_discovery_requires_only_equality_from_its_classification()
+    public void Identifier_discovery_adds_only_equality_beyond_domain_type_obligations()
     {
         var source = """
             vsir: 0.1
@@ -16,14 +16,18 @@ public sealed class IdentifierAuthoringTests
 
         Assert.Null(error);
 
+        var state = Assert.Single(frontier, item => item.Path == "state");
+        Assert.Equal(VsirFrontierStatus.Required, state.Status);
+
+        var representation = Assert.Single(frontier, item => item.Path == "representation");
+        Assert.Equal(VsirFrontierStatus.Required, representation.Status);
+
         var equality = Assert.Single(frontier, item => item.Path == "equality");
         Assert.Equal(VsirFrontierStatus.Required, equality.Status);
         Assert.Equal("strategy", equality.ValueKind);
         Assert.Single(equality.Operations);
         Assert.Contains(VsirMutationKind.Set, equality.Operations);
 
-        Assert.DoesNotContain(frontier, item => item.Path == "state");
-        Assert.DoesNotContain(frontier, item => item.Path == "representation");
         Assert.DoesNotContain(frontier, item => item.Path == "values");
     }
 
