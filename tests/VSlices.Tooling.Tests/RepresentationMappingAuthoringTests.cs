@@ -42,6 +42,98 @@ public sealed class RepresentationMappingAuthoringTests
     }
 
     [Fact]
+    public void Discovery_exposes_mapping_set_for_representation_field_without_direct_source()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetExtension
+            shape: product
+            classification: value-object
+            state:
+              Name: string
+              Value: string
+            representation:
+              Value: string
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
+
+        Assert.Null(error);
+
+        var mapping = Assert.Single(frontier, item => item.Path == "representation.Value.mapping");
+        Assert.Equal(VsirFrontierStatus.Optional, mapping.Status);
+        Assert.Equal("mapping", mapping.ValueKind);
+        Assert.Single(mapping.Operations);
+        Assert.Contains(VsirMutationKind.Set, mapping.Operations);
+
+        var from = Assert.Single(frontier, item => item.Path == "representation.Value.from");
+        Assert.Contains(VsirMutationKind.Add, from.Operations);
+        Assert.Contains(VsirMutationKind.Set, from.Operations);
+        Assert.DoesNotContain(VsirMutationKind.Remove, from.Operations);
+    }
+
+    [Fact]
+    public void Discovery_does_not_offer_mapping_while_direct_from_source_is_active()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Example
+            shape: product
+            classification: value-object
+            state:
+              Name: string
+            representation:
+              Value:
+                type: string
+                from: state.Name
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(frontier, item => item.Path == "representation.Value.mapping");
+
+        var from = Assert.Single(frontier, item => item.Path == "representation.Value.from");
+        Assert.Contains(VsirMutationKind.Remove, from.Operations);
+        Assert.Contains(VsirMutationKind.Set, from.Operations);
+        Assert.DoesNotContain(VsirMutationKind.Add, from.Operations);
+    }
+
+    [Fact]
+    public void Discovery_does_not_offer_direct_from_while_mapping_source_is_active()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetExtension
+            shape: product
+            classification: value-object
+            state:
+              Name: string
+              Value: string
+            representation:
+              Value:
+                type: string
+                mapping:
+                  intrinsic: concat-space
+                  values:
+                    - state.Name
+                    - state.Value
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(frontier, item => item.Path == "representation.Value.from");
+
+        var mapping = Assert.Single(frontier, item => item.Path == "representation.Value.mapping");
+        Assert.Single(mapping.Operations);
+        Assert.Contains(VsirMutationKind.Set, mapping.Operations);
+    }
+
+    [Fact]
     public void Representation_mapping_and_from_are_mutually_exclusive()
     {
         var source = """
@@ -122,7 +214,7 @@ public sealed class RepresentationMappingAuthoringTests
     }
 
     [Fact]
-    public void StreetExtension_can_be_authored_with_mapping_input_and_construction()
+    public void StreetExtension_can_be_authored_step_by_step_through_discovery_and_supported_updates()
     {
         var created = VsirTemplate.Create(
             "StreetExtension",
@@ -132,28 +224,59 @@ public sealed class RepresentationMappingAuthoringTests
             []);
 
         Assert.True(created.IsSuccess, created.Error);
+        var current = created.Source!;
 
-        var core = VsirMutationPipeline.Apply(
-            created.Source!,
-            [
-                new(VsirMutationKind.Add, "state.Name", "string"),
-                new(VsirMutationKind.Add, "state.Value", "string"),
-                new(VsirMutationKind.Add, "representation.Value", "string"),
-                new(VsirMutationKind.Add, "traits", "transform"),
-                new(VsirMutationKind.Add, "input.Value", "string"),
-                new(
-                    VsirMutationKind.Set,
-                    "construction",
-                    "[{ensure: {condition: {intrinsic: not-whitespace, args: {value: input.Value}}, failure: {message: 'Debes especificar la extensión'}}}, {ensure: {condition: {intrinsic: length-between, args: {value: input.Value, min: 3, max: 16}}, failure: {message: 'Debe tener entre 3 y 16 caracteres'}}}, {refine: {intrinsic: split-first-rest, value: input.Value, as: {Name: name, Value: value}, failure: {message: 'Debes especificar un nombre y un valor, separados por espacio'}}}, {refine: {state: {Name: name, Value: value}}}]"),
-                new(
-                    VsirMutationKind.Set,
-                    "representation.Value.mapping",
-                    "{intrinsic: concat-space, values: [state.Name, state.Value]}")
-            ]);
+        var initialFrontier = VsirMutationPipeline.Discover(current, out var initialError);
+        Assert.Null(initialError);
+        AssertCan(initialFrontier, "state", VsirMutationKind.Add);
+        AssertCan(initialFrontier, "representation", VsirMutationKind.Add);
+        AssertCan(initialFrontier, "traits", VsirMutationKind.Add);
 
-        Assert.True(core.IsSuccess, core.Error);
-        var normalized = VsirSourceFormatter.FormatAfterMutation(core.Source!).Replace("\r\n", "\n");
+        current = Apply(
+            current,
+            new(VsirMutationKind.Add, "state.Name", "string"),
+            new(VsirMutationKind.Add, "state.Value", "string"),
+            new(VsirMutationKind.Add, "representation.Value", "string"),
+            new(VsirMutationKind.Add, "traits", "transform"));
 
+        var transformFrontier = VsirMutationPipeline.Discover(current, out var transformError);
+        Assert.Null(transformError);
+        AssertCan(transformFrontier, "input", VsirMutationKind.Add);
+        AssertCan(transformFrontier, "construction", VsirMutationKind.Set);
+        AssertCan(transformFrontier, "representation.Value.mapping", VsirMutationKind.Set);
+        AssertCan(transformFrontier, "representation.Value.from", VsirMutationKind.Add);
+
+        current = Apply(current, new(VsirMutationKind.Add, "input.Value", "string"));
+
+        var inputFrontier = VsirMutationPipeline.Discover(current, out var inputError);
+        Assert.Null(inputError);
+        Assert.DoesNotContain(inputFrontier, item => item.Path == "input");
+        AssertCan(inputFrontier, "construction", VsirMutationKind.Set);
+        AssertCan(inputFrontier, "representation.Value.mapping", VsirMutationKind.Set);
+
+        current = Apply(
+            current,
+            new(
+                VsirMutationKind.Set,
+                "representation.Value.mapping",
+                "{intrinsic: concat-space, values: [state.Name, state.Value]}"));
+
+        var mappedFrontier = VsirMutationPipeline.Discover(current, out var mappedError);
+        Assert.Null(mappedError);
+        AssertCan(mappedFrontier, "representation.Value.mapping", VsirMutationKind.Set);
+        Assert.DoesNotContain(mappedFrontier, item => item.Path == "representation.Value.from");
+        AssertCan(mappedFrontier, "construction", VsirMutationKind.Set);
+
+        var construction = "[{ensure: {condition: {intrinsic: not-whitespace, args: {value: input.Value}}, failure: {message: 'Debes especificar la extensión'}}}, {ensure: {condition: {intrinsic: length-between, args: {value: input.Value, min: 3, max: 16}}, failure: {message: 'Debe tener entre 3 y 16 caracteres'}}}, {refine: {intrinsic: split-first-rest, value: input.Value, as: {Name: name, Value: value}, failure: {message: 'Debes especificar un nombre y un valor, separados por espacio'}}}, {refine: {state: {Name: name, Value: value}}}]";
+        current = Apply(current, new(VsirMutationKind.Set, "construction", construction));
+
+        var completeFrontier = VsirMutationPipeline.Discover(current, out var completeError);
+        Assert.Null(completeError);
+        Assert.DoesNotContain(completeFrontier, item => item.Path == "input");
+        Assert.DoesNotContain(completeFrontier, item => item.Path == "construction");
+        AssertCan(completeFrontier, "representation.Value.mapping", VsirMutationKind.Set);
+
+        var normalized = VsirSourceFormatter.FormatAfterMutation(current).Replace("\r\n", "\n");
         Assert.Contains("name: StreetExtension", normalized);
         Assert.Contains("intrinsic: concat-space", normalized);
         Assert.Contains("intrinsic: not-whitespace", normalized);
@@ -161,5 +284,21 @@ public sealed class RepresentationMappingAuthoringTests
         Assert.Contains("intrinsic: split-first-rest", normalized);
         Assert.Contains("Name: name", normalized);
         Assert.Contains("Value: value", normalized);
+    }
+
+    private static string Apply(string source, params VsirMutation[] mutations)
+    {
+        var result = VsirMutationPipeline.Apply(source, mutations);
+        Assert.True(result.IsSuccess, result.Error);
+        return result.Source!;
+    }
+
+    private static void AssertCan(
+        IReadOnlyList<VsirPathContract> frontier,
+        string path,
+        VsirMutationKind operation)
+    {
+        var contract = Assert.Single(frontier, item => item.Path == path);
+        Assert.Contains(operation, contract.Operations);
     }
 }
