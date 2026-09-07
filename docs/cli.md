@@ -218,13 +218,13 @@ classification obligations become visible:
 ```text
 state
   status: required
-  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type. Add, remove and set operate on child property paths such as state.Value.
+  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties support add, remove and set; derived state may declare a direct state source through state.<property>.from.
   value kind: map<property, declaration>
   operations: add, remove, set
 
 representation
   status: required
-  meaning: Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity. Add, remove and set operate on child property paths such as representation.Value.
+  meaning: Declares the observable form through which a valid Domain Type can be represented. Child properties support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.
   value kind: map<property, declaration>
   operations: add, remove, set
 
@@ -337,7 +337,7 @@ values:
 
 The member name and member state remain distinct. Tooling does not infer `Name: Natural` merely from the member name `Natural`. A maintained member declaration therefore requires an explicit non-empty `state` mapping. Removing the final maintained member fails closed because `values` is required by the effective `maintained` trait.
 
-The first local state relation is also writable:
+A derived state property exposes its provenance through `from`:
 
 ```text
 vslices update vsir Location --set state.Region.from=state.Commune.InProvince.InRegion
@@ -352,7 +352,24 @@ state:
     from: state.Commune.InProvince.InRegion
 ```
 
-Removing `state.Region.from` collapses the declaration back to scalar shorthand when only `type` remains. No deeper representation mapping syntax is authorized yet.
+`state.<property>.from` accepts direct `state.*` references. Removing the relation collapses the declaration back to scalar shorthand when only `type` remains.
+
+A representation property can now declare the direct state value that supplies it:
+
+```text
+vslices update vsir IdentityType --set representation.Value.from=state.Name
+```
+
+which expands a scalar declaration as needed:
+
+```yaml
+representation:
+  Value:
+    type: string
+    from: state.Name
+```
+
+`representation.<property>.from` is for direct reuse of a state value only. It accepts `state.*` references and is mutually exclusive with a representation `mapping`. Semantic transformations such as stringify/select/map continue to belong to `mapping`; deeper mapping authoring is not implemented yet.
 
 `traits` is currently writable after a Domain Type classification is known:
 
@@ -370,6 +387,7 @@ vslices discovery vsir StreetName --add tags=addressing
 vslices discovery vsir StreetName --add traits=transform
 vslices discovery vsir StreetName --add state.Value=string
 vslices discovery vsir IdentityType --add "values.Natural={state: {Name: Natural}}"
+vslices discovery vsir IdentityType --set representation.Value.from=state.Name
 ```
 
 Projecting `--add traits=transform` therefore also projects the newly activated `input` and `construction` obligations in the returned frontier.
@@ -407,6 +425,12 @@ values.<member>
 
 state.<property>.from
   -> add, remove, set
+  -> value must be a state.* reference
+
+representation.<property>.from
+  -> add, remove, set
+  -> value must be a state.* reference
+  -> mutually exclusive with representation mapping
 ```
 
 Examples:
@@ -440,11 +464,17 @@ vslices update vsir IdentityType \
   --add "values.Natural={state: {Name: Natural}}"
 ```
 
+```text
+vslices update vsir IdentityType \
+  --set representation.Value.from=state.Name
+```
+
 For map-property or maintained-member removal the value is unnecessary, so the concise form is valid:
 
 ```text
 vslices update vsir Location --remove state.Number
 vslices update vsir Location --remove state.Region.from
+vslices update vsir IdentityType --remove representation.Value.from
 vslices update vsir IdentityType --remove values.Natural
 ```
 
@@ -507,6 +537,7 @@ discovery vsir
   -> exposes kind, then classification
   -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
   -> after maintained, exposes state, representation and values as required writable maps
+  -> explains the direct state-source relation available under both state and representation
   -> after classification, exposes traits as optional and transform as the currently available explicit value
   -> when transform is effective, exposes missing input and construction as required obligations
 
@@ -519,11 +550,13 @@ update vsir
   -> can set kind and classification atomically
   -> can add/remove/set direct state and representation properties
   -> can add/remove/set maintained members under values
-  -> can establish/change/remove the direct state `from` relation
-  -> does not yet author input or construction
+  -> can establish/change/remove state.<property>.from
+  -> can establish/change/remove representation.<property>.from
+  -> rejects representation declarations that combine from and mapping
+  -> does not yet author representation mapping, input or construction
 ```
 
-Input/construction authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
+Input/construction authoring, representation mapping authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -546,7 +579,10 @@ Input/construction authoring, deeper field declaration forms and additional expl
 - adding an existing state/representation property fails rather than silently replacing it;
 - setting a missing state/representation property fails rather than silently creating it;
 - removing the final property of a required state/representation map fails closed;
-- the currently authorized local state relation is `from: <state-reference>`;
+- `state.<property>.from` declares direct semantic provenance from a `state.*` reference;
+- `representation.<property>.from` declares a direct `state.*` source without transformation;
+- representation `from` and `mapping` are mutually exclusive;
+- removing a local `from` relation preserves the field type and collapses back to shorthand when possible;
 - unsupported deeper state/representation paths remain fail-closed;
 - `traits` is an optional Domain Type capability surface and supports add/remove/set after a Domain Type kind is established;
 - discovery exposes the currently supported explicit trait vocabulary;
