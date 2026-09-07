@@ -22,7 +22,7 @@ The interaction loop is:
 
 ```text
 new
-  -> establish progressive state
+  -> establish version + semantic name only
 
 discovery
   -> expose always-available tags metadata operations
@@ -42,28 +42,31 @@ See [`semantic-authoring-affordances.md`](./semantic-authoring-affordances.md) f
 
 ## 2. `new vsir`
 
-The minimum progressive artifact may begin with only identity known by the authoring process:
+`new vsir` always starts from zero semantic knowledge. Its only public input is the semantic name:
 
 ```text
 vslices new vsir StreetName
 ```
 
-which may create:
+It creates exactly:
 
 ```yaml
 vsir: 0.1
 name: StreetName
 ```
 
-Current convenience flags include:
+`new vsir` exposes no flags. It does not accept semantic shortcuts such as `--kind`, `--shape`, or `--classification`, and it does not expose output-routing, stdout, or force/overwrite flags.
+
+All metadata and semantic knowledge after identity flows through the single public authoring protocol:
 
 ```text
---kind
---shape
---classification
+new
+  -> discovery
+  -> update
+  -> discovery
 ```
 
-They establish semantic facts only when supplied; they do not authorize Tooling to infer missing semantics. Their accepted values are constrained to the current end-to-end surface advertised by discovery rather than every historical experiment.
+This keeps `new` from becoming a second authoring grammar or a bypass around state-driven discovery.
 
 Search metadata does not need to be known at creation time because `tags` is always exposed immediately by `discovery` and writable by `update`.
 
@@ -518,6 +521,8 @@ lower can consume it
 Ruleset can materialize it when target realization is required
 ```
 
+Because `new` now contributes only version and name, semantic authoring parity is specifically exercised through `discovery/update` from that minimal starting point.
+
 `Location.vsir` is the strongest structured semantic witness. `SrvIdentityId.vsir` is the current identifier/refined witness.
 
 Artifact metadata has a related but different requirement:
@@ -530,6 +535,8 @@ authorable metadata
 
 ## 16. Agent-facing invariants
 
+- `new vsir` has no flags and establishes only VSIR version plus semantic name;
+- every metadata or semantic fact after identity is authored through `discovery` / `update`;
 - `tags` is always an available metadata affordance once an artifact can be resolved;
 - `tags` exists to support indexing/grouping/search, including `vslices search --filter tags:contains:<value>`;
 - `tags` carries no semantic or lowering authority;
