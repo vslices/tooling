@@ -8,7 +8,7 @@ public static class DomainTypeValidator
         new(["value-object", "identifier"], StringComparer.Ordinal);
 
     private static readonly HashSet<string> SupportedTraits =
-        new(["transform", "refined"], StringComparer.Ordinal);
+        new(["transform", "identifier", "refined"], StringComparer.Ordinal);
 
     private static readonly HashSet<string> SupportedNormalizeIntrinsics =
         new(["trim"], StringComparer.Ordinal);
@@ -122,9 +122,14 @@ public static class DomainTypeValidator
         if (document.Equality is not null)
             ValidateEquality(document.Equality);
 
-        if (document.Classification == "identifier")
+        var hasIdentifierCapability =
+            document.Classification == "identifier" ||
+            document.Traits.Contains("identifier", StringComparer.Ordinal);
+        if (hasIdentifierCapability)
+        {
             Require(document.Equality is not null, "VSIR216",
-                "Classification 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
+                "Identifier semantics require explicit equality because the Framework Identifier contract is a discrete space.");
+        }
 
         if (isRefined && document.RefinedFrom is not null)
         {
