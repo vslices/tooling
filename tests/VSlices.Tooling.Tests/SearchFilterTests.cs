@@ -2,21 +2,21 @@ namespace VSlices.Tooling.Tests;
 
 public sealed class SearchFilterTests
 {
-    private const string Tagged = """
+    private const string DomainType = """
         vsir: 0.1
         kind: domain-type
         name: StreetName
-        tags: [addressing, identity-service]
         classification: value-object
+        traits: [transform]
         """;
 
     [Fact]
     public void Contains_matches_sequence_member()
     {
-        var parsed = SearchFilter.Parse("tags:contains:identity-service");
+        var parsed = SearchFilter.Parse("traits:contains:transform");
 
         Assert.Null(parsed.Error);
-        Assert.True(parsed.Filter!.Matches(Tagged));
+        Assert.True(parsed.Filter!.Matches(DomainType));
     }
 
     [Fact]
@@ -25,13 +25,13 @@ public sealed class SearchFilterTests
         var parsed = SearchFilter.Parse("classification:equals:value-object");
 
         Assert.Null(parsed.Error);
-        Assert.True(parsed.Filter!.Matches(Tagged));
+        Assert.True(parsed.Filter!.Matches(DomainType));
     }
 
     [Fact]
     public void Missing_property_does_not_match()
     {
-        var parsed = SearchFilter.Parse("tags:contains:accounts");
+        var parsed = SearchFilter.Parse("traits:contains:transform");
 
         Assert.Null(parsed.Error);
         Assert.False(parsed.Filter!.Matches("vsir: 0.1\nname: Example\n"));
@@ -49,7 +49,7 @@ public sealed class SearchFilterTests
     [Fact]
     public void Unsupported_operator_fails_closed()
     {
-        var parsed = SearchFilter.Parse("tags:starts-with:identity");
+        var parsed = SearchFilter.Parse("traits:starts-with:transform");
 
         Assert.Null(parsed.Filter);
         Assert.StartsWith("SEARCH002:", parsed.Error);
