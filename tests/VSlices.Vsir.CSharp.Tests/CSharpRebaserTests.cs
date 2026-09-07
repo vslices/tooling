@@ -187,9 +187,9 @@ public sealed class CSharpRebaserTests
     [Fact]
     public void Deterministic_replacement_resolution_still_fails_closed_when_the_conflict_has_no_unique_boundary()
     {
-        const string previous = "left generated right";
+        const string previous = "left old right";
         const string human = "left human right left human right";
-        const string next = "left regenerated right";
+        const string next = "left new right";
 
         var result = CSharpRebaser.Rebase(
             previous,
