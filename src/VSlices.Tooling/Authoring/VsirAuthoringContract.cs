@@ -60,7 +60,7 @@ internal static class VsirAuthoringContract
     {
         var result = new List<VsirPathContract>();
 
-        if (string.IsNullOrWhiteSpace(kind))
+        if (string.IsNullOrWhiteSpace(kind) || !Kinds.Contains(kind, StringComparer.Ordinal))
         {
             result.Add(new(
                 "kind",
@@ -82,6 +82,9 @@ internal static class VsirAuthoringContract
             "Declares how one valid Domain Type instance is structurally composed. Product means all state coordinates coexist; sum means shared state plus exactly one named variant is active.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set },
             DomainTypeShapes));
+
+        if (string.IsNullOrWhiteSpace(shape) || !DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
+            return result;
 
         var sumShape = string.Equals(shape, "sum", StringComparison.Ordinal);
 
@@ -113,15 +116,17 @@ internal static class VsirAuthoringContract
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
-        if (string.IsNullOrWhiteSpace(classification))
+        result.Add(new(
+            "classification",
+            "enum",
+            VsirFrontierStatus.Required,
+            "Declares the base semantic class of the Domain Type and activates classification-specific obligations.",
+            new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+            DomainTypeClassifications));
+
+        if (string.IsNullOrWhiteSpace(classification) ||
+            !DomainTypeClassifications.Contains(classification, StringComparer.Ordinal))
         {
-            result.Add(new(
-                "classification",
-                "enum",
-                VsirFrontierStatus.Required,
-                "Declares the base semantic class of the Domain Type and activates classification-specific obligations.",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-                DomainTypeClassifications));
             return result;
         }
 
