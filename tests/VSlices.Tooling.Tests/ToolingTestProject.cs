@@ -99,23 +99,24 @@ internal sealed class ToolingTestProject : IDisposable
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                - ensure:
-                    condition:
-                      intrinsic: length-at-most
+                  failure:
+                    message: required
+              - ensure:
+                  condition:
+                    intrinsic: length-at-most
+                    args:
                       value: input.Value
                       max: {{max}}
-                    failure:
-                      message: too long
+                  failure:
+                    message: too long
             """);
         return path;
     }
