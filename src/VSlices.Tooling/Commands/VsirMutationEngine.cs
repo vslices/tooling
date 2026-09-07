@@ -138,6 +138,7 @@ internal static class VsirMutationEngine
             "tags" => ApplySetMutation(root, "tags", mutation),
             "traits" => ApplySetMutation(root, "traits", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
+            "shape" => ApplyScalarMutation(root, "shape", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
             "equality" => ApplyEqualityMutation(root, mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
@@ -575,12 +576,20 @@ internal static class VsirMutationEngine
     private static string? ValidateCandidate(YamlMappingNode root)
     {
         var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
         var classification = Scalar(root, "classification");
         var traits = Sequence(root, "traits");
 
         if (!string.IsNullOrWhiteSpace(kind))
         {
             var error = VsirAuthoringContract.ValidateScalar("kind", kind, kind);
+            if (error is not null)
+                return error;
+        }
+
+        if (!string.IsNullOrWhiteSpace(shape))
+        {
+            var error = VsirAuthoringContract.ValidateScalar("shape", shape, kind);
             if (error is not null)
                 return error;
         }
