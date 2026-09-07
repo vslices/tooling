@@ -1,0 +1,603 @@
+using System.Text;
+using VSlices.Vsir;
+
+namespace VSlices.Vsir.CSharp;
+
+/// <summary>
+/// Keeps legacy lowering stable while the normalized VSIR surface is introduced.
+/// Normalized semantic structures are lowered here without flattening their expression tree.
+/// </summary>
+public static class CSharpLanguageLowerer
+{
+    public static CSharpLoweringResult Lower(
+        DomainTypeVsir document,
+        CSharpLoweringContext context) =>
+        RequiresNormalizedLowering(document)
+            ? LowerNormalized(document, context)
+            : CSharpLowerer.Lower(document, context);
+
+    private static bool RequiresNormalizedLowering(DomainTypeVsir document) =>
+        document.State.Fields.Any(field => field.From is not null) ||
+        document.Representation.Fields.Any(field => field.From is not null) ||
+        document.RepresentationMapping?.Fields.Values.Any(projection => projection is not StringifyProjection) == true ||
+        document.Construction.Steps.Any(step => step is ResolveStep);
+
+    private static CSharpLoweringResult LowerNormalized(
+        DomainTypeVsir document,
+        CSharpLoweringContext context)
+    {
+        var diagnostics = DomainTypeValidator.Validate(document, context.ValidationContext).ToList();
+        if (diagnostics.Count > 0)
+            return new(null, diagnostics);
+
+        ValidateTypes(document, context.Rules, diagnostics);
+        if (diagnostics.Count > 0)
+            return new(null, diagnostics);
+
+        var inputType = document.Construction.Input.IsScalar
+            ? RenderType(document.Construction.Input.ScalarType!, context.Rules)
+            : document.Name + ".Input";
+        var references = InitialInputReferences(document.Construction.Input);
+        var pipeline = new List<string>();
+
+        foreach (var step in document.Construction.Steps)
+        {
+            switch (step)
+            {
+                case NormalizeStep normalize:
+                    LowerNormalize(normalize, context.Rules, references, diagnostics);
+                    break;
+                case EnsureStep ensure:
+                    LowerEnsure(document.Name, inputType, ensure, context.Rules, references, pipeline, diagnostics);
+                    break;
+                case ResolveStep resolve:
+                    LowerResolve(document.Name, inputType, resolve, context.Rules, references, pipeline, diagnostics);
+                    break;
+                case ApplyStep apply:
+                    LowerApply(document.Name, inputType, apply, context.Rules, references, pipeline, diagnostics);
+                    break;
+            }
+        }
+
+        if (document.Equality is not null)
+            ValidateEqualityRules(document.Equality, context.Rules, diagnostics);
+
+        var representationExpressions = new List<string>();
+        foreach (var field in document.Representation.Fields)
+        {
+            if (!TryRepresentationExpression(document, field, context.Rules, out var expression, out var error))
+            {
+                diagnostics.Add(new("CSL060", error!));
+                continue;
+            }
+            representationExpressions.Add(expression!);
+        }
+
+        if (diagnostics.Count > 0)
+            return new(null, diagnostics);
+
+        var directState = document.State.Fields.Where(field => field.From is null).ToArray();
+        var stateExpressions = ResolveStateExpressions(document, directState, references);
+        var source = new StringBuilder();
+        source.AppendLine($"namespace {context.Namespace};");
+        source.AppendLine();
+        source.AppendLine($"public sealed class {document.Name} :");
+
+        var contracts = Contracts(document, inputType).ToArray();
+        for (var i = 0; i < contracts.Length; i++)
+            source.AppendLine($"    {contracts[i]}{(i == contracts.Length - 1 ? string.Empty : ",")}");
+
+        source.AppendLine("{");
+        source.AppendLine($"    public readonly record struct Repr({Parameters(document.Representation.Fields, context.Rules)});");
+
+        if (!document.Construction.Input.IsScalar)
+        {
+            source.AppendLine();
+            source.AppendLine($"    public readonly record struct Input({Parameters(document.Construction.Input.Fields, context.Rules)});");
+        }
+
+        source.AppendLine();
+        foreach (var field in directState)
+            source.AppendLine($"    private readonly {RenderType(field.Type, context.Rules)} _{Camel(field.Name)};");
+
+        foreach (var field in document.State.Fields.Where(field => field.From is not null))
+        {
+            source.AppendLine();
+            source.AppendLine($"    public {RenderType(field.Type, context.Rules)} {field.Name} =>");
+            source.AppendLine($"        {RenderSemanticReference(field.From!, new Dictionary<string, string>(StringComparer.Ordinal))};");
+        }
+
+        source.AppendLine();
+        source.AppendLine($"    private {document.Name}({Parameters(directState, context.Rules, camelNames: true)}) =>");
+        source.AppendLine($"        {ConstructorAssignment(directState)};");
+        source.AppendLine();
+        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {document.Name}>.Full Invariants =>");
+
+        if (pipeline.Count == 0)
+        {
+            source.AppendLine($"        VSlices.Arrows.Req<{inputType}, {document.Name}>.Transform(({inputType} input) => Instance(input));");
+        }
+        else
+        {
+            for (var i = 0; i < pipeline.Count; i++)
+                source.AppendLine((i == 0 ? "        " : "        >> ") + pipeline[i]);
+            source.AppendLine("        * Instance;");
+        }
+
+        source.AppendLine();
+        source.AppendLine($"    private static {document.Name} Instance({inputType} input) =>");
+        source.AppendLine($"        new({string.Join(", ", directState.Select(field => stateExpressions["state." + field.Name]))});");
+
+        if (document.Equality is not null)
+        {
+            source.AppendLine();
+            RenderEquality(source, document.Name, document.Equality, context.Rules);
+        }
+
+        if (document.RefinedFrom is not null)
+        {
+            var baseType = new NamedVsirType(document.RefinedFrom);
+            var baseField = directState.Single(field => field.Type == baseType);
+            source.AppendLine();
+            source.AppendLine($"    public {document.RefinedFrom} ToBase() =>");
+            source.AppendLine($"        _{Camel(baseField.Name)};");
+        }
+
+        source.AppendLine();
+        source.AppendLine("    public Repr To() =>");
+        source.AppendLine($"        new({string.Join(", ", representationExpressions)});");
+        source.AppendLine("}");
+
+        return new(source.ToString(), []);
+    }
+
+    private static void LowerNormalize(
+        NormalizeStep normalize,
+        CSharpLoweringRuleSet rules,
+        IDictionary<string, string> references,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var node = $"intrinsic.{normalize.Intrinsic}";
+        if (!rules.TryRenderDeterministicExpression(
+                node,
+                new Dictionary<string, string> { ["value"] = ResolveReference(normalize.Target, references) },
+                out var expression))
+        {
+            diagnostics.Add(new("CSL031", $"No deterministic C# normalization rule is available for '{node}'."));
+            return;
+        }
+        references[normalize.Target] = expression;
+    }
+
+    private static void LowerEnsure(
+        string domain,
+        string inputType,
+        EnsureStep ensure,
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> references,
+        ICollection<string> pipeline,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var (node, bindings) = DescribeCondition(ensure.Condition, references);
+        if (!rules.TryRenderDeterministicExpression(node, bindings, out var expression))
+        {
+            diagnostics.Add(new("CSL010", $"No deterministic C# lowering rule is available for '{node}'."));
+            return;
+        }
+
+        pipeline.Add(
+            $"VSlices.Arrows.Req<{inputType}, {domain}>.Ensure(({inputType} input) => {expression}, Fail: {RenderFailure(ensure, inputType, references)})");
+    }
+
+    private static void LowerResolve(
+        string domain,
+        string inputType,
+        ResolveStep resolve,
+        CSharpLoweringRuleSet rules,
+        IDictionary<string, string> references,
+        ICollection<string> pipeline,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var id = ResolveReference(resolve.Id, references);
+        var common = new Dictionary<string, string>
+        {
+            ["source"] = resolve.Source,
+            ["id"] = id
+        };
+
+        if (!rules.TryRenderDeterministicExpression("construction.resolve.condition", common, out var condition))
+        {
+            diagnostics.Add(new("CSL070", "No deterministic C# lowering rule is available for 'construction.resolve.condition'."));
+            return;
+        }
+        if (!rules.TryRenderDeterministicExpression("construction.resolve.value", common, out var value))
+        {
+            diagnostics.Add(new("CSL071", "No deterministic C# lowering rule is available for 'construction.resolve.value'."));
+            return;
+        }
+
+        pipeline.Add(
+            $"VSlices.Arrows.Req<{inputType}, {domain}>.Ensure(({inputType} input) => {condition}, Fail: {Quote(resolve.FailureMessage)})");
+        references[resolve.As] = value;
+    }
+
+    private static void LowerApply(
+        string domain,
+        string inputType,
+        ApplyStep apply,
+        CSharpLoweringRuleSet rules,
+        IDictionary<string, string> references,
+        ICollection<string> pipeline,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var over = apply.Over;
+        switch (apply.Input)
+        {
+            case DirectApplyInput direct:
+            {
+                var arguments = string.Join(", ", direct.Fields.Values.Select(value => ResolveReference(value, references)));
+                var inputBindings = new Dictionary<string, string>
+                {
+                    ["over"] = over,
+                    ["arguments"] = arguments
+                };
+                if (!rules.TryRenderDeterministicExpression("construction.apply.input", inputBindings, out var nestedInput) ||
+                    !rules.TryRenderDeterministicExpression(
+                        "construction.apply.value",
+                        new Dictionary<string, string> { ["over"] = over, ["input"] = nestedInput },
+                        out var value))
+                {
+                    diagnostics.Add(new("CSL072", "No deterministic C# lowering rule is available for direct construction apply."));
+                    return;
+                }
+
+                pipeline.Add(
+                    $"VSlices.Arrows.Req<{inputType}, {domain}>.Apply({over}.Invariants, To: ({inputType} input) => {nestedInput})");
+                references[apply.As] = value;
+                break;
+            }
+            case MappedApplyInput mapped:
+            {
+                var source = ResolveReference(mapped.Source, references);
+                var bind = "item";
+                var arguments = string.Join(", ", mapped.Map.Values.Select(value => value == "item" ? bind : ResolveReference(value, references)));
+                var sequenceBindings = new Dictionary<string, string>
+                {
+                    ["source"] = source,
+                    ["bind"] = bind,
+                    ["over"] = over,
+                    ["arguments"] = arguments
+                };
+                if (!rules.TryRenderDeterministicExpression("construction.apply-sequence.input", sequenceBindings, out var nestedInputs) ||
+                    !rules.TryRenderDeterministicExpression(
+                        "construction.apply-sequence.value",
+                        new Dictionary<string, string> { ["over"] = over, ["input"] = nestedInputs },
+                        out var value))
+                {
+                    diagnostics.Add(new("CSL073", "No deterministic C# lowering rule is available for mapped construction apply."));
+                    return;
+                }
+
+                pipeline.Add(
+                    $"VSlices.Arrows.Req<{inputType}, {domain}>.ApplySeq({over}.Invariants, To: ({inputType} input) => {nestedInputs})");
+                references[apply.As] = value;
+                break;
+            }
+        }
+    }
+
+    private static IReadOnlyDictionary<string, string> ResolveStateExpressions(
+        DomainTypeVsir document,
+        IReadOnlyList<Field> directState,
+        IReadOnlyDictionary<string, string> references)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in directState)
+        {
+            var stateReference = "state." + field.Name;
+            var refine = document.Construction.Steps
+                .OfType<RefineStep>()
+                .SingleOrDefault(step => step.As == stateReference);
+            result[stateReference] = refine is not null
+                ? ResolveReference(refine.Value, references)
+                : ResolveReference("input." + field.Name, references);
+        }
+        return result;
+    }
+
+    private static bool TryRepresentationExpression(
+        DomainTypeVsir document,
+        Field field,
+        CSharpLoweringRuleSet rules,
+        out string? expression,
+        out string? error)
+    {
+        error = null;
+        if (document.RepresentationMapping?.Fields.TryGetValue(field.Name, out var projection) == true)
+            return TryRenderProjection(projection, rules, new Dictionary<string, string>(StringComparer.Ordinal), out expression, out error);
+
+        if (field.From is not null)
+        {
+            expression = RenderSemanticReference(field.From, new Dictionary<string, string>(StringComparer.Ordinal));
+            return true;
+        }
+
+        expression = RenderSemanticReference("state." + field.Name, new Dictionary<string, string>(StringComparer.Ordinal));
+        return true;
+    }
+
+    private static bool TryRenderProjection(
+        RepresentationProjection projection,
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> bindings,
+        out string? expression,
+        out string? error)
+    {
+        expression = null;
+        error = null;
+
+        switch (projection)
+        {
+            case ReferenceProjection reference:
+                expression = RenderSemanticReference(reference.Value, bindings);
+                return true;
+
+            case StringifyProjection stringify:
+            {
+                var value = RenderSemanticReference(stringify.Value, bindings);
+                return TryRule("projection.stringify", new Dictionary<string, string> { ["value"] = value });
+            }
+
+            case RepresentProjection represent:
+            {
+                if (!TryRenderProjection(represent.Value, rules, bindings, out var value, out error))
+                    return false;
+                return TryRule("projection.represent", new Dictionary<string, string> { ["value"] = value! });
+            }
+
+            case SelectProjection select:
+            {
+                if (!TryRenderProjection(select.Source, rules, bindings, out var source, out error))
+                    return false;
+                return TryRule("projection.select", new Dictionary<string, string>
+                {
+                    ["source"] = source!,
+                    ["field"] = select.Field
+                });
+            }
+
+            case MapProjection map:
+            {
+                if (!TryRenderProjection(map.Source, rules, bindings, out var source, out error))
+                    return false;
+                var nested = new Dictionary<string, string>(bindings, StringComparer.Ordinal) { [map.Bind] = map.Bind };
+                if (!TryRenderProjection(map.Value, rules, nested, out var value, out error))
+                    return false;
+                return TryRule("projection.map", new Dictionary<string, string>
+                {
+                    ["source"] = source!,
+                    ["bind"] = map.Bind,
+                    ["value"] = value!
+                });
+            }
+
+            case IntrinsicProjection intrinsic:
+            {
+                var values = new List<string>();
+                foreach (var item in intrinsic.Values)
+                {
+                    if (!TryRenderProjection(item, rules, bindings, out var value, out error))
+                        return false;
+                    values.Add(value!);
+                }
+                return TryRule($"intrinsic.{intrinsic.Intrinsic}", new Dictionary<string, string>
+                {
+                    ["values"] = string.Join(", ", values)
+                });
+            }
+
+            default:
+                error = $"Unsupported representation expression '{projection.GetType().Name}'.";
+                return false;
+        }
+
+        bool TryRule(string node, IReadOnlyDictionary<string, string> ruleBindings)
+        {
+            if (rules.TryRenderDeterministicExpression(node, ruleBindings, out var rendered))
+            {
+                expression = rendered;
+                return true;
+            }
+            error = $"No deterministic C# representation rule is available for '{node}'.";
+            return false;
+        }
+    }
+
+    private static string RenderSemanticReference(
+        string reference,
+        IReadOnlyDictionary<string, string> bindings)
+    {
+        if (bindings.TryGetValue(reference, out var bound))
+            return bound;
+
+        if (!reference.StartsWith("state.", StringComparison.Ordinal))
+            return reference;
+
+        var path = reference["state.".Length..].Split('.');
+        return "_" + Camel(path[0]) + (path.Length == 1 ? string.Empty : "." + string.Join(".", path.Skip(1)));
+    }
+
+    private static Dictionary<string, string> InitialInputReferences(ConstructionInput input)
+    {
+        if (input.IsScalar)
+            return new Dictionary<string, string>(StringComparer.Ordinal) { ["input"] = "input" };
+        return input.Fields.ToDictionary(
+            field => "input." + field.Name,
+            field => "input." + field.Name,
+            StringComparer.Ordinal);
+    }
+
+    private static string ResolveReference(string reference, IReadOnlyDictionary<string, string> references) =>
+        references.TryGetValue(reference, out var expression) ? expression : reference;
+
+    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeCondition(
+        Condition condition,
+        IReadOnlyDictionary<string, string> references) => condition switch
+    {
+        NonEmptyCondition x => ("intrinsic.non-empty", new Dictionary<string, string> { ["value"] = ResolveReference(x.Value, references) }),
+        NotWhitespaceCondition x => ("intrinsic.not-whitespace", new Dictionary<string, string> { ["value"] = ResolveReference(x.Value, references) }),
+        LengthAtMostCondition x => ("intrinsic.length-at-most", new Dictionary<string, string>
+        {
+            ["value"] = ResolveReference(x.Value, references),
+            ["max"] = x.Max.ToString()
+        }),
+        LengthBetweenCondition x => ("intrinsic.length-between", new Dictionary<string, string>
+        {
+            ["value"] = ResolveReference(x.Value, references),
+            ["min"] = x.Min.ToString(),
+            ["max"] = x.Max.ToString()
+        }),
+        _ => throw new InvalidOperationException("Unsupported condition reached C# lowering.")
+    };
+
+    private static string RenderFailure(
+        EnsureStep ensure,
+        string inputType,
+        IReadOnlyDictionary<string, string> references)
+    {
+        var literal = Quote(ensure.FailureMessage);
+        if (!ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal))
+            return literal;
+        if (ensure.Condition is not LengthAtMostCondition condition)
+            return literal;
+        return $"({inputType} input) => {literal}.Replace(\"{{length}}\", {ResolveReference(condition.Value, references)}.Length.ToString())";
+    }
+
+    private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
+    {
+        var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
+        var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
+        if (isIdentifier)
+            yield return $"Identifier<{document.Name}, {document.Name}.Repr>";
+        else if (!isRefined)
+            yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
+        if (isRefined)
+            yield return $"Refined<{document.Name}, {document.RefinedFrom}, {document.Name}.Repr>";
+        yield return $"Transform<{document.Name}, {inputType}>";
+    }
+
+    private static void ValidateTypes(
+        DomainTypeVsir document,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        foreach (var type in document.State.Fields
+                     .Concat(document.Representation.Fields)
+                     .Concat(document.Construction.Input.Fields)
+                     .Select(field => field.Type))
+            ValidateType(type, rules, diagnostics);
+        if (document.Construction.Input.ScalarType is not null)
+            ValidateType(document.Construction.Input.ScalarType, rules, diagnostics);
+    }
+
+    private static void ValidateType(
+        VsirType type,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (type is not UnaryVsirType unary)
+            return;
+        ValidateType(unary.Value, rules, diagnostics);
+        if (!rules.TryRenderDeterministicType(
+                $"type.{unary.Constructor}",
+                new Dictionary<string, string> { ["value"] = "T" },
+                out _))
+            diagnostics.Add(new("CSL050", $"Target Ruleset does not provide a deterministic type realization for semantic constructor '{unary.Constructor}'."));
+    }
+
+    private static string RenderType(VsirType type, CSharpLoweringRuleSet rules) => type switch
+    {
+        NamedVsirType named => named.Name,
+        UnaryVsirType unary => RenderUnaryType(unary, rules),
+        _ => throw new InvalidOperationException($"Unsupported semantic type model '{type.GetType().Name}'.")
+    };
+
+    private static string RenderUnaryType(UnaryVsirType unary, CSharpLoweringRuleSet rules)
+    {
+        var value = RenderType(unary.Value, rules);
+        if (!rules.TryRenderDeterministicType(
+                $"type.{unary.Constructor}",
+                new Dictionary<string, string> { ["value"] = value },
+                out var rendered))
+            throw new InvalidOperationException($"Validated type rule 'type.{unary.Constructor}' became unavailable.");
+        return rendered;
+    }
+
+    private static string Parameters(
+        IReadOnlyList<Field> fields,
+        CSharpLoweringRuleSet rules,
+        bool camelNames = false) =>
+        string.Join(", ", fields.Select(field =>
+            $"{RenderType(field.Type, rules)} {(camelNames ? Camel(field.Name) : field.Name)}"));
+
+    private static string ConstructorAssignment(IReadOnlyList<Field> fields)
+    {
+        if (fields.Count == 1)
+            return $"_{Camel(fields[0].Name)} = {Camel(fields[0].Name)}";
+        var left = string.Join(", ", fields.Select(field => "_" + Camel(field.Name)));
+        var right = string.Join(", ", fields.Select(field => Camel(field.Name)));
+        return $"({left}) = ({right})";
+    }
+
+    private static void ValidateEqualityRules(
+        EqualitySemantics equality,
+        CSharpLoweringRuleSet rules,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var member = "_" + Camel(equality.By["state.".Length..]);
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "equals"),
+                new Dictionary<string, string> { ["left"] = member, ["right"] = "other." + member },
+                out _))
+            diagnostics.Add(new("CSL021", "No deterministic C# equality rule is available."));
+        if (!rules.TryRenderDeterministicExpression(
+                EqualityNode(equality, "hash"),
+                new Dictionary<string, string> { ["value"] = member },
+                out _))
+            diagnostics.Add(new("CSL022", "No deterministic C# equality hash rule is available."));
+    }
+
+    private static void RenderEquality(
+        StringBuilder source,
+        string typeName,
+        EqualitySemantics equality,
+        CSharpLoweringRuleSet rules)
+    {
+        var member = "_" + Camel(equality.By["state.".Length..]);
+        rules.TryRenderDeterministicExpression(
+            EqualityNode(equality, "equals"),
+            new Dictionary<string, string> { ["left"] = member, ["right"] = "other." + member },
+            out var equalsExpression);
+        rules.TryRenderDeterministicExpression(
+            EqualityNode(equality, "hash"),
+            new Dictionary<string, string> { ["value"] = member },
+            out var hashExpression);
+        source.AppendLine($"    public bool Equals({typeName}? other) =>");
+        source.AppendLine($"        other is not null && {equalsExpression};");
+        source.AppendLine();
+        source.AppendLine("    public override bool Equals(object? obj) =>");
+        source.AppendLine($"        Equals(obj as {typeName});");
+        source.AppendLine();
+        source.AppendLine("    public override int GetHashCode() =>");
+        source.AppendLine($"        {hashExpression};");
+    }
+
+    private static string EqualityNode(EqualitySemantics equality, string operation) =>
+        equality.Intrinsic is not null ? $"equality.{equality.Intrinsic}.{operation}" : $"equality.over.{operation}";
+
+    private static string Camel(string value) =>
+        value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
+
+    private static string Quote(string value) =>
+        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+}
