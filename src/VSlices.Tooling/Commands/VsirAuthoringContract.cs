@@ -87,25 +87,29 @@ internal static class VsirAuthoringContract
 
         if (classification is "value-object" or "entity" or "aggregate-root")
         {
-            if (!hasState)
-            {
-                result.Add(new(
-                    "state",
-                    "mapping",
-                    VsirFrontierStatus.Required,
-                    "Declares the observable semantic properties that constitute a valid instance of the Domain Type.",
-                    new HashSet<VsirMutationKind>()));
-            }
+            result.Add(new(
+                "state",
+                "map<property, declaration>",
+                VsirFrontierStatus.Required,
+                "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Add, remove and set operate on child property paths such as state.Value.",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                }));
 
-            if (!hasRepresentation)
-            {
-                result.Add(new(
-                    "representation",
-                    "mapping",
-                    VsirFrontierStatus.Required,
-                    "Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity.",
-                    new HashSet<VsirMutationKind>()));
-            }
+            result.Add(new(
+                "representation",
+                "map<property, declaration>",
+                VsirFrontierStatus.Required,
+                "Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity. Add, remove and set operate on child property paths such as representation.Value.",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                }));
         }
 
         result.Add(new(
