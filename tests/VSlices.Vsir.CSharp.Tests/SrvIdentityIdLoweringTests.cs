@@ -74,7 +74,7 @@ public sealed class SrvIdentityIdLoweringTests
     }
 
     [Fact]
-    public void Refined_domain_type_lowers_without_mapping_Rut_to_a_primitive()
+    public void Refined_domain_type_lowers_to_independent_primitive_contracts()
     {
         var parsed = VsirParser.Parse(Source);
         var loaded = CSharpLoweringRuleSet.Load(RulesetPath);
@@ -87,9 +87,10 @@ public sealed class SrvIdentityIdLoweringTests
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
         Assert.Contains("DomainType<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
         Assert.Contains("Identifier<SrvIdentityId>", lowered.Source);
-        Assert.DoesNotContain("Identifier<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
-        Assert.Contains("Refined<SrvIdentityId, Rut, SrvIdentityId.Repr>", lowered.Source);
+        Assert.Contains("Refined<SrvIdentityId, Rut>", lowered.Source);
         Assert.Contains("Transform<SrvIdentityId, Rut>", lowered.Source);
+        Assert.DoesNotContain("Identifier<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
+        Assert.DoesNotContain("Refined<SrvIdentityId, Rut, SrvIdentityId.Repr>", lowered.Source);
         Assert.DoesNotContain("record struct Input", lowered.Source);
         Assert.Contains("Req<Rut, SrvIdentityId>.Full", lowered.Source);
         Assert.Contains("Transform((Rut input) => Instance(input))", lowered.Source);
