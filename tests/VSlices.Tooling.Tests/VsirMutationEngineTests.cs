@@ -82,18 +82,23 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_from_named_artifact_exposes_tags_and_kind()
+    public void Discovery_from_named_artifact_exposes_explained_tags_and_kind()
     {
         var frontier = VsirMutationEngine.Discover(Named, out var error);
 
         Assert.Null(error);
-        Assert.Contains(frontier, item => item.Path == "tags");
+        var tags = Assert.Single(frontier, item => item.Path == "tags");
+        Assert.Equal(VsirFrontierStatus.Optional, tags.Status);
+        Assert.Contains("Organizational", tags.Meaning, StringComparison.Ordinal);
+
         var kind = Assert.Single(frontier, item => item.Path == "kind");
+        Assert.Equal(VsirFrontierStatus.Required, kind.Status);
+        Assert.Contains("artifact family", kind.Meaning, StringComparison.Ordinal);
         Assert.Equal(["domain-type"], kind.AllowedValues);
     }
 
     [Fact]
-    public void Discovery_after_kind_exposes_tags_and_classification()
+    public void Discovery_after_kind_exposes_explained_classification()
     {
         var source = """
             vsir: 0.1
@@ -106,13 +111,71 @@ public sealed class VsirMutationEngineTests
         Assert.Null(error);
         Assert.Contains(frontier, item => item.Path == "tags");
         var classification = Assert.Single(frontier, item => item.Path == "classification");
+        Assert.Equal(VsirFrontierStatus.Required, classification.Status);
+        Assert.Contains("semantic class", classification.Meaning, StringComparison.Ordinal);
         Assert.Contains("value-object", classification.AllowedValues!);
         Assert.Contains("entity", classification.AllowedValues!);
         Assert.Contains("aggregate-root", classification.AllowedValues!);
     }
 
     [Fact]
-    public void Discovery_after_classification_keeps_only_tags_as_current_frontier()
+    public void Value_object_discovery_exposes_required_state_and_representation_plus_optional_traits()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            tags: [addressing, street]
+            classification: value-object
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+
+        var state = Assert.Single(frontier, item => item.Path == "state");
+        Assert.Equal(VsirFrontierStatus.Required, state.Status);
+        Assert.Empty(state.Operations);
+        Assert.Contains("constitute a valid instance", state.Meaning, StringComparison.Ordinal);
+
+        var representation = Assert.Single(frontier, item => item.Path == "representation");
+        Assert.Equal(VsirFrontierStatus.Required, representation.Status);
+        Assert.Empty(representation.Operations);
+        Assert.Contains("represented", representation.Meaning, StringComparison.Ordinal);
+
+        var traits = Assert.Single(frontier, item => item.Path == "traits");
+        Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
+        Assert.Contains(VsirMutationKind.Add, traits.Operations);
+        Assert.Contains(VsirMutationKind.Remove, traits.Operations);
+        Assert.Contains(VsirMutationKind.Set, traits.Operations);
+        Assert.Contains("additional semantic capabilities", traits.Meaning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Discovery_stops_reporting_classification_obligations_once_present()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            state:
+              Value: string
+            representation:
+              Value: string
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(frontier, item => item.Path == "state");
+        Assert.DoesNotContain(frontier, item => item.Path == "representation");
+        Assert.Contains(frontier, item => item.Path == "traits");
+        Assert.Contains(frontier, item => item.Path == "tags");
+    }
+
+    [Fact]
+    public void Traits_can_be_added_after_domain_type_classification()
     {
         var source = """
             vsir: 0.1
@@ -121,14 +184,12 @@ public sealed class VsirMutationEngineTests
             classification: value-object
             """;
 
-        var frontier = VsirMutationEngine.Discover(source, out var error);
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "traits", "transform")]);
 
-        Assert.Null(error);
-        var tags = Assert.Single(frontier);
-        Assert.Equal("tags", tags.Path);
-        Assert.Contains(VsirMutationKind.Add, tags.Operations);
-        Assert.Contains(VsirMutationKind.Remove, tags.Operations);
-        Assert.Contains(VsirMutationKind.Set, tags.Operations);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("traits: [transform]", result.Source);
     }
 
     [Fact]
