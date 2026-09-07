@@ -35,8 +35,9 @@ internal static class VsirAuthoringContract
         "product"
     ];
 
-    // Classifications are semantic identities, not traits. TicketId is the
-    // concrete corpus witness for identifier classification.
+    // Classification and traits are independent semantic axes. TicketId
+    // witnesses identifier classification, while TicketCode witnesses a
+    // value-object classification with explicit identifier capability.
     public static IReadOnlyList<string> DomainTypeClassifications { get; } =
     [
         "value-object",
@@ -46,6 +47,7 @@ internal static class VsirAuthoringContract
     public static IReadOnlyList<string> ExplicitDomainTypeTraits { get; } =
     [
         "transform",
+        "identifier",
         "refined"
     ];
 
@@ -116,13 +118,17 @@ internal static class VsirAuthoringContract
         }
 
         var hasTransform = explicitTraits.Contains("transform", StringComparer.Ordinal);
+        var hasIdentifierCapability =
+            classification.Equals("identifier", StringComparison.Ordinal) ||
+            explicitTraits.Contains("identifier", StringComparer.Ordinal);
+
         result.Add(new(
             "traits",
             "set<string>",
             hasTransform ? VsirFrontierStatus.Optional : VsirFrontierStatus.Required,
             hasTransform
-                ? "Declares additional semantic capabilities beyond the required transform capability. Refined is currently evidenced end-to-end."
-                : "Declares semantic capabilities. The current canonical Domain Type surface requires transform; refined may add further obligations.",
+                ? "Declares additional semantic capabilities beyond the required transform capability. Identifier and refined are currently evidenced end-to-end."
+                : "Declares semantic capabilities. The current canonical Domain Type surface requires transform; identifier and refined may add further obligations.",
             new HashSet<VsirMutationKind>
             {
                 VsirMutationKind.Add,
@@ -131,13 +137,13 @@ internal static class VsirAuthoringContract
             },
             ExplicitDomainTypeTraits));
 
-        if (classification.Equals("identifier", StringComparison.Ordinal))
+        if (hasIdentifierCapability)
         {
             result.Add(new(
                 "equality",
                 "strategy",
                 VsirFrontierStatus.Required,
-                "Declares the authoritative equality strategy required by identifier classification.",
+                "Declares the authoritative equality strategy required by identifier semantics, whether established by classification or explicit trait.",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
