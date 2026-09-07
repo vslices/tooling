@@ -16,6 +16,7 @@ new
 
 discovery
   -> expose the semantic decisions currently available
+  -> expose enough grammar to express the value of those decisions
 
 update
   -> execute one or more advertised semantic transitions atomically
@@ -31,6 +32,7 @@ Conceptually:
 ArtifactState
   -> Discovery
   -> SemanticAffordances[]
+       -> ValueGrammarAffordances[]
   -> Update
   -> ArtifactState'
 ```
@@ -40,6 +42,12 @@ This is analogous to hypermedia-driven navigation: the current state advertises 
 The governing rule is:
 
 > An authoring client should not need to infer a valid next operation when the current state can advertise it.
+
+The same rule applies recursively to values:
+
+> An authoring client should not need an embedded copy of a value grammar when discovery can advertise the forms admitted for that value.
+
+This recursive property is called **grammar-driven discovery**.
 
 ## 2. Semantic affordance
 
@@ -58,7 +66,7 @@ meaning
   -> what semantic knowledge the decision establishes
 
 value kind
-  -> what shape of value is accepted
+  -> what semantic category of value is accepted
 
 allowed values
   -> closed vocabulary when one is currently established
@@ -68,6 +76,9 @@ operations
 
 command template
   -> how to invoke the transition through the CLI
+
+value grammar
+  -> when the value is structured, which semantic forms may be composed to produce it
 ```
 
 For example:
@@ -86,10 +97,10 @@ A concrete existing relation may advertise its own local transition:
 ```text
 representation.Value.mapping
   status: optional
-  value kind: mapping
+  value kind: expression
   operations: set
   command:
-    vslices update vsir StreetExtension --set "representation.Value.mapping=<mapping>"
+    vslices update vsir StreetExtension --set "representation.Value.mapping=<expression>"
 ```
 
 For a set-valued surface, multiple operations remain semantically meaningful:
@@ -195,7 +206,104 @@ representation.Value has mapping
 
 After every successful update, a client can call discovery again and receive the next authorized frontier.
 
-## 5. Projection
+## 5. Grammar-driven discovery
+
+Some semantic decisions accept scalar or closed values. For these, `value kind` and `allowed values` may be sufficient.
+
+Other decisions accept a structured semantic value. In those cases, discovery must be able to expose the admitted grammar of that value rather than reducing it to an opaque placeholder such as `<mapping>` or requiring the client to know the complete VSIR expression grammar in advance.
+
+The distinction is:
+
+```text
+artifact affordance
+  -> what semantic assertion can be established now
+
+value grammar affordance
+  -> which semantic forms can be composed to express the value of that assertion
+```
+
+For example:
+
+```text
+representation.Street.mapping
+  status: optional
+  value kind: expression
+  operations: set
+  command:
+    vslices update vsir Location --set "representation.Street.mapping=<expression>"
+
+  expression forms:
+    stringify:
+      {stringify: <semantic-reference>}
+
+    represent:
+      {represent: <semantic-reference>}
+
+    select:
+      {select: {source: <expression>, field: <field>}}
+
+    map:
+      {map: {source: <expression>, bind: <name>, value: <expression>}}
+```
+
+The grammar is compositional. A placeholder whose value kind is itself structured can recursively expose its admitted forms.
+
+For example:
+
+```text
+select
+  source: expression
+  field: field
+
+expression
+  -> represent
+       value: semantic-reference
+```
+
+allows a client to construct:
+
+```yaml
+select:
+  source:
+    represent: state.Street
+  field: Value
+```
+
+without having to infer that `represent` belongs inside `select.source`.
+
+This matters semantically. Under the current VSIR language contract:
+
+```text
+Select(Represent(state.Street), Value)
+```
+
+is not equivalent by default to:
+
+```text
+Select(state.Street, Value)
+```
+
+Therefore discovery for `select.source` must describe it as an `expression`, not merely as a state reference. Tooling must not insert an implicit `represent` on behalf of the author.
+
+Grammar-driven discovery advertises **valid forms**, not the correct domain decision. It may tell the client that `select`, `represent`, `stringify`, or `map` are admitted expression forms; it must not decide that `state.Street` should be represented and then have `Value` selected unless that knowledge is independently justified by the artifact being reconstructed.
+
+Conceptually:
+
+```text
+artifact state
+  -> discovery
+       -> semantic affordance
+            -> value kind
+                 -> admitted grammar forms
+                      -> nested value kinds
+                           -> admitted grammar forms
+```
+
+This recursion stops when a value kind is scalar, a closed vocabulary, a semantic reference, or another terminal form known to the active authoring contract.
+
+Grammar-driven discovery must remain constrained by semantic authority. It is not generic YAML-schema introspection and it must not expose syntax merely because a parser happens to accept it.
+
+## 6. Projection
 
 `discovery` may project a candidate transition without persistence:
 
@@ -211,7 +319,17 @@ This lets a client ask:
 
 without mutating the artifact.
 
-## 6. Atomicity and fail-closed behavior
+Grammar discovery and state projection are complementary:
+
+```text
+value grammar
+  -> explains how one currently advertised decision can be expressed
+
+projection
+  -> explains what frontier would follow if a concrete decision were applied
+```
+
+## 7. Atomicity and fail-closed behavior
 
 An advertised command is permission to attempt a transition, not permission to bypass validation.
 
@@ -229,9 +347,9 @@ read current artifact
 
 If any step fails, the original artifact remains unchanged.
 
-Discovery must not advertise transitions known to contradict the current state.
+Discovery must not advertise transitions or grammar forms known to contradict the current state or active semantic contract.
 
-## 7. Agent-facing objective
+## 8. Agent-facing objective
 
 A capable authoring agent should be able to begin with only this protocol knowledge:
 
@@ -249,14 +367,15 @@ The intended loop is:
 create
   -> discover
   -> choose an advertised affordance
-  -> fill its value according to value kind / allowed values
+  -> inspect the advertised value grammar when needed
+  -> compose a value from admitted forms
   -> execute its advertised command form
   -> discover again
 ```
 
-Tests claiming progressive CLI authorability should exercise this loop. A test should not rely on a public mutation that the preceding discovery state did not advertise.
+Tests claiming progressive CLI authorability should exercise this loop. A test should not rely on a public mutation or structured value form that the preceding discovery state could not advertise.
 
-## 8. Current implementation conformance
+## 9. Current implementation conformance
 
 The current CLI implements the core affordance model:
 
@@ -279,12 +398,14 @@ implemented
 
 The public model deliberately differs from some lower-level mutation-engine mechanics. Internal code may still use insertion-oriented operations to materialize a missing map member, but those mechanics are not advertised to CLI clients.
 
-A remaining refinement area is the granularity of discovery for already-existing named map members. The important invariant is that discovery must not require clients to infer storage-level create-versus-update semantics; any newly advertised member-level affordances must preserve `set = establish or replace`.
+The grammar-driven layer defined here is the next refinement of discovery. The current CLI can advertise that `representation.<field>.mapping` accepts a mapping-like value and can emit its update command template, but it does not yet recursively advertise the expression grammar (`represent`, `select`, `map`, `stringify`, intrinsic forms, and their nested value kinds). Until that layer is implemented, grammar-driven discovery is a design contract rather than a claim of current executable coverage.
 
-## 9. Design constraint
+A second refinement area is the granularity of discovery for already-existing named map members. The important invariant is that discovery must not require clients to infer storage-level create-versus-update semantics; any newly advertised member-level affordances must preserve `set = establish or replace`.
+
+## 10. Design constraint
 
 The affordance model must not turn `discovery` into a generic YAML schema browser or `update` into a generic YAML editor.
 
-An affordance exists only when VSlices Tooling has enough semantic authority to describe and validate the transition.
+An affordance or grammar form exists only when VSlices Tooling has enough semantic authority to describe and validate it.
 
 Unknown semantics remain unknown. Missing authority remains a closed frontier rather than an invitation to invent syntax.
