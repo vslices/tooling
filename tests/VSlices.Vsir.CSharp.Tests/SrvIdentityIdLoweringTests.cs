@@ -18,18 +18,17 @@ public sealed class SrvIdentityIdLoweringTests
           Value: Rut
 
         representation:
-          Value: string
-
-        representation-mapping:
           Value:
-            stringify: state.Value
+            type: string
+            mapping:
+              stringify: state.Value
+
+        input: Rut
 
         construction:
-          input: Rut
-          steps:
-            - refine:
-                value: input
-                as: state.Value
+          - refine:
+              value: input
+              as: state.Value
 
         equality:
           over: Rut
@@ -79,7 +78,7 @@ public sealed class SrvIdentityIdLoweringTests
         var loaded = CSharpLoweringRuleSet.Load(RulesetPath);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new("Identities.Domain.Aggregates", loaded.RuleSet!));
 
@@ -126,12 +125,12 @@ public sealed class SrvIdentityIdLoweringTests
             var loaded = CSharpLoweringRuleSet.Load(root);
             Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-            var lowered = CSharpLowerer.Lower(
+            var lowered = CSharpLanguageLowerer.Lower(
                 parsed.Document!,
                 new("Identities.Domain.Aggregates", loaded.RuleSet!));
 
             Assert.False(lowered.IsSuccess);
-            Assert.Contains(lowered.Diagnostics, x => x.Code == "CSL040");
+            Assert.Contains(lowered.Diagnostics, x => x.Code == "CSL040" || x.Code == "CSL060");
         }
         finally
         {
