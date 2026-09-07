@@ -137,6 +137,7 @@ public sealed class NormalizeSemanticExtensionTests
                   csharp:
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "{value}.Trim()"
             """);
         var vsir = WriteProbe(project.Root);
@@ -181,6 +182,7 @@ public sealed class NormalizeSemanticExtensionTests
                     csharp:
                       mode: deterministic
                       renderer: expression
+                      bindings: [value]
                       template: "{value}.Trim()"
               """
             : """
@@ -207,6 +209,7 @@ public sealed class NormalizeSemanticExtensionTests
               - node: intrinsic.normalize-boundary-probe
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "{value}.Trim()"
             """);
     }
