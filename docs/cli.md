@@ -356,19 +356,19 @@ Current operators include `contains` and `equals` for the supported root-propert
 
 ## 14. Lowering lifecycle
 
-Authoring commands and lowering commands operate on the same VSIR semantic language from opposite directions:
+Authoring commands and lowering commands operate on the same canonical VSIR semantic language from opposite directions:
 
 ```text
 partial knowledge
   -> new / discovery / update
-  -> VSIR
+  -> canonical VSIR 0.1
   -> lower
   -> target witness
 ```
 
-`lower` must consume the normalized VSIR produced by authoring without requiring a legacy rewrite.
+`lower` consumes the same canonical semantic artifact produced by authoring; no intermediate grammar translation is part of the contract.
 
-Current normalized lowering evidence from `Location` includes:
+Current lowering evidence from `Location` includes:
 
 ```text
 structured semantic types
