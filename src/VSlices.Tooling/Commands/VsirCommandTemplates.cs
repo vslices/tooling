@@ -48,7 +48,7 @@ internal static class VsirCommandTemplates
     private static string ValuePlaceholder(VsirPathContract contract)
     {
         if (contract.AllowedValues is { Count: > 0 })
-            return $"<one-of:{string.Join('|', contract.AllowedValues)}>";
+            return $"<one-of:{string.Join("|", contract.AllowedValues)}>";
 
         return contract.Path switch
         {
