@@ -133,12 +133,17 @@ internal static class VsirAuthoringContract
                     VsirMutationKind.Remove,
                     VsirMutationKind.Set
                 }));
+        }
 
+        if (classification is "identifier" or "maintained")
+        {
             result.Add(new(
                 "equality",
                 "strategy",
                 VsirFrontierStatus.Required,
-                "Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.",
+                classification == "identifier"
+                    ? "Declares the authoritative equality strategy for the identifier."
+                    : "Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
