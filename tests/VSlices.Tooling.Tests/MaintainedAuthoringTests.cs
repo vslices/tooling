@@ -3,239 +3,62 @@ namespace VSlices.Tooling.Tests;
 public sealed class MaintainedAuthoringTests
 {
     [Fact]
-    public void Maintained_is_a_valid_domain_type_classification()
+    public void Maintained_is_not_advertised_until_canonical_parser_validator_and_lowering_support_it()
     {
-        Assert.Contains("maintained", VsirAuthoringContract.DomainTypeClassifications);
+        Assert.DoesNotContain("maintained", VsirAuthoringContract.DomainTypeClassifications);
 
         var result = VsirTemplate.Create(
             "IdentityType",
             kind: "domain-type",
             classification: "maintained");
 
-        Assert.True(result.IsSuccess, result.Error);
-        Assert.Contains("classification: maintained", result.Source);
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("NEW", result.Error);
     }
 
     [Fact]
-    public void Maintained_discovery_requires_state_representation_values_and_equality()
+    public void Maintained_classification_mutation_fails_closed()
     {
         var source = """
             vsir: 0.1
             kind: domain-type
             name: IdentityType
             shape: product
-            classification: maintained
-            """;
-
-        var frontier = VsirMutationPipeline.Discover(source, out var error);
-
-        Assert.Null(error);
-
-        var state = Assert.Single(frontier, item => item.Path == "state");
-        Assert.Equal(VsirFrontierStatus.Required, state.Status);
-
-        var representation = Assert.Single(frontier, item => item.Path == "representation");
-        Assert.Equal(VsirFrontierStatus.Required, representation.Status);
-
-        var values = Assert.Single(frontier, item => item.Path == "values");
-        Assert.Equal(VsirFrontierStatus.Required, values.Status);
-        Assert.Equal("map<member, state>", values.ValueKind);
-        Assert.Single(values.Operations);
-        Assert.Contains(VsirMutationKind.Set, values.Operations);
-
-        var equality = Assert.Single(frontier, item => item.Path == "equality");
-        Assert.Equal(VsirFrontierStatus.Required, equality.Status);
-        Assert.Equal("strategy", equality.ValueKind);
-        Assert.Single(equality.Operations);
-        Assert.Contains(VsirMutationKind.Set, equality.Operations);
-        Assert.Contains("ordinal-equals", equality.Meaning, StringComparison.Ordinal);
-        Assert.Contains("state.Name", equality.Meaning, StringComparison.Ordinal);
-
-        var traits = Assert.Single(frontier, item => item.Path == "traits");
-        Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
-        Assert.DoesNotContain("maintained", traits.AllowedValues ?? []);
-    }
-
-    [Fact]
-    public void Maintained_equality_supports_set()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            state:
-              Name: string
-            representation:
-              Value: string
-            values:
-              Natural:
-                state:
-                  Name: Natural
-            """;
-
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: state.Name}")]);
-
-        Assert.True(result.IsSuccess, result.Error);
-        Assert.Contains("equality:", result.Source);
-        Assert.Contains("intrinsic: ordinal-equals", result.Source);
-        Assert.Contains("by: state.Name", result.Source);
-    }
-
-    [Fact]
-    public void Maintained_equality_rejects_add_and_remove()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            state:
-              Name: string
-            """;
-
-        var added = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "equality", "{intrinsic: ordinal-equals, by: state.Name}")]);
-        var removed = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Remove, "equality", null)]);
-
-        Assert.False(added.IsSuccess);
-        Assert.StartsWith("UPDATE012:", added.Error);
-        Assert.False(removed.IsSuccess);
-        Assert.StartsWith("UPDATE012:", removed.Error);
-    }
-
-    [Fact]
-    public void Maintained_equality_requires_one_strategy_and_a_state_reference()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            state:
-              Name: string
-            """;
-
-        var missingStrategy = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "equality", "{by: state.Name}")]);
-        var invalidBy = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: input.Name}")]);
-
-        Assert.False(missingStrategy.IsSuccess);
-        Assert.StartsWith("UPDATE032:", missingStrategy.Error);
-        Assert.False(invalidBy.IsSuccess);
-        Assert.StartsWith("UPDATE032:", invalidBy.Error);
-    }
-
-    [Fact]
-    public void Maintained_values_support_low_level_add_and_set_as_member_mutations()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            state:
-              Name: string
-            representation:
-              Value: string
-            """;
-
-        var added = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "values.Natural", "{state: {Name: Natural}}")]);
-
-        Assert.True(added.IsSuccess, added.Error);
-        Assert.Contains("values:", added.Source);
-        Assert.Contains("Natural:", added.Source);
-        Assert.Contains("Name: Natural", added.Source);
-
-        var changed = VsirMutationEngine.Apply(
-            added.Source!,
-            [new(VsirMutationKind.Set, "values.Natural", "{state: {Name: NaturalPerson}}")]);
-
-        Assert.True(changed.IsSuccess, changed.Error);
-        Assert.Contains("Name: NaturalPerson", changed.Source);
-        Assert.DoesNotContain("Name: Natural\n", changed.Source);
-    }
-
-    [Fact]
-    public void Maintained_values_support_remove_but_keep_at_least_one_member()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            state:
-              Name: string
-            representation:
-              Value: string
-            values:
-              Natural:
-                state:
-                  Name: Natural
-              Juridical:
-                state:
-                  Name: Juridica
-            """;
-
-        var removed = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Remove, "values.Natural", null)]);
-
-        Assert.True(removed.IsSuccess, removed.Error);
-        Assert.DoesNotContain("Natural:", removed.Source);
-        Assert.Contains("Juridical:", removed.Source);
-
-        var last = VsirMutationEngine.Apply(
-            removed.Source!,
-            [new(VsirMutationKind.Remove, "values.Juridical", null)]);
-
-        Assert.False(last.IsSuccess);
-        Assert.StartsWith("UPDATE024:", last.Error);
-    }
-
-    [Fact]
-    public void Maintained_member_declaration_requires_non_empty_state()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: IdentityType
-            classification: maintained
-            """;
-
-        var result = VsirMutationEngine.Apply(
-            source,
-            [new(VsirMutationKind.Add, "values.Natural", "{state: {}}")]);
-
-        Assert.False(result.IsSuccess);
-        Assert.StartsWith("UPDATE028:", result.Error);
-    }
-
-    [Fact]
-    public void Values_are_rejected_for_non_maintained_classifications()
-    {
-        var source = """
-            vsir: 0.1
-            kind: domain-type
-            name: StreetName
             classification: value-object
             """;
 
         var result = VsirMutationEngine.Apply(
             source,
-            [new(VsirMutationKind.Add, "values.Natural", "{state: {Name: Natural}}")]);
+            [new(VsirMutationKind.Set, "classification", "maintained")]);
 
         Assert.False(result.IsSuccess);
-        Assert.StartsWith("UPDATE027:", result.Error);
+        Assert.StartsWith("UPDATE008:", result.Error);
+    }
+
+    [Fact]
+    public void Values_are_not_a_public_affordance_on_the_current_end_to_end_surface()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Name: string
+            representation:
+              Name: string
+            input: string
+            construction:
+              - refine:
+                  value: input
+                  as: state.Name
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(frontier, item => item.Path == "values");
     }
 }
