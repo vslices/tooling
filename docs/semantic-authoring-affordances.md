@@ -196,10 +196,10 @@ The current end-to-end Domain Type envelope is deliberately narrow and corpus-ba
 kind: domain-type
 shape: product
 classification: value-object | identifier
-traits: transform | refined
+traits: transform | identifier | refined
 ```
 
-`transform` is currently required by canonical Domain Type validation. `identifier` is a semantic classification evidenced by `TicketId`; it is not a trait. `refined` is an additional semantic capability expressed through traits.
+Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability, therefore requires explicit equality semantics and lowers to the Framework `Identifier<T, T.Repr>` contract. `refined` remains an additional trait-driven capability.
 
 Examples:
 
@@ -213,6 +213,9 @@ traits contains transform
   -> construction available as an optional ordered boundary when direct input-to-state establishment is insufficient
 
 classification is identifier
+  -> equality required
+
+traits contains identifier
   -> equality required
 
 traits contains refined
@@ -291,7 +294,7 @@ Select(state.Street, Value)
 
 unless an explicit rule proves equivalence. Discovery therefore advertises valid composition but does not choose the domain decision on behalf of the author.
 
-The current grammar-driven layer also advertises structured semantic field declarations and the construction forms exercised by the consumer corpus, including `ensure`, `resolve`, direct `apply`, mapped `apply`, and state `refine`.
+The current grammar-driven layer also advertises structured semantic field declarations and the construction forms exercised by the consumer corpus, including `normalize`, `ensure`, `resolve`, direct `apply`, mapped `apply`, and state `refine`. `TicketCode` is the corpus witness for `normalize` with `intrinsic: trim`.
 
 Grammar-driven discovery is constrained semantic authority, not generic YAML-schema introspection.
 
@@ -321,7 +324,7 @@ The inverse matters too:
 
 > If an admitted corpus artifact already carries a semantic form, an accidental restriction in one implementation layer must not be promoted into language authority. Repair the first stale layer instead of rewriting the corpus to match it.
 
-That second rule is the lesson from `TicketId`: `classification: identifier` was already concrete evidence even while the validator had drifted to `value-object` only.
+`TicketId` exposed classification drift; `TicketCode` exposed both the missing `normalize` authoring affordance and the fact that identifier capability may also be carried explicitly as a trait on a value-object classification.
 
 ## 7. Agent-facing traversal
 
@@ -399,6 +402,8 @@ Therefore a tagged artifact must be accepted by the same public parser used for 
 
 `TicketId.vsir` is the direct witness for identifier classification, intrinsic equality, product transform input, and deterministic input-to-state construction without an explicit `construction` sequence.
 
+`TicketCode.vsir` is the witness for value-object classification plus explicit identifier capability, `normalize: trim`, intrinsic equality, and normalized input flowing through validation into state construction.
+
 `SrvIdentityId.vsir` is an additional parity witness for identifier classification combined with the `refined` trait, scalar transform input, `refined-from`, equality over a semantic type, `stringify`, and final refinement.
 
 ## 9. Evidence precedence
@@ -411,7 +416,7 @@ For example, when construction explicitly establishes `state.Street` through an 
 
 Conventions may reduce authoring burden. They must not override stronger authored evidence.
 
-The TicketId correction adds another precedence rule:
+The TicketId/TicketCode corrections add another precedence rule:
 
 > Concrete admitted corpus evidence outranks an accidental implementation restriction.
 
@@ -433,18 +438,19 @@ tags add-remove-set metadata semantics
 traits add-remove-set semantic semantics
 one public VsirParser boundary for metadata-aware conformance and target materialization
 product + value-object/identifier public Domain Type envelope
-transform / refined trait authoring
-identifier classification -> equality obligation
+transform / identifier / refined trait authoring
+identifier classification or identifier trait -> equality obligation + Identifier<T,T.Repr> target contract
 refined trait -> refined-from obligation
 product transform input may establish same-name state directly without an explicit construction sequence
 a local from/mapping mutual exclusion
 grammar-driven discovery for structured field declarations
 expression grammar discovery for representation mappings
-construction grammar discovery
+construction grammar discovery including normalize
 atomic update
 fail-closed unsupported transitions
 progressive Location reconstruction through discovered surfaces
 TicketId identifier/direct-construction parser + lowering regression
+TicketCode identifier-trait/normalize/equality CLI + lowering regression
 progressive SrvIdentityId refined identifier reconstruction
 canonical C# lowering
 explicit preservation of represent/select composition
