@@ -1,10 +1,14 @@
 # VSlices.Vsir
 
-`VSlices.Vsir` owns the experimental semantic model, parsing and conservative validation of VSIR.
+`VSlices.Vsir` owns the experimental executable model, parsing and conservative validation support for VSIR inside Tooling.
 
-For the current `.vsir` file contract, read [`SPECIFICATION.md`](SPECIFICATION.md) first.
+The language-level VSIR specification does **not** live in this repository.
 
-That specification is the semantic entrypoint for humans and AI agents. It is intended to be sufficient to reconstruct the meaning and preferred normalized structure of a `.vsir` file without chat history or consumer-specific migration notes.
+For the current `.vsir` file contract, read:
+
+- [`vslices/intermediate-representation/SPECIFICATION.md`](https://github.com/vslices/intermediate-representation/blob/main/SPECIFICATION.md)
+
+That repository owns the intended VSIR language semantics and reconstructible file contract. This project is an executable consumer/implementation of that specification.
 
 The implementation may temporarily lag behind the specification while a semantic experiment is being consolidated. When that happens, keep the discrepancy explicit rather than treating old parser support as the conceptual ceiling or rewriting preferred corpus semantics solely for compatibility.
 
@@ -22,13 +26,13 @@ consumer project
 .vsir.cs
   = human-editable executable witness constrained by VSIR
 
-SPECIFICATION.md
-  = current reconstructible file semantics and preferred normalized structure
+vslices/intermediate-representation
+  = VSIR language semantics, reconstructible file contract and conformance expectations
 
 VSlices.Vsir model/parser/validator/tests
-  = executable support for the specification
+  = executable Tooling support for that specification
 
-Ruleset
+vslices/ruleset
   = revisable target-lowering knowledge
 
 Tooling lowering mechanisms
@@ -55,13 +59,13 @@ The lowering boundary remains:
 When changing VSIR semantics:
 
 1. Read the current branch/HEAD and repository instructions.
-2. Read [`SPECIFICATION.md`](SPECIFICATION.md).
+2. Read the current specification in `vslices/intermediate-representation`.
 3. Read the model, parser, validator and tests relevant to the case.
 4. If the work originates in a consumer, inspect the real `.vsir`, `.vsir.cs`, surrounding source/tests, Ruleset/extensions and target context.
 5. Establish semantics before changing syntax.
 6. Prefer repeated evidence from a real corpus over a one-off abstraction.
-7. Update the specification when the semantic contract changes.
-8. Then update executable support with the smallest coherent mechanism.
+7. Update `vslices/intermediate-representation` when the language contract changes.
+8. Then update executable Tooling support with the smallest coherent mechanism.
 9. Rerun lowering/build/tests and observe the next unsupported boundary.
 
 Use this evolution loop:
@@ -71,7 +75,7 @@ real artifact
   -> reconstruct semantics
   -> normalize repeated structure
   -> identify irreducible distinctions
-  -> update specification
+  -> update VSIR specification
   -> update model/parser/validator/tests
   -> lower real artifacts
   -> observe next boundary
@@ -86,5 +90,3 @@ For repository-wide ownership, command orchestration, Rulesets, project extensio
 - [`../../AGENTS.md`](../../AGENTS.md)
 - [`../../docs/ai-development-orientation.md`](../../docs/ai-development-orientation.md)
 - [`../../README.md`](../../README.md)
-
-The goal is for `SPECIFICATION.md` plus executable support to gradually replace scattered historical VSIR notes as the knowledge required to understand and reconstruct `.vsir` files.
