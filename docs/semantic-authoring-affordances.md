@@ -85,12 +85,14 @@ representation.Street.mapping
     vslices update vsir Location --set "representation.Street.mapping=<expression>"
 ```
 
-True set-valued surfaces retain collection operations:
+True set-valued semantic surfaces retain collection operations:
 
 ```text
 traits
   operations: set, add, remove
 ```
+
+Organizational metadata is deliberately outside canonical VSIR semantics. Search labels, indexes, provenance annotations or future workflow metadata must use a separate metadata surface rather than being persisted as undeclared root keys in `.vsir`.
 
 ## 3. Operation semantics
 
@@ -118,10 +120,9 @@ Internal mutation code may realize the first case as a mapping insertion. That i
 
 `add` is reserved for collection semantics where union is meaningful independently of replacement.
 
-Current examples:
+Current semantic example:
 
 ```text
-tags
 traits
 ```
 
@@ -327,9 +328,10 @@ state-driven discovery
 non-persistent discovery projection
 command templates emitted from discovered affordances
 set = establish-or-replace for ordinary assertions
-add restricted to collection-valued surfaces
-tags/traits add-remove-set semantics
-local from/mapping mutual exclusion
+add restricted to collection-valued semantic surfaces
+traits add-remove-set semantics
+organizational metadata excluded from canonical VSIR
+a local from/mapping mutual exclusion
 grammar-driven discovery for structured field declarations
 expression grammar discovery for representation mappings
 construction grammar discovery
