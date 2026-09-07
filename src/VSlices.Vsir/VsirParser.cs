@@ -1,13 +1,83 @@
+using YamlDotNet.RepresentationModel;
+
 namespace VSlices.Vsir;
 
 /// <summary>
 /// Canonical VSIR parser entry point.
-/// VSIR 0.1 has one admitted grammar and no compatibility dispatch by document shape.
+/// VSIR 0.1 has one admitted semantic grammar and no compatibility dispatch by document shape.
+/// Searchable artifact metadata such as tags is validated and removed before semantic parsing.
 /// </summary>
 public static class VsirParser
 {
     public static VsirParseResult Parse(
         string text,
-        VsirValidationContext? validationContext = null) =>
-        VsirLanguageParser.Parse(text, validationContext);
+        VsirValidationContext? validationContext = null)
+    {
+        var semanticText = StripSearchMetadata(text, out var metadataDiagnostic);
+        if (metadataDiagnostic is not null)
+            return new(null, [metadataDiagnostic]);
+
+        return VsirLanguageParser.Parse(semanticText!, validationContext);
+    }
+
+    private static string? StripSearchMetadata(
+        string text,
+        out VsirDiagnostic? diagnostic)
+    {
+        diagnostic = null;
+
+        YamlStream yaml;
+        YamlMappingNode root;
+        try
+        {
+            yaml = new YamlStream();
+            yaml.Load(new StringReader(text));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
+                return text;
+            root = mapping;
+        }
+        catch
+        {
+            return text;
+        }
+
+        var tagsKey = new YamlScalarNode("tags");
+        if (!root.Children.TryGetValue(tagsKey, out var tagsNode))
+            return text;
+
+        if (tagsNode is not YamlSequenceNode tags)
+        {
+            diagnostic = new(
+                "VSIR150",
+                "Artifact metadata 'tags' must be a sequence of non-empty unique strings.");
+            return null;
+        }
+
+        var values = new List<string>(tags.Children.Count);
+        foreach (var child in tags.Children)
+        {
+            if (child is not YamlScalarNode scalar || string.IsNullOrWhiteSpace(scalar.Value))
+            {
+                diagnostic = new(
+                    "VSIR150",
+                    "Artifact metadata 'tags' must be a sequence of non-empty unique strings.");
+                return null;
+            }
+
+            values.Add(scalar.Value!);
+        }
+
+        if (values.Distinct(StringComparer.Ordinal).Count() != values.Count)
+        {
+            diagnostic = new(
+                "VSIR151",
+                "Artifact metadata 'tags' values must be unique.");
+            return null;
+        }
+
+        root.Children.Remove(tagsKey);
+        using var writer = new StringWriter();
+        yaml.Save(writer, assignAnchors: false);
+        return writer.ToString();
+    }
 }
