@@ -21,15 +21,15 @@ public sealed class ApplyConstructionParsingTests
             representation:
               Value: string
 
+            input:
+              Value: string
+
             construction:
-              input:
-                Value: string
-              steps:
-                - apply:
-                    over: StreetName
-                    input:
-                      Value: input.Value
-                    as: street
+              - apply:
+                  over: StreetName
+                  input:
+                    Value: input.Value
+                  as: street
             """);
 
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
@@ -60,18 +60,18 @@ public sealed class ApplyConstructionParsingTests
               Values:
                 sequence: string
 
+            input:
+              Values:
+                sequence: string
+
             construction:
-              input:
-                Values:
-                  sequence: string
-              steps:
-                - apply:
-                    over: StreetExtension
-                    input:
-                      source: input.Values
-                      map:
-                        Value: item
-                    as: extensions
+              - apply:
+                  over: StreetExtension
+                  input:
+                    source: input.Values
+                    map:
+                      Value: item
+                  as: extensions
             """);
 
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
@@ -98,21 +98,21 @@ public sealed class ApplyConstructionParsingTests
             representation:
               Value: string
 
+            input:
+              Value: string
+
             construction:
-              input:
-                Value: string
-              steps:
-                - apply:
-                    domain: StreetName
-                    input:
-                      Value: input.Value
-                    as: street
+              - apply:
+                  domain: StreetName
+                  input:
+                    Value: input.Value
+                  as: street
             """);
 
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, x =>
             x.Code == "VSIR104" &&
-            x.Message.Contains("construction.steps[].apply.domain", StringComparison.Ordinal));
+            x.Message.Contains("construction[].apply.domain", StringComparison.Ordinal));
         Assert.Contains(parsed.Diagnostics, x => x.Code == "VSIR119");
     }
 
@@ -135,17 +135,17 @@ public sealed class ApplyConstructionParsingTests
               Values:
                 sequence: string
 
+            input:
+              Values:
+                sequence: string
+
             construction:
-              input:
-                Values:
-                  sequence: string
-              steps:
-                - apply-seq:
-                    over: StreetExtension
-                    input: input.Values
-                    map:
-                      Value: item
-                    as: extensions
+              - apply-seq:
+                  over: StreetExtension
+                  input: input.Values
+                  map:
+                    Value: item
+                  as: extensions
             """);
 
         Assert.False(parsed.IsSuccess);
