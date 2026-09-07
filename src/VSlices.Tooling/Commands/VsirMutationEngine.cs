@@ -702,9 +702,9 @@ internal static class VsirMutationEngine
 
     private static bool IsRequiredMap(YamlMappingNode root, string mapPath)
     {
-        var classification = Scalar(root, "classification");
+        var kind = Scalar(root, "kind");
         return mapPath is "state" or "representation" &&
-               classification is "value-object" or "entity" or "maintained" or "aggregate-root";
+               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal);
     }
 
     private static string? Scalar(YamlMappingNode root, string key) =>
