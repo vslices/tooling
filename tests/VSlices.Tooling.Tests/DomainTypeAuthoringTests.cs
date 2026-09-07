@@ -24,16 +24,19 @@ public sealed class DomainTypeAuthoringTests
 
         var classification = Assert.Single(frontier, item => item.Path == "classification");
         Assert.Equal(VsirFrontierStatus.Required, classification.Status);
+        Assert.Equal(["value-object"], classification.AllowedValues);
     }
 
     [Fact]
-    public void Domain_type_cannot_remove_the_last_state_or_representation_property_regardless_of_classification()
+    public void Domain_type_cannot_remove_the_last_state_or_representation_property()
     {
         var source = """
             vsir: 0.1
             kind: domain-type
             name: Example
-            classification: identifier
+            shape: product
+            classification: value-object
+            traits: [transform]
             state:
               Value: string
             representation:
