@@ -89,9 +89,19 @@ classification: value-object
 
 `--classification` requires `--kind` because classification validity is kind-specific.
 
+For the current `domain-type` authoring contract, the accepted classifications are:
+
+```text
+value-object
+entity
+identifier
+maintained
+aggregate-root
+```
+
 Tags are different: they are organizational and associative metadata, so `--tags` does not require a kind or classification and does not imply either one.
 
-No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
+No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, values, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
 
 ## 4. Tags
 
@@ -226,6 +236,39 @@ traits
   values: transform
 ```
 
+A maintained Domain Type activates one additional required surface:
+
+```yaml
+vsir: 0.1
+kind: domain-type
+name: IdentityType
+classification: maintained
+```
+
+```text
+state
+  status: required
+  value kind: map<property, declaration>
+  operations: add, remove, set
+
+representation
+  status: required
+  value kind: map<property, declaration>
+  operations: add, remove, set
+
+values
+  status: required
+  meaning: Declares the maintained members and the semantic state associated with each member.
+  value kind: map<member, state>
+  operations: add, remove, set
+
+traits
+  status: optional
+  values: transform
+```
+
+`classification: maintained` semantically implies the `maintained` trait, so `maintained` is not offered as an explicit value under `traits`. Its effective contract is reflected instead by the required `values` frontier.
+
 The `values` line on `traits` is authoritative for the explicit trait vocabulary currently supported by Tooling. At this stage the only explicitly authorable trait is:
 
 ```text
@@ -235,7 +278,7 @@ transform
   -> requires construction
 ```
 
-Classification-implied traits such as `identifier`, `entity`, or `aggregate-root` are not offered as explicit choices merely because they exist in the effective trait model. Additional explicit traits must be introduced deliberately as their contracts are specified.
+Classification-implied traits such as `maintained`, `identifier`, `entity`, or `aggregate-root` are not offered as explicit choices merely because they exist in the effective trait model. Additional explicit traits must be introduced deliberately as their contracts are specified.
 
 Once `transform` is present, discovery follows the trait contract and exposes any missing obligations:
 
@@ -255,9 +298,9 @@ construction
 
 These entries are obligations derived from the effective trait, not optional authoring suggestions. They disappear from the immediate frontier once the corresponding sections exist. Their mutation syntax remains intentionally unavailable until the input and construction authoring contracts are specified; discovery exposes the obligation without inventing an editing grammar.
 
-`state` and `representation` remain visible after their first property is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
+`state`, `representation`, and `values` where applicable remain visible after their first content is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
 
-The current structured authoring subset operates on child properties rather than replacing a whole map:
+The current structured state/representation authoring subset operates on child properties rather than replacing a whole map:
 
 ```text
 vslices update vsir StreetName --add state.Value=string
@@ -267,6 +310,32 @@ vslices update vsir StreetName --remove state.Value
 ```
 
 For direct property declarations, `add` requires that the property is absent, `set` requires that it already exists, and `remove` requires that it already exists. Attempting to remove the final property of a required `state` or `representation` map fails closed.
+
+Maintained `values` uses the same add/remove/set distinction at the member boundary. A member declaration is supplied as a constrained inline YAML mapping whose only current top-level member field is `state`:
+
+```text
+vslices update vsir IdentityType \
+  --add "values.Natural={state: {Name: Natural}}"
+
+vslices update vsir IdentityType \
+  --set "values.Juridical={state: {Name: Juridica}}"
+
+vslices update vsir IdentityType --remove values.Natural
+```
+
+This materializes as:
+
+```yaml
+values:
+  Natural:
+    state:
+      Name: Natural
+  Juridical:
+    state:
+      Name: Juridica
+```
+
+The member name and member state remain distinct. Tooling does not infer `Name: Natural` merely from the member name `Natural`. A maintained member declaration therefore requires an explicit non-empty `state` mapping. Removing the final maintained member fails closed because `values` is required by the effective `maintained` trait.
 
 The first local state relation is also writable:
 
@@ -300,6 +369,7 @@ vslices discovery vsir StreetName --set kind=domain-type
 vslices discovery vsir StreetName --add tags=addressing
 vslices discovery vsir StreetName --add traits=transform
 vslices discovery vsir StreetName --add state.Value=string
+vslices discovery vsir IdentityType --add "values.Natural={state: {Name: Natural}}"
 ```
 
 Projecting `--add traits=transform` therefore also projects the newly activated `input` and `construction` obligations in the returned frontier.
@@ -329,6 +399,11 @@ state.<property>
 
 representation.<property>
   -> add, remove, set
+
+values.<member>
+  -> add, remove, set
+  -> only when classification: maintained
+  -> add/set value: {state: {<property>: <value>, ...}}
 
 state.<property>.from
   -> add, remove, set
@@ -360,11 +435,17 @@ vslices update vsir StreetName \
   --add "state.Value=string;representation.Value=string"
 ```
 
-For map-property removal the value is unnecessary, so the concise form is valid:
+```text
+vslices update vsir IdentityType \
+  --add "values.Natural={state: {Name: Natural}}"
+```
+
+For map-property or maintained-member removal the value is unnecessary, so the concise form is valid:
 
 ```text
 vslices update vsir Location --remove state.Number
 vslices update vsir Location --remove state.Region.from
+vslices update vsir IdentityType --remove values.Natural
 ```
 
 Set-valued removal still names the values being removed:
@@ -389,13 +470,17 @@ Unsupported semantic paths, operations, or enumerated semantic values fail close
 
 ## 8. Current authoring frontier
 
-The implemented semantic sequence now reaches trait-derived obligations:
+The implemented semantic sequence now reaches maintained and trait-derived obligations:
 
 ```text
 name
   -> kind
   -> classification
-  -> state / representation property authoring where implied
+       -> value-object/entity/aggregate-root
+            -> state / representation
+       -> maintained
+            -> state / representation
+            -> values
   -> optional explicit traits
        -> transform
             -> required input
@@ -421,6 +506,7 @@ discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
   -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
+  -> after maintained, exposes state, representation and values as required writable maps
   -> after classification, exposes traits as optional and transform as the currently available explicit value
   -> when transform is effective, exposes missing input and construction as required obligations
 
@@ -432,6 +518,7 @@ update vsir
   -> validates explicit traits against the currently supported vocabulary
   -> can set kind and classification atomically
   -> can add/remove/set direct state and representation properties
+  -> can add/remove/set maintained members under values
   -> can establish/change/remove the direct state `from` relation
   -> does not yet author input or construction
 ```
@@ -444,7 +531,15 @@ Input/construction authoring, deeper field declaration forms and additional expl
 - tags remain organizational metadata and must not imply semantic declarations;
 - tags are non-empty, single-line and unique;
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
-- `value-object`, `entity`, and `aggregate-root` expose `state` and `representation` as required writable maps;
+- `maintained` is an accepted Domain Type classification;
+- `value-object`, `entity`, `maintained`, and `aggregate-root` expose `state` and `representation` as required writable maps;
+- `classification: maintained` implies the `maintained` trait and exposes `values` as a required writable map;
+- `maintained` is not offered as an explicit trait because it is classification-implied;
+- maintained `values` supports add/remove/set at `values.<member>`;
+- add/set of a maintained member requires an explicit non-empty `state` mapping;
+- a maintained member name does not imply its state;
+- removing the final maintained member fails closed;
+- `values` is rejected for non-maintained classifications;
 - discovery distinguishes required obligations from optional authoring surfaces;
 - every discovered attribute carries a concise explanation of what it means;
 - map-level operations apply to explicitly authorized child paths, not arbitrary YAML structure;
