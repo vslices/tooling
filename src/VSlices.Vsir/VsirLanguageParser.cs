@@ -361,7 +361,7 @@ public static class VsirLanguageParser
         if (intrinsic is not null)
         {
             RejectUnknownKeys(refine, ["intrinsic", "value", "as", "failure"], "construction[].refine", diagnostics);
-            var valueRef = Scalar(refine, "value");
+            var intrinsicValue = Scalar(refine, "value");
             var outputs = TryMapping(refine, "as", out var asMap)
                 ? ReadScalarMap(asMap, "construction[].refine.as", diagnostics)
                 : new Dictionary<string, string>(StringComparer.Ordinal);
@@ -371,13 +371,13 @@ public static class VsirLanguageParser
             if (TryMapping(refine, "failure", out failure))
                 RejectUnknownKeys(failure, ["message"], "construction[].refine.failure", diagnostics);
 
-            if (string.IsNullOrWhiteSpace(valueRef) || outputs.Count == 0 || string.IsNullOrWhiteSpace(failureMessage))
+            if (string.IsNullOrWhiteSpace(intrinsicValue) || outputs.Count == 0 || string.IsNullOrWhiteSpace(failureMessage))
             {
                 diagnostics.Add(new("VSIR127", "Intrinsic refine requires intrinsic, value, non-empty as bindings, and failure.message."));
                 return;
             }
 
-            result.Add(new IntrinsicRefineStep(intrinsic, valueRef, outputs, failureMessage));
+            result.Add(new IntrinsicRefineStep(intrinsic, intrinsicValue, outputs, failureMessage));
             return;
         }
 
