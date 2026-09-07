@@ -69,6 +69,13 @@ internal static class VsirGrammarDiscovery
         "sequence<step>",
         [
             new(
+                "normalize",
+                "{normalize: {target: <input-reference>, intrinsic: <ruleset-intrinsic>}}",
+                [
+                    new("target", "input-reference"),
+                    new("intrinsic", "ruleset-intrinsic")
+                ]),
+            new(
                 "ensure",
                 "{ensure: {condition: {intrinsic: <ruleset-intrinsic>, args: <argument-map>}, failure: {message: <text>}}}",
                 [
