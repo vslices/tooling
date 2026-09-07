@@ -11,7 +11,7 @@ public sealed class TicketCodeLoweringExperimentTests
         name: TicketCode
         classification: value-object
         shape: product
-        traits: [transform]
+        traits: [transform, identifier]
 
         state:
           Value: string
@@ -86,6 +86,14 @@ public sealed class TicketCodeLoweringExperimentTests
 
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
         Assert.NotNull(lowered.Source);
+        Assert.Contains(
+            "Identifier<TicketCode, TicketCode.Repr>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Transform<TicketCode, TicketCode.Input>",
+            lowered.Source,
+            StringComparison.Ordinal);
         Assert.Contains(
             "!string.IsNullOrEmpty(input.Value.Trim())",
             lowered.Source,
