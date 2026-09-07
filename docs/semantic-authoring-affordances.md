@@ -181,7 +181,7 @@ traits: transform | identifier | refined
 
 Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability and therefore requires explicit equality semantics. Equality without identifier capability is rejected. `refined` remains an additional trait-driven capability.
 
-Target contract lowering follows the same separation of semantic facts:
+Target contract lowering follows the same separation of semantic facts and the primitive Framework surface:
 
 ```text
 kind: domain-type
@@ -191,9 +191,12 @@ classification: identifier
         OR
 traits contains identifier
   -> Identifier<T>
+
+traits contains refined
+  -> Refined<T, BASE>
 ```
 
-`Identifier<T, T.Repr>` may remain a Framework convenience composite, but it is not used as the canonical lowering decision because it would conflate the domain-type fact with identifier capability.
+Framework no longer exposes the representation-composite convenience traits such as `Identifier<T, T.Repr>` or `Refined<T, BASE, T.Repr>`. Canonical lowering therefore emits each justified primitive contract independently rather than reconstructing removed composites.
 
 Examples:
 
@@ -329,7 +332,7 @@ TicketCode
 SrvIdentityId
   -> identifier classification + refined trait,
      scalar input, refined-from, semantic equality, stringify, refine,
-     primitive DomainType + Identifier target contracts
+     primitive DomainType + Identifier + Refined target contracts
 ```
 
 ## 9. Evidence precedence
@@ -359,6 +362,7 @@ transform / identifier / refined trait authoring
 kind: domain-type -> DomainType<T,T.Repr> target contract
 identifier classification OR identifier trait -> equality obligation
 identifier classification OR identifier trait -> Identifier<T> target contract
+refined trait -> Refined<T,BASE> target contract
 equality without identifier capability -> fail closed
 product transform input may establish same-name state directly
 construction grammar includes normalize / ensure / resolve / apply / refine
