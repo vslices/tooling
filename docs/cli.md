@@ -68,7 +68,7 @@ update ruleset
 update vsir
 ```
 
-An update must make the intended mutation explicit. Ambiguous flags should be avoided when the same property can support additive, subtractive and replacement operations.
+The subject is always explicit. Flag-oriented subject selection such as `update --self` or `update --ruleset` is not part of the CLI contract.
 
 ## 3. Progressive `new vsir`
 
@@ -137,69 +137,11 @@ kind / classification / traits
 
 A tag must not by itself imply a `kind`, `classification`, trait, section, lowering rule or target realization.
 
-Tags are expected to evolve as more source evidence is inspected. That evolution belongs to `update vsir` rather than to a separate generic `replace` command.
+Tags are expected to evolve as more source evidence is inspected. That evolution belongs to the generic `update vsir` mutation model.
 
-## 5. Updating tags
+## 5. Generic semantic mutation model
 
-Tag mutation uses explicit set operations so an AI or human agent does not need to guess whether a flag means append or replacement.
-
-### Add tags
-
-```text
-vslices update vsir StreetName --add-tags identity
-```
-
-Semantics:
-
-```text
-result = current tags union requested tags
-```
-
-Adding a tag that already exists is idempotent and does not fail.
-
-### Remove tags
-
-```text
-vslices update vsir StreetName --remove-tags street
-```
-
-Semantics:
-
-```text
-result = current tags difference requested tags
-```
-
-Removing a tag that is not present is idempotent and does not fail.
-
-### Replace the complete tag set
-
-```text
-vslices update vsir StreetName --set-tags identity,addressing
-```
-
-Semantics:
-
-```text
-result = requested tags
-```
-
-`--set-tags` is intentionally explicit. A generic `--tags` flag on `update vsir` must not ambiguously mean either append or replacement.
-
-### Combined additive and subtractive update
-
-```text
-vslices update vsir StreetName \
-  --remove-tags street \
-  --add-tags identity,location
-```
-
-represents one requested transition from the current tag set to the resulting tag set.
-
-If the same value is requested for both addition and removal of the same path in one transaction, the command reports a contradiction and leaves the artifact unchanged.
-
-## 6. Generic semantic mutation model
-
-The tag-specific flags are convenience forms over a more general update model:
+`update vsir` uses one generic mutation model:
 
 ```text
 UpdateOperation =
@@ -209,7 +151,7 @@ UpdateOperation =
   + optional value
 ```
 
-The generic mutation kinds are:
+The mutation kinds are:
 
 ```text
 add
@@ -217,7 +159,7 @@ remove
 set
 ```
 
-The implemented generic CLI form uses `path=value` clauses:
+The CLI uses `path=value` clauses:
 
 ```text
 vslices update vsir StreetName --add tags=identity
@@ -232,7 +174,26 @@ vslices update vsir StreetName \
   --set "kind=domain-type;classification=value-object"
 ```
 
-The complete invocation is still one transaction.
+The complete invocation is one transaction.
+
+For a set-valued path such as `tags`:
+
+```text
+add
+  -> current union requested
+
+remove
+  -> current difference requested
+
+set
+  -> requested replaces current
+```
+
+Add and remove are idempotent when there is no semantic contradiction. Adding an existing value or removing an absent value does not fail.
+
+There are no path-specific compatibility flags such as `--add-tags`, `--remove-tags` or `--set-tags`. `tags` is updated through the same generic semantic-path mechanism as every other writable declaration.
+
+If the same value is requested for both addition and removal of the same path in one transaction, the command reports a contradiction and leaves the artifact unchanged.
 
 `add`, `remove` and `set` are structural mechanisms, not semantic authority. A path, mutation kind and value are valid only when the active artifact contract authorizes that combination.
 
@@ -248,9 +209,9 @@ artifact specification / active contracts
   -> determine which values are admissible
 ```
 
-Deeply nested paths are permitted by the model only when they address a semantic declaration recognized by the active contract. The current authoring contract intentionally rejects deep paths because those contracts have not yet been specified. Depth itself is not authority.
+Deeply nested paths are permitted by the model only when they address a semantic declaration recognized by the active contract. The current authoring contract intentionally rejects deep paths whose contracts have not yet been specified. Depth itself is not authority.
 
-## 7. Atomic update semantics
+## 6. Atomic update semantics
 
 `update` is a semantic transition over an artifact, not a sequence of partial file edits.
 
@@ -286,8 +247,6 @@ The implementation writes through the existing atomic file-write mechanism and r
 
 Validation is performed against the resulting candidate artifact, not against partially persisted intermediate states.
 
-For example:
-
 ```text
 current artifact A
 requested mutations m1, m2, m3
@@ -307,8 +266,6 @@ If `m3` makes the candidate invalid, none of `m1`, `m2` or `m3` is persisted.
 This allows a transaction to introduce multiple mutually-dependent declarations together without requiring each intermediate in-memory state to be independently persistable.
 
 ### Failure invariant
-
-The core guarantee is:
 
 > `update` applies one or more semantic mutations as a single atomic transition over an artifact. Either the resulting artifact is accepted and committed completely, or the original artifact remains unchanged.
 
@@ -336,7 +293,7 @@ identify one justified semantic change
 
 This reduces accidental loss, formatting drift, stale knowledge and unrelated edits while keeping the agent's requested authority narrowly scoped.
 
-## 8. Why this is `update`, not `replace`
+## 7. Why this is `update`, not `replace`
 
 The artifact continues to represent the same concept while knowledge about it changes.
 
@@ -352,7 +309,7 @@ A future `replace` command should be introduced only if evidence reveals an oper
 
 Editing a set-valued property such as tags, changing a nested semantic path, or applying several coordinated mutations atomically is not sufficient reason to introduce a top-level `replace` verb.
 
-## 9. `discovery vsir`
+## 8. `discovery vsir`
 
 `discovery vsir` exposes valid mutations over the immediate semantic frontier of the current artifact.
 
@@ -396,7 +353,7 @@ update
   -> atomically advance the artifact
 ```
 
-## 10. Agent-facing invariants
+## 9. Agent-facing invariants
 
 For progressive authoring, implementations preserve these invariants:
 
@@ -414,7 +371,7 @@ For progressive authoring, implementations preserve these invariants:
 - current implementation limitations must not be mistaken for the conceptual limits of the CLI specification;
 - language-level VSIR semantics remain owned by `vslices/intermediate-representation`; this document specifies CLI interaction semantics, not the VSIR language itself.
 
-## 11. Current implementation status
+## 10. Current implementation status
 
 On the semantic-locality experiment, the progressive VSIR authoring loop is implemented for the currently specified frontier:
 
@@ -426,17 +383,17 @@ vslices update vsir
 
 `new vsir` supports optional `kind`, `classification`, `shape`, `traits` and `tags` when those facts are already justified.
 
-`update vsir` supports tag convenience flags plus contract-constrained generic `add`, `remove` and `set` operations. The complete requested mutation set is applied to an in-memory candidate and committed atomically only after candidate validation succeeds.
+`update vsir` supports only the contract-constrained generic `add`, `remove` and `set` operations. The complete requested mutation set is applied to an in-memory candidate and committed atomically only after candidate validation succeeds.
 
 `discovery vsir` reports the immediate frontier and supports non-persisted generic mutation projections.
 
-The subject-oriented lifecycle forms are also implemented:
+The subject-oriented lifecycle forms are:
 
 ```text
 vslices update self
 vslices update ruleset
 ```
 
-The previous flag-oriented `vslices update --self` and `vslices update --ruleset` surface remains temporarily as a compatibility surface.
+No compatibility aliases are retained while this CLI is still experimental and has a single active user.
 
 Deep semantic paths remain intentionally unavailable until their owning VSIR contracts are specified. The mechanism must grow from specification evidence rather than becoming an unconstrained YAML editing surface.
