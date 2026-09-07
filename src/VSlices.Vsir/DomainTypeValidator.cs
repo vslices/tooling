@@ -50,8 +50,8 @@ public static class DomainTypeValidator
         foreach (var field in document.State.Fields.Concat(document.Representation.Fields).Concat(document.Construction.Input.Fields))
             Require(IsTypeReference(field.Type), "VSIR208", $"Invalid semantic type reference '{field.Type}' on '{field.Name}'.");
 
-        if (document.Construction.Input.IsScalar)
-            Require(IsTypeReference(document.Construction.Input.ScalarType!), "VSIR208", $"Invalid construction input type reference '{document.Construction.Input.ScalarType}'.");
+        if (document.Construction.Input.ScalarType is not null)
+            Require(IsTypeReference(document.Construction.Input.ScalarType), "VSIR208", $"Invalid construction input type reference '{document.Construction.Input.ScalarType}'.");
 
         if (document.RefinedFrom is not null)
             Require(IsNamedTypeReference(document.RefinedFrom), "VSIR222", $"Invalid refined-from type reference '{document.RefinedFrom}'.");
@@ -75,26 +75,19 @@ public static class DomainTypeValidator
             Require(document.RefinedFrom is null, "VSIR226", "'refined-from' requires trait 'refined'.");
         }
 
-        foreach (var refine in document.Construction.Steps.OfType<RefineStep>())
-            ValidateRefine(refine);
-
-        foreach (var stateField in document.State.Fields)
-        {
-            var established = TryConstructionSourceForState(stateField.Name, out var sourceType);
-            Require(established && sourceType == stateField.Type, "VSIR209",
-                $"Cannot establish state.{stateField.Name} deterministically from construction input. A mapping/refinement is required.");
-        }
-
+        ValidateStateSources();
+        ValidateConstructionBindings();
         ValidateRepresentationMapping();
 
         foreach (var representationField in document.Representation.Fields)
         {
             var matchingState = document.State.Fields.SingleOrDefault(x => x.Name == representationField.Name);
             var mapped = document.RepresentationMapping?.Fields.ContainsKey(representationField.Name) == true;
+            var directFrom = !string.IsNullOrWhiteSpace(representationField.From);
             Require(
-                mapped || (matchingState is not null && matchingState.Type == representationField.Type),
+                mapped || directFrom || (matchingState is not null && matchingState.Type == representationField.Type),
                 "VSIR210",
-                $"Cannot project representation.{representationField.Name} deterministically from state. A representation mapping is required.");
+                $"Cannot project representation.{representationField.Name} deterministically from state. A direct source or representation mapping is required.");
         }
 
         foreach (var normalize in document.Construction.Steps.OfType<NormalizeStep>())
@@ -115,16 +108,208 @@ public static class DomainTypeValidator
                 NonEmptyCondition x => x.Value,
                 NotWhitespaceCondition x => x.Value,
                 LengthAtMostCondition x => x.Value,
+                LengthBetweenCondition x => x.Value,
                 _ => string.Empty
             };
 
             Require(TryInputReferenceType(value, out _), "VSIR211",
-                $"Only construction input references are supported, got '{value}'.");
+                $"Only construction input references are supported by the current ensure boundary, got '{value}'.");
         }
 
         if (document.Equality is not null)
+            ValidateEquality(document.Equality);
+
+        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
+            Require(document.Equality is not null, "VSIR216",
+                "Trait 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
+
+        if (isRefined && document.RefinedFrom is not null)
         {
-            var equality = document.Equality;
+            var baseType = new NamedVsirType(document.RefinedFrom);
+            var baseStateFields = document.State.Fields
+                .Where(x => x.Type == baseType)
+                .ToArray();
+            Require(baseStateFields.Length == 1, "VSIR229",
+                $"The currently evidenced refined domain-type shape requires exactly one state field of refined-from type '{document.RefinedFrom}'.");
+        }
+
+        return diagnostics;
+
+        void ValidateStateSources()
+        {
+            foreach (var field in document.State.Fields)
+            {
+                if (string.IsNullOrWhiteSpace(field.From))
+                    continue;
+
+                Require(field.From.StartsWith("state.", StringComparison.Ordinal), "VSIR238",
+                    $"Derived state.{field.Name} requires a state reference, got '{field.From}'.");
+
+                if (!field.From.StartsWith("state.", StringComparison.Ordinal))
+                    continue;
+
+                var firstSegment = field.From["state.".Length..].Split('.', 2)[0];
+                Require(document.State.Fields.Any(x => x.Name == firstSegment), "VSIR239",
+                    $"Derived state.{field.Name} references unknown state field '{firstSegment}'.");
+                Require(firstSegment != field.Name, "VSIR240",
+                    $"Derived state.{field.Name} must not derive directly from itself.");
+            }
+        }
+
+        void ValidateConstructionBindings()
+        {
+            var bindings = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var step in document.Construction.Steps)
+            {
+                switch (step)
+                {
+                    case ResolveStep resolve:
+                        Require(!string.IsNullOrWhiteSpace(resolve.Source), "VSIR241", "Resolve requires source.");
+                        Require(TryInputReferenceType(resolve.Id, out _), "VSIR242",
+                            $"Resolve id must currently reference transform input, got '{resolve.Id}'.");
+                        Require(bindings.Add(resolve.As), "VSIR243",
+                            $"Construction binding '{resolve.As}' is declared more than once.");
+                        break;
+
+                    case ApplyStep apply:
+                        ValidateApplyInput(apply.Input);
+                        Require(bindings.Add(apply.As), "VSIR243",
+                            $"Construction binding '{apply.As}' is declared more than once.");
+                        break;
+
+                    case RefineStep refine:
+                        ValidateRefine(refine, bindings);
+                        break;
+                }
+            }
+
+            foreach (var stateField in document.State.Fields.Where(field => string.IsNullOrWhiteSpace(field.From)))
+            {
+                var established = TryConstructionSourceForState(stateField.Name, bindings, out var sourceType);
+                Require(established && (sourceType is null || sourceType == stateField.Type), "VSIR209",
+                    $"Cannot establish state.{stateField.Name} deterministically from construction input or an explicit construction binding.");
+            }
+        }
+
+        void ValidateApplyInput(ApplyInput input)
+        {
+            switch (input)
+            {
+                case DirectApplyInput direct:
+                    foreach (var value in direct.Fields.Values)
+                        Require(TryInputReferenceType(value, out _), "VSIR244",
+                            $"Direct apply input currently requires input references, got '{value}'.");
+                    break;
+                case MappedApplyInput mapped:
+                    Require(TryInputReferenceType(mapped.Source, out _), "VSIR245",
+                        $"Mapped apply source currently requires an input reference, got '{mapped.Source}'.");
+                    Require(mapped.Map.Count > 0, "VSIR246", "Mapped apply requires at least one input mapping.");
+                    break;
+            }
+        }
+
+        void ValidateRefine(RefineStep refine, IReadOnlySet<string> bindings)
+        {
+            Require(refine.As.StartsWith("state.", StringComparison.Ordinal), "VSIR230",
+                $"Refine target must be a state reference, got '{refine.As}'.");
+
+            if (!refine.As.StartsWith("state.", StringComparison.Ordinal))
+                return;
+
+            var stateName = refine.As["state.".Length..];
+            var stateField = document.State.Fields.SingleOrDefault(x => x.Name == stateName);
+            Require(stateField is not null, "VSIR232", $"Refine references unknown state field '{stateName}'.");
+            if (stateField is null)
+                return;
+
+            if (TryInputReferenceType(refine.Value, out var inputType))
+            {
+                Require(stateField.Type == inputType, "VSIR233",
+                    $"Refine source type '{inputType}' does not match state.{stateName} type '{stateField.Type}'.");
+                return;
+            }
+
+            Require(bindings.Contains(refine.Value), "VSIR231",
+                $"Refine value must reference transform input or a previously established construction binding, got '{refine.Value}'.");
+        }
+
+        void ValidateRepresentationMapping()
+        {
+            if (document.RepresentationMapping is null)
+                return;
+
+            foreach (var pair in document.RepresentationMapping.Fields)
+            {
+                var representationField = document.Representation.Fields.SingleOrDefault(x => x.Name == pair.Key);
+                Require(representationField is not null, "VSIR234",
+                    $"Representation mapping references unknown representation field '{pair.Key}'.");
+                if (representationField is null)
+                    continue;
+
+                ValidateProjection(pair.Value, pair.Key, representationField.Type, new HashSet<string>(StringComparer.Ordinal));
+            }
+        }
+
+        void ValidateProjection(
+            RepresentationProjection projection,
+            string fieldName,
+            VsirType targetType,
+            IReadOnlySet<string> bindings)
+        {
+            switch (projection)
+            {
+                case ReferenceProjection reference:
+                    ValidateSemanticReference(reference.Value, bindings, fieldName);
+                    break;
+                case StringifyProjection stringify:
+                    Require(targetType == new NamedVsirType("string"), "VSIR235",
+                        $"Stringify projection requires representation.{fieldName} to be string, got '{targetType}'.");
+                    ValidateSemanticReference(stringify.Value, bindings, fieldName);
+                    break;
+                case RepresentProjection represent:
+                    ValidateProjection(represent.Value, fieldName, targetType, bindings);
+                    break;
+                case SelectProjection select:
+                    ValidateProjection(select.Source, fieldName, targetType, bindings);
+                    Require(!string.IsNullOrWhiteSpace(select.Field), "VSIR247", "Select requires a field name.");
+                    break;
+                case MapProjection map:
+                {
+                    ValidateProjection(map.Source, fieldName, targetType, bindings);
+                    Require(!string.IsNullOrWhiteSpace(map.Bind), "VSIR248", "Map requires a binding name.");
+                    var nested = new HashSet<string>(bindings, StringComparer.Ordinal) { map.Bind };
+                    ValidateProjection(map.Value, fieldName, targetType, nested);
+                    break;
+                }
+                case IntrinsicProjection intrinsic:
+                    Require(!string.IsNullOrWhiteSpace(intrinsic.Intrinsic), "VSIR249", "Intrinsic projection requires an intrinsic name.");
+                    foreach (var value in intrinsic.Values)
+                        ValidateProjection(value, fieldName, targetType, bindings);
+                    break;
+                default:
+                    diagnostics.Add(new("VSIR250", $"Unsupported representation projection for '{fieldName}'."));
+                    break;
+            }
+        }
+
+        void ValidateSemanticReference(string reference, IReadOnlySet<string> bindings, string fieldName)
+        {
+            if (bindings.Contains(reference))
+                return;
+
+            if (reference.StartsWith("state.", StringComparison.Ordinal))
+            {
+                var stateName = reference["state.".Length..].Split('.', 2)[0];
+                Require(document.State.Fields.Any(x => x.Name == stateName), "VSIR237",
+                    $"Representation mapping for '{fieldName}' references unknown state field '{stateName}'.");
+                return;
+            }
+
+            Require(false, "VSIR251", $"Representation mapping for '{fieldName}' references unknown semantic value '{reference}'.");
+        }
+
+        void ValidateEquality(EqualitySemantics equality)
+        {
             Require(equality.By.StartsWith("state.", StringComparison.Ordinal), "VSIR214",
                 $"Equality currently requires a state reference, got '{equality.By}'.");
 
@@ -147,90 +332,16 @@ public static class DomainTypeValidator
                 Require(IsNamedTypeReference(equality.Over), "VSIR227", $"Invalid equality over type reference '{equality.Over}'.");
                 if (equalityField is not null)
                 {
-                    Require(
-                        equalityField.Type == new NamedVsirType(equality.Over),
-                        "VSIR228",
+                    Require(equalityField.Type == new NamedVsirType(equality.Over), "VSIR228",
                         $"Equality over '{equality.Over}' does not match state field type '{equalityField.Type}'.");
                 }
             }
         }
 
-        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
-            Require(document.Equality is not null, "VSIR216",
-                "Trait 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
-
-        if (isRefined && document.RefinedFrom is not null)
-        {
-            var baseType = new NamedVsirType(document.RefinedFrom);
-            var baseStateFields = document.State.Fields
-                .Where(x => x.Type == baseType)
-                .ToArray();
-            Require(baseStateFields.Length == 1, "VSIR229",
-                $"The currently evidenced refined domain-type shape requires exactly one state field of refined-from type '{document.RefinedFrom}'.");
-        }
-
-        return diagnostics;
-
-        void ValidateRefine(RefineStep refine)
-        {
-            Require(refine.As.StartsWith("state.", StringComparison.Ordinal), "VSIR230",
-                $"Refine target must be a state reference, got '{refine.As}'.");
-
-            if (!TryInputReferenceType(refine.Value, out var inputType))
-            {
-                diagnostics.Add(new("VSIR231", $"Refine value must reference construction input, got '{refine.Value}'."));
-                return;
-            }
-
-            if (!refine.As.StartsWith("state.", StringComparison.Ordinal))
-                return;
-
-            var stateName = refine.As["state.".Length..];
-            var stateField = document.State.Fields.SingleOrDefault(x => x.Name == stateName);
-            Require(stateField is not null, "VSIR232", $"Refine references unknown state field '{stateName}'.");
-            if (stateField is not null)
-            {
-                Require(
-                    stateField.Type == inputType,
-                    "VSIR233",
-                    $"Refine source type '{inputType}' does not match state.{stateName} type '{stateField.Type}'.");
-            }
-        }
-
-        void ValidateRepresentationMapping()
-        {
-            if (document.RepresentationMapping is null)
-                return;
-
-            foreach (var pair in document.RepresentationMapping.Fields)
-            {
-                var representationField = document.Representation.Fields.SingleOrDefault(x => x.Name == pair.Key);
-                Require(representationField is not null, "VSIR234",
-                    $"Representation mapping references unknown representation field '{pair.Key}'.");
-                if (representationField is null)
-                    continue;
-
-                switch (pair.Value)
-                {
-                    case StringifyProjection stringify:
-                    {
-                        Require(representationField.Type == new NamedVsirType("string"), "VSIR235",
-                            $"Stringify projection requires representation.{pair.Key} to be string, got '{representationField.Type}'.");
-                        Require(stringify.Value.StartsWith("state.", StringComparison.Ordinal), "VSIR236",
-                            $"Stringify projection requires a state reference, got '{stringify.Value}'.");
-                        if (stringify.Value.StartsWith("state.", StringComparison.Ordinal))
-                        {
-                            var stateName = stringify.Value["state.".Length..];
-                            Require(document.State.Fields.Any(x => x.Name == stateName), "VSIR237",
-                                $"Stringify projection references unknown state field '{stateName}'.");
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        bool TryConstructionSourceForState(string stateName, out VsirType? type)
+        bool TryConstructionSourceForState(
+            string stateName,
+            IReadOnlySet<string> bindings,
+            out VsirType? type)
         {
             if (!document.Construction.Input.IsScalar)
             {
@@ -245,10 +356,19 @@ public static class DomainTypeValidator
             var refine = document.Construction.Steps
                 .OfType<RefineStep>()
                 .SingleOrDefault(x => x.As == "state." + stateName);
-            if (refine is not null && TryInputReferenceType(refine.Value, out var refinedType))
+            if (refine is not null)
             {
-                type = refinedType;
-                return true;
+                if (TryInputReferenceType(refine.Value, out var refinedType))
+                {
+                    type = refinedType;
+                    return true;
+                }
+
+                if (bindings.Contains(refine.Value))
+                {
+                    type = null;
+                    return true;
+                }
             }
 
             type = null;
