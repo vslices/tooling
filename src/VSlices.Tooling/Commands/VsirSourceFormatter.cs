@@ -9,13 +9,8 @@ internal static class VsirSourceFormatter
         var yaml = new YamlStream();
         yaml.Load(new StringReader(source));
 
-        if (yaml.Documents.Count == 1 &&
-            yaml.Documents[0].RootNode is YamlMappingNode root &&
-            root.Children.TryGetValue(new YamlScalarNode("equality"), out var equalityNode) &&
-            equalityNode is YamlMappingNode equality)
-        {
-            ForceBlockStyle(equality);
-        }
+        if (yaml.Documents.Count == 1)
+            ForceBlockStyle(yaml.Documents[0].RootNode);
 
         using var writer = new StringWriter();
         yaml.Save(writer, assignAnchors: false);
