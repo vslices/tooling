@@ -36,16 +36,16 @@ n/a      the layer is not required for the semantic form
 open     evidence has not crossed the layer yet
 ```
 
-The current public Domain Type envelope is deliberately narrower than every historical experiment:
+The current public Domain Type envelope is deliberately narrower than every historical experiment and follows the concrete corpus:
 
 ```text
 kind: domain-type
 shape: product
-classification: value-object
-traits: transform | identifier | refined
+classification: value-object | identifier
+traits: transform | refined
 ```
 
-`identifier` and `refined` are semantic capabilities expressed through `traits`, not alternate classifications. `transform` is currently required for a conforming Domain Type by the canonical validator.
+`identifier` is an evidenced semantic classification; `TicketId` is the direct corpus witness. `refined` is a semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
 
 | Semantic form | discover | author | parse | conform | lower | ruleset | Current witness / note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -58,15 +58,16 @@ traits: transform | identifier | refined
 | representation `select` | yes | yes | yes | yes | yes | yes | Location |
 | representation `map` | yes | yes | yes | yes | yes | yes | Location `Ext` |
 | representation intrinsic | yes | yes | yes | yes | yes | yes when intrinsic exists | StreetExtension-style mapping |
-| transform product input | yes | yes | yes | yes | yes | n/a | StreetName / Location |
+| transform product input | yes | yes | yes | yes | yes | n/a | StreetName / Location / TicketId |
 | transform scalar input | yes | yes | yes | yes | yes | n/a | SrvIdentityId |
+| direct product input -> state with no explicit construction steps | yes | yes | yes | yes | yes | n/a | TicketId; absence of `construction` means zero explicit steps and validation proves direct state establishment |
 | construction `ensure` | yes | yes | yes | yes | yes | yes when intrinsic exists | StreetName / StreetExtension |
 | construction `resolve` | yes | yes | yes | yes | yes | yes | Location `Commune` |
 | construction `apply`, direct | yes | yes | yes | yes | yes | yes | Location `StreetName` |
 | construction `apply`, mapped/container | yes | yes | yes | yes | yes | yes | Location `StreetExtension` |
 | construction `refine` | yes | yes | yes | yes | yes | n/a | Location / StreetName / SrvIdentityId |
-| identifier trait + equality intrinsic | yes | yes | yes | yes | yes | yes | identifier authoring + existing lowering evidence |
-| identifier trait + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
+| identifier classification + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketId |
+| identifier classification + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
 | refined trait + `refined-from` | yes | yes | yes | yes | yes | n/a | SrvIdentityId authoring/parsing + lowering witness |
 | sum variants | gated | gated | open | open | open | open | historical authoring experiment retained as research only; Name is the next corpus witness |
 | maintained values | gated | gated | open | open | open | open | historical authoring experiment retained as research only; IdentityType is the next corpus witness |
@@ -96,7 +97,7 @@ For example:
 discovery cannot describe an already-parseable admitted form
   -> authoring/discovery gap
 
-parser cannot preserve a form present in the specification
+parser cannot preserve a form present in the specification or concrete admitted corpus
   -> parser/conformance gap
 
 lower cannot consume a conforming form
@@ -110,6 +111,8 @@ historical authoring knows a form that parser/lower cannot consume
 ```
 
 A successful parity experiment should move a row from left to right using the same semantic artifact. It should not make the row look complete by translating that artifact into a different grammar between authoring and lowering.
+
+The TicketId correction adds an important evidence rule: an implementation restriction in the current validator is not stronger authority than an already admitted corpus artifact. When the two conflict, locate and repair the first stale layer instead of rewriting the corpus to match the accidental restriction.
 
 ## Canonical-surface rule
 
