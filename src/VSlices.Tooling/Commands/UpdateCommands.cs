@@ -54,10 +54,11 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Adds members to collection-valued surfaces. Available for searchable tags metadata and semantic traits.</param>
-    /// <param name="remove">Removes collection members or removable semantic assertions. Set-valued surfaces use path=value; assertion removal may use path alone.</param>
-    /// <param name="set">Establishes or replaces assertions as semicolon-separated path=value clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
+    /// <param name="add">Adds members to collection-valued surfaces. The option may be repeated. Available for searchable tags metadata and semantic traits.</param>
+    /// <param name="remove">Removes collection members or removable semantic assertions. The option may be repeated. Set-valued surfaces use path=value; assertion removal may use path alone.</param>
+    /// <param name="set">Establishes or replaces assertions as path=value clauses. The option may be repeated; each occurrence may also contain semicolon-separated clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
     public static async Task<int> Vsir(
+        ConsoleAppContext context,
         [Argument] string artifact,
         string? add = null,
         string? remove = null,
@@ -72,9 +73,10 @@ internal static class UpdateCommands
         }
 
         var mutations = new List<VsirMutation>();
-        var parseError = VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Add, add, "UPDATE020")
-            ?? VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Remove, remove, "UPDATE020")
-            ?? VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Set, set, "UPDATE020");
+        var parseError = VsirMutationArgumentParser.AddRepeatedOptions(
+            mutations,
+            context.CommandArguments,
+            "UPDATE020");
         if (parseError is not null)
         {
             TerminalOutput.Error(parseError);
