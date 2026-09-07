@@ -5,11 +5,47 @@ rules:
     bindings: [value]
     template: "!string.IsNullOrEmpty({value})"
 
+  - node: intrinsic.not-whitespace
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "!string.IsNullOrWhiteSpace({value})"
+
   - node: intrinsic.length-at-most
     mode: deterministic
     renderer: expression
     bindings: [value, max]
     template: "{value}.Length <= {max}"
+
+  - node: intrinsic.length-between
+    mode: deterministic
+    renderer: expression
+    bindings: [value, min, max]
+    template: "{value}.Length >= {min} && {value}.Length <= {max}"
+
+  - node: intrinsic.concat-space
+    mode: deterministic
+    renderer: expression
+    bindings: [values]
+    template: "string.Join(\" \", new[] { {values} })"
+
+  - node: refine.split-first-rest.condition
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries).Length > 1"
+
+  - node: refine.split-first-rest.output.Name
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries)[0]"
+
+  - node: refine.split-first-rest.output.Value
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "string.Join(\" \", {value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries)[1..])"
 
   - node: equality.ordinal-equals.equals
     mode: deterministic
