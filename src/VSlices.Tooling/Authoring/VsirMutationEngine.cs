@@ -155,7 +155,6 @@ internal static class VsirMutationEngine
 
         return mutation.Path switch
         {
-            "tags" => ApplySetMutation(root, "tags", mutation),
             "traits" => ApplySetMutation(root, "traits", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "shape" => ApplyScalarMutation(root, "shape", mutation),
@@ -735,7 +734,7 @@ internal static class VsirMutationEngine
         var exists = declaration.Children.ContainsKey(fromKey);
 
         if (mutation.Kind == VsirMutationKind.Add && exists)
-            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.";
+            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.",
         if (mutation.Kind == VsirMutationKind.Remove && !exists)
             return $"UPDATE023: Semantic property 'representation.{fieldName}.from' does not exist and cannot be removed.";
 
@@ -1068,7 +1067,7 @@ internal static class VsirMutationEngine
             if (overlap is not null)
                 return $"UPDATE019: Value '{overlap}' is both added to and removed from semantic path '{group.Key}' in the same transaction.";
 
-            if (group.Key is not ("tags" or "traits") && group.Count() > 1)
+            if (group.Key != "traits" && group.Count() > 1)
                 return $"UPDATE018: Semantic path '{group.Key}' cannot be set more than once in the same transaction.";
         }
 
