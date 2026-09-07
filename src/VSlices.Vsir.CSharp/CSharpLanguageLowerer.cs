@@ -482,7 +482,7 @@ public static class CSharpLanguageLowerer
 
     private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
     {
-        var isIdentifier = document.Traits.Contains("identifier", StringComparer.Ordinal);
+        var isIdentifier = document.Classification == "identifier";
         var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
         if (isIdentifier)
             yield return $"Identifier<{document.Name}, {document.Name}.Repr>";
