@@ -64,6 +64,68 @@ public sealed class LocationGrammarDrivenDiscoveryTests
     }
 
     [Fact]
+    public void Core_Location_fields_discover_named_structural_and_expanded_declaration_forms()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Location
+            shape: product
+            classification: value-object
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
+
+        Assert.Null(error);
+
+        foreach (var path in new[] { "state", "representation" })
+        {
+            var affordance = Assert.Single(frontier, item => item.Path == path);
+            var grammar = Assert.IsType<VsirValueGrammar>(VsirGrammarDiscovery.For(affordance));
+
+            Assert.Equal("semantic-field-declaration", grammar.RootKind);
+            Assert.Contains(grammar.Forms, form => form.Name == "named-type" && form.Template == "<semantic-type>");
+            Assert.Contains(grammar.Forms, form => form.Name == "structural-type" && form.Template == "{<type-constructor>: <semantic-type>}");
+            Assert.Contains(grammar.Forms, form => form.Name == "expanded-type" && form.Template == "{type: <semantic-type>}");
+        }
+    }
+
+    [Fact]
+    public void Construction_discovery_exposes_every_step_shape_needed_by_Location()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Location
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Commune: Commune
+            representation:
+              CommuneId: string
+            input:
+              CommuneId: CommuneId
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
+
+        Assert.Null(error);
+        var construction = Assert.Single(frontier, item => item.Path == "construction");
+        var grammar = Assert.IsType<VsirValueGrammar>(VsirGrammarDiscovery.For(construction));
+
+        Assert.Equal("sequence<step>", grammar.RootKind);
+        Assert.Contains(grammar.Forms, form => form.Name == "resolve");
+        Assert.Contains(grammar.Forms, form => form.Name == "apply");
+        Assert.Contains(grammar.Forms, form => form.Name == "apply-mapped");
+        Assert.Contains(grammar.Forms, form => form.Name == "refine-state");
+
+        var mappedApply = Assert.Single(grammar.Forms, form => form.Name == "apply-mapped");
+        Assert.Contains(mappedApply.Slots, slot => slot.Name == "source" && slot.ValueKind == "expression");
+        Assert.Contains(mappedApply.Slots, slot => slot.Name == "map" && slot.ValueKind == "input-mapping");
+    }
+
+    [Fact]
     public void Select_discovers_expression_source_so_represent_remains_an_explicit_composition()
     {
         var contract = MappingContract();
