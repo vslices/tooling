@@ -4,7 +4,7 @@ Status: experimental. This document describes the intended command semantics of 
 
 ## 1. Purpose
 
-The CLI is an operational surface for creating, discovering, refining and materializing VSlices artifacts without requiring a human or AI agent to know the final structure in advance.
+The CLI is an operational surface for creating, discovering, refining, locating and materializing VSlices artifacts without requiring a human or AI agent to know the final structure in advance.
 
 The primary authoring rule is:
 
@@ -22,6 +22,7 @@ The general subject-oriented surface is:
 vslices init
 vslices new <subject>
 vslices discovery <subject>
+vslices search --filter <property>:<operator>:<value>
 vslices update <subject>
 ```
 
@@ -110,7 +111,50 @@ They form a set of non-empty, single-line, unique strings. Their order is preser
 
 Because tags may evolve independently from semantic classification, they remain available throughout progressive authoring rather than occupying one step in the `name -> kind -> classification` semantic sequence.
 
-## 5. `discovery vsir`
+## 5. `search`
+
+`search` locates VSIR artifacts beneath the current directory using an explicit property filter.
+
+The filter grammar is:
+
+```text
+<property>:<operator>:<value>
+```
+
+For example:
+
+```text
+vslices search --filter tags:contains:identity-service
+```
+
+returns VSIR files whose root `tags` sequence contains the exact `identity-service` value.
+
+The first implemented operators are:
+
+```text
+contains
+  -> for a sequence, exact member containment
+  -> for a scalar, ordinal substring containment
+
+equals
+  -> ordinal scalar equality
+```
+
+Examples:
+
+```text
+vslices search --filter tags:contains:identity-service
+vslices search --filter classification:equals:value-object
+vslices search --filter name:contains:Ticket
+```
+
+The first implementation filters root properties only. Unknown properties do not match. Unsupported operators fail closed rather than being guessed.
+
+Search is read-only. It does not mutate VSIR artifacts, infer missing properties, or treat a textual match as semantic authority.
+
+Search respects the existing artifact discovery policy, including built-in exclusions such as `.git`, `.vslices`, `bin` and `obj`, plus project `.vslices/.ignore` rules when available.
+
+## 6. `discovery vsir`
 
 `discovery vsir` exposes only the immediate semantic frontier currently implemented by Tooling, together with the always-available tags surface.
 
@@ -155,7 +199,7 @@ vslices discovery vsir StreetName --add tags=addressing
 
 The projected candidate is validated in memory and discarded after discovery.
 
-## 6. `update vsir`
+## 7. `update vsir`
 
 The current progressive VSIR update surface supports:
 
@@ -201,7 +245,7 @@ If validation or persistence fails, the original artifact remains unchanged.
 
 Unsupported semantic paths or operations fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
 
-## 7. Current authoring frontier
+## 8. Current authoring frontier
 
 The implemented semantic sequence remains deliberately small:
 
@@ -230,6 +274,9 @@ discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
 
+search
+  -> may filter current VSIR artifacts by an implemented root property filter
+
 update vsir
   -> can add/remove/set tags
   -> can set kind and classification atomically
@@ -239,12 +286,14 @@ Nothing semantically after `classification` should be treated as implemented CLI
 
 The next semantic authoring capability must be added only after its VSIR contract has been specified from evidence.
 
-## 8. Agent-facing invariants
+## 9. Agent-facing invariants
 
 - creating or updating an artifact must not silently infer unsupported semantic knowledge;
 - tags remain organizational metadata and must not imply semantic declarations;
 - tags are non-empty, single-line and unique;
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
+- `search` is read-only and explicit about its filter operator;
+- unsupported search operators fail closed;
 - `discovery` must not mutate filesystem or artifact state;
 - discovery projections use the same candidate validation as update;
 - a complete `update` invocation is one transaction;
