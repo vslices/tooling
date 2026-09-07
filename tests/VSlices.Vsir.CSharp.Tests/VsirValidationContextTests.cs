@@ -18,13 +18,12 @@ public sealed class VsirValidationContextTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - normalize:
-                    target: input.Value
-                    intrinsic: project-normalize
+              - normalize:
+                  target: input.Value
+                  intrinsic: project-normalize
             """;
 
         var context = new VsirValidationContext(
