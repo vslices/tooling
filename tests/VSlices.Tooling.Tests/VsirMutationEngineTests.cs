@@ -15,7 +15,7 @@ public sealed class VsirMutationEngineTests
         VsirMutation[] mutations =
         [
             new(VsirMutationKind.Set, "kind", "domain-type"),
-            new(VsirMutationKind.Set, "classification", "identifier")
+            new(VsirMutationKind.Set, "classification", "value-object")
         ];
 
         if (reverse)
@@ -25,7 +25,7 @@ public sealed class VsirMutationEngineTests
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("kind: domain-type", result.Source);
-        Assert.Contains("classification: identifier", result.Source);
+        Assert.Contains("classification: value-object", result.Source);
     }
 
     [Fact]
@@ -71,14 +71,14 @@ public sealed class VsirMutationEngineTests
         Assert.DoesNotContain(frontier, item => item.Path == "tags");
         var shape = Assert.Single(frontier, item => item.Path == "shape");
         Assert.Equal(VsirFrontierStatus.Required, shape.Status);
-        Assert.Equal(["product", "sum"], shape.AllowedValues);
+        Assert.Equal(["product"], shape.AllowedValues);
         Assert.DoesNotContain(frontier, item => item.Path == "classification");
         Assert.DoesNotContain(frontier, item => item.Path == "state");
         Assert.DoesNotContain(frontier, item => item.Path == "representation");
     }
 
     [Fact]
-    public void Value_object_discovery_exposes_set_based_state_and_representation_plus_optional_traits()
+    public void Value_object_discovery_exposes_required_state_representation_and_transform_capability()
     {
         var source = """
             vsir: 0.1
@@ -105,12 +105,12 @@ public sealed class VsirMutationEngineTests
         Assert.Contains("representation.Value", representation.Meaning, StringComparison.Ordinal);
 
         var traits = Assert.Single(frontier, item => item.Path == "traits");
-        Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
+        Assert.Equal(VsirFrontierStatus.Required, traits.Status);
         Assert.Contains(VsirMutationKind.Add, traits.Operations);
         Assert.Contains(VsirMutationKind.Remove, traits.Operations);
         Assert.Contains(VsirMutationKind.Set, traits.Operations);
-        Assert.Equal(["transform"], traits.AllowedValues);
-        Assert.Contains("additional semantic capabilities", traits.Meaning, StringComparison.Ordinal);
+        Assert.Equal(["transform", "identifier", "refined"], traits.AllowedValues);
+        Assert.Contains("requires transform", traits.Meaning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
