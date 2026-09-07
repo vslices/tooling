@@ -36,4 +36,49 @@ internal static class VsirMutationArgumentParser
 
         return null;
     }
+
+    public static string? AddRepeatedOptions(
+        ICollection<VsirMutation> target,
+        ReadOnlySpan<string> commandArguments,
+        string diagnosticCode)
+    {
+        for (var index = 0; index < commandArguments.Length; index++)
+        {
+            var token = commandArguments[index];
+            if (!TryMutationKind(token, out var kind))
+                continue;
+
+            if (index + 1 >= commandArguments.Length)
+                return $"{diagnosticCode}: Option '{token}' requires a mutation value.";
+
+            var value = commandArguments[++index];
+            if (TryMutationKind(value, out _))
+                return $"{diagnosticCode}: Option '{token}' requires a mutation value.";
+
+            var error = AddMutations(target, kind, value, diagnosticCode);
+            if (error is not null)
+                return error;
+        }
+
+        return null;
+    }
+
+    private static bool TryMutationKind(string token, out VsirMutationKind kind)
+    {
+        switch (token)
+        {
+            case "--add":
+                kind = VsirMutationKind.Add;
+                return true;
+            case "--remove":
+                kind = VsirMutationKind.Remove;
+                return true;
+            case "--set":
+                kind = VsirMutationKind.Set;
+                return true;
+            default:
+                kind = default;
+                return false;
+        }
+    }
 }
