@@ -32,6 +32,7 @@ public sealed class SemanticTypeLoweringTests
                 "type.sequence",
                 "deterministic",
                 "type",
+                ["value"],
                 "Seq<{value}>")]);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
@@ -57,6 +58,7 @@ public sealed class SemanticTypeLoweringTests
                 "type.vendor-sequence",
                 "deterministic",
                 "type",
+                ["value"],
                 "VendorSequence<{value}>")]);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
