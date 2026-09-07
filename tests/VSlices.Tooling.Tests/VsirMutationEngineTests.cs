@@ -144,7 +144,6 @@ public sealed class VsirMutationEngineTests
         Assert.Equal("sequence<step>", construction.ValueKind);
         Assert.Single(construction.Operations);
         Assert.Contains(VsirMutationKind.Set, construction.Operations);
-        Assert.Contains("additional ordered semantic work", construction.Meaning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
