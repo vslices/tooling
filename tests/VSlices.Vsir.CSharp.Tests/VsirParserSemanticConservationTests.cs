@@ -16,6 +16,62 @@ public sealed class VsirParserSemanticConservationTests
     }
 
     [Fact]
+    public void TicketCode_identifier_trait_is_independent_from_value_object_classification()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketCode
+            classification: value-object
+            shape: product
+            traits: [transform, identifier]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Value
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        Assert.Equal("value-object", parsed.Document!.Classification);
+        Assert.Contains("identifier", parsed.Document.Traits);
+        Assert.NotNull(parsed.Document.Equality);
+    }
+
+    [Fact]
+    public void Equality_without_identifier_semantics_is_rejected()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Value
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Value
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR252");
+    }
+
+    [Fact]
     public void TicketId_semantics_are_preserved_and_lowered_through_identifier_structure_and_ruleset_equality()
     {
         var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
