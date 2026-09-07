@@ -8,11 +8,16 @@ internal static class VsirMutationPipeline
         string source,
         IReadOnlyList<VsirMutation> mutations)
     {
+        var structuredFieldMutations = mutations
+            .Where(IsStructuredFieldMutation)
+            .ToArray();
         var mappingMutations = mutations
             .Where(IsRepresentationMappingMutation)
             .ToArray();
         var remainingMutations = mutations
-            .Where(mutation => !IsRepresentationMappingMutation(mutation))
+            .Where(mutation =>
+                !IsStructuredFieldMutation(mutation) &&
+                !IsRepresentationMappingMutation(mutation))
             .ToArray();
 
         var current = source;
@@ -24,9 +29,18 @@ internal static class VsirMutationPipeline
 
             current = baseResult.Source!;
         }
-        else if (mappingMutations.Length == 0)
+        else if (structuredFieldMutations.Length == 0 && mappingMutations.Length == 0)
         {
             return VsirMutationResult.Failure("UPDATE001: At least one semantic mutation is required.");
+        }
+
+        foreach (var mutation in structuredFieldMutations)
+        {
+            var result = ApplyStructuredFieldMutation(current, mutation);
+            if (!result.IsSuccess)
+                return result;
+
+            current = result.Source!;
         }
 
         foreach (var mutation in mappingMutations)
@@ -149,6 +163,198 @@ internal static class VsirMutationPipeline
         }
     }
 
+    private static bool IsStructuredFieldMutation(VsirMutation mutation)
+    {
+        if (mutation.Kind == VsirMutationKind.Remove ||
+            !TrySemanticFieldPath(mutation.Path, out _, out _) ||
+            string.IsNullOrWhiteSpace(mutation.Value))
+            return false;
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(mutation.Value));
+            return yaml.Documents.Count == 1 &&
+                   yaml.Documents[0].RootNode is YamlMappingNode;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static VsirMutationResult ApplyStructuredFieldMutation(
+        string source,
+        VsirMutation mutation)
+    {
+        if (!TrySemanticFieldPath(mutation.Path, out var mapPath, out var fieldName))
+            return VsirMutationResult.Failure($"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.");
+
+        if (mutation.Kind is not (VsirMutationKind.Add or VsirMutationKind.Set))
+            return VsirMutationResult.Failure($"UPDATE012: Structured semantic field '{mutation.Path}' supports only 'add' or 'set'.");
+
+        if (string.IsNullOrWhiteSpace(mutation.Value))
+            return VsirMutationResult.Failure($"UPDATE013: Semantic property '{mutation.Path}' requires a semantic field declaration.");
+
+        YamlStream yaml;
+        YamlMappingNode root;
+        try
+        {
+            yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
+                return VsirMutationResult.Failure("UPDATE002: Expected one YAML mapping VSIR document.");
+            root = mapping;
+        }
+        catch (Exception ex)
+        {
+            return VsirMutationResult.Failure($"UPDATE003: Could not parse VSIR artifact: {ex.Message}");
+        }
+
+        if (mapPath == "input" && !HasTransformTrait(root))
+        {
+            return VsirMutationResult.Failure(
+                $"UPDATE039: Semantic path '{mutation.Path}' is writable only when explicit trait 'transform' is established.");
+        }
+
+        YamlMappingNode declaration;
+        try
+        {
+            var declarationYaml = new YamlStream();
+            declarationYaml.Load(new StringReader(mutation.Value));
+            if (declarationYaml.Documents.Count != 1 ||
+                declarationYaml.Documents[0].RootNode is not YamlMappingNode parsed)
+            {
+                return VsirMutationResult.Failure(
+                    $"UPDATE043: Semantic property '{mutation.Path}' must use a structured semantic field declaration.");
+            }
+
+            var declarationError = ValidateStructuredFieldDeclaration(parsed, mutation.Path);
+            if (declarationError is not null)
+                return VsirMutationResult.Failure(declarationError);
+
+            declaration = parsed;
+        }
+        catch (Exception ex)
+        {
+            return VsirMutationResult.Failure(
+                $"UPDATE043: Could not parse structured semantic field '{mutation.Path}': {ex.Message}");
+        }
+
+        var mapKey = new YamlScalarNode(mapPath);
+        YamlMappingNode map;
+        if (root.Children.TryGetValue(mapKey, out var mapNode))
+        {
+            if (mapNode is not YamlMappingNode existingMap)
+                return VsirMutationResult.Failure($"UPDATE025: Semantic path '{mapPath}' must be a mapping before its properties can be mutated.");
+            map = existingMap;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return VsirMutationResult.Failure($"UPDATE022: Semantic property '{mutation.Path}' does not exist; use 'add' to establish it.");
+            map = new YamlMappingNode();
+            root.Children[mapKey] = map;
+        }
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        var exists = map.Children.ContainsKey(fieldKey);
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return VsirMutationResult.Failure($"UPDATE021: Semantic property '{mutation.Path}' already exists; use 'set' to change it.");
+        if (mutation.Kind == VsirMutationKind.Set && !exists)
+            return VsirMutationResult.Failure($"UPDATE022: Semantic property '{mutation.Path}' does not exist; use 'add' to establish it.");
+
+        map.Children[fieldKey] = declaration;
+
+        using var writer = new StringWriter();
+        yaml.Save(writer, assignAnchors: false);
+        return VsirMutationResult.Success(writer.ToString());
+    }
+
+    private static string? ValidateStructuredFieldDeclaration(
+        YamlMappingNode declaration,
+        string path)
+    {
+        if (declaration.Children.Count == 0)
+            return $"UPDATE043: Semantic property '{path}' requires a non-empty structured semantic field declaration.";
+
+        var typeKey = new YamlScalarNode("type");
+        if (declaration.Children.TryGetValue(typeKey, out var typeNode))
+        {
+            if (declaration.Children.Count != 1)
+            {
+                return $"UPDATE043: Expanded semantic field '{path}' may establish only 'type' at the field boundary; author 'from' or 'mapping' through their local semantic paths.";
+            }
+
+            return ValidateSemanticTypeNode(typeNode)
+                ? null
+                : $"UPDATE043: Expanded semantic field '{path}.type' must be a scalar type or structural semantic type declaration.";
+        }
+
+        if (declaration.Children.Count != 1)
+            return $"UPDATE043: Structural semantic field '{path}' must declare exactly one type constructor.";
+
+        var constructor = declaration.Children.Keys.Single() as YamlScalarNode;
+        if (constructor is null || string.IsNullOrWhiteSpace(constructor.Value))
+            return $"UPDATE043: Structural semantic field '{path}' requires a non-empty type constructor name.";
+
+        var value = declaration.Children.Values.Single();
+        return ValidateSemanticTypeNode(value)
+            ? null
+            : $"UPDATE043: Structural semantic field '{path}' requires a scalar or nested structural semantic type value.";
+    }
+
+    private static bool ValidateSemanticTypeNode(YamlNode node)
+    {
+        if (node is YamlScalarNode scalar)
+            return !string.IsNullOrWhiteSpace(scalar.Value);
+
+        if (node is not YamlMappingNode mapping || mapping.Children.Count != 1)
+            return false;
+
+        var constructor = mapping.Children.Keys.Single() as YamlScalarNode;
+        return constructor is not null &&
+               !string.IsNullOrWhiteSpace(constructor.Value) &&
+               ValidateSemanticTypeNode(mapping.Children.Values.Single());
+    }
+
+    private static bool HasTransformTrait(YamlMappingNode root)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode("traits"), out var traitsNode) ||
+            traitsNode is not YamlSequenceNode traits)
+            return false;
+
+        return traits.Children
+            .OfType<YamlScalarNode>()
+            .Any(trait => string.Equals(trait.Value, "transform", StringComparison.Ordinal));
+    }
+
+    private static bool TrySemanticFieldPath(
+        string path,
+        out string mapPath,
+        out string fieldName)
+    {
+        mapPath = string.Empty;
+        fieldName = string.Empty;
+
+        foreach (var candidate in new[] { "state", "representation", "input" })
+        {
+            var prefix = candidate + ".";
+            if (!path.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var remainder = path[prefix.Length..];
+            if (string.IsNullOrWhiteSpace(remainder) || remainder.Contains('.', StringComparison.Ordinal))
+                return false;
+
+            mapPath = candidate;
+            fieldName = remainder;
+            return true;
+        }
+
+        return false;
+    }
+
     private static bool IsRepresentationMappingMutation(VsirMutation mutation) =>
         TryRepresentationMappingPath(mutation.Path, out _);
 
@@ -256,7 +462,7 @@ internal static class VsirMutationPipeline
             return false;
 
         var candidate = path[prefix.Length..^suffix.Length];
-        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains(".", StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains('.', StringComparison.Ordinal))
             return false;
 
         fieldName = candidate;
