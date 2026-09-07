@@ -7,6 +7,44 @@ public sealed class VsirMutationEngineTests
         name: StreetName
         """;
 
+    [Fact]
+    public void Add_and_remove_tags_are_one_set_transition()
+    {
+        var source = """
+            vsir: 0.1
+            name: StreetName
+            tags: [addressing, street]
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [
+                new(VsirMutationKind.Remove, "tags", "street"),
+                new(VsirMutationKind.Add, "tags", "identity,location")
+            ]);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("addressing", result.Source);
+        Assert.Contains("identity", result.Source);
+        Assert.Contains("location", result.Source);
+        Assert.DoesNotContain("street", result.Source);
+    }
+
+    [Fact]
+    public void Add_and_remove_same_tag_is_rejected_before_candidate_is_returned()
+    {
+        var result = VsirMutationEngine.Apply(
+            Named,
+            [
+                new(VsirMutationKind.Add, "tags", "identity"),
+                new(VsirMutationKind.Remove, "tags", "identity")
+            ]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("UPDATE019:", result.Error);
+        Assert.Null(result.Source);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -44,18 +82,18 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_from_named_artifact_exposes_only_kind()
+    public void Discovery_from_named_artifact_exposes_tags_and_kind()
     {
         var frontier = VsirMutationEngine.Discover(Named, out var error);
 
         Assert.Null(error);
-        var item = Assert.Single(frontier);
-        Assert.Equal("kind", item.Path);
-        Assert.Equal(["domain-type"], item.AllowedValues);
+        Assert.Contains(frontier, item => item.Path == "tags");
+        var kind = Assert.Single(frontier, item => item.Path == "kind");
+        Assert.Equal(["domain-type"], kind.AllowedValues);
     }
 
     [Fact]
-    public void Discovery_after_kind_exposes_only_classification()
+    public void Discovery_after_kind_exposes_tags_and_classification()
     {
         var source = """
             vsir: 0.1
@@ -66,15 +104,15 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-        var item = Assert.Single(frontier);
-        Assert.Equal("classification", item.Path);
-        Assert.Contains("value-object", item.AllowedValues!);
-        Assert.Contains("entity", item.AllowedValues!);
-        Assert.Contains("aggregate-root", item.AllowedValues!);
+        Assert.Contains(frontier, item => item.Path == "tags");
+        var classification = Assert.Single(frontier, item => item.Path == "classification");
+        Assert.Contains("value-object", classification.AllowedValues!);
+        Assert.Contains("entity", classification.AllowedValues!);
+        Assert.Contains("aggregate-root", classification.AllowedValues!);
     }
 
     [Fact]
-    public void Discovery_after_classification_has_no_further_implemented_frontier()
+    public void Discovery_after_classification_keeps_only_tags_as_current_frontier()
     {
         var source = """
             vsir: 0.1
@@ -86,7 +124,11 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-        Assert.Empty(frontier);
+        var tags = Assert.Single(frontier);
+        Assert.Equal("tags", tags.Path);
+        Assert.Contains(VsirMutationKind.Add, tags.Operations);
+        Assert.Contains(VsirMutationKind.Remove, tags.Operations);
+        Assert.Contains(VsirMutationKind.Set, tags.Operations);
     }
 
     [Fact]
