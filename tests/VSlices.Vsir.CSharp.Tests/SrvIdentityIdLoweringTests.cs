@@ -9,9 +9,9 @@ public sealed class SrvIdentityIdLoweringTests
         vsir: 0.1
         kind: domain-type
         name: SrvIdentityId
-        classification: value-object
+        classification: identifier
         shape: product
-        traits: [identifier, refined, transform]
+        traits: [refined, transform]
         refined-from: Rut
 
         state:
@@ -44,7 +44,9 @@ public sealed class SrvIdentityIdLoweringTests
         var parsed = VsirParser.Parse(Source);
 
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
-        Assert.Equal("Rut", parsed.Document!.RefinedFrom);
+        Assert.Equal("identifier", parsed.Document!.Classification);
+        Assert.DoesNotContain("identifier", parsed.Document.Traits);
+        Assert.Equal("Rut", parsed.Document.RefinedFrom);
         Assert.True(parsed.Document.Construction.Input.IsScalar);
         Assert.Equal(new NamedVsirType("Rut"), parsed.Document.Construction.Input.ScalarType);
         Assert.IsType<RefineStep>(Assert.Single(parsed.Document.Construction.Steps));
