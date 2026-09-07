@@ -155,7 +155,7 @@ internal static class VsirCommandTemplates
                     break;
 
                 case VsirMutationKind.Remove:
-                    result.Add(contract.Path == "traits"
+                    result.Add(contract.Path is "traits" or "tags"
                         ? $"vslices update vsir {artifact} --remove \"{commandPath}=<value>\""
                         : $"vslices update vsir {artifact} --remove \"{commandPath}\"");
                     break;
