@@ -178,13 +178,16 @@ public sealed class VsirMutationEngineTests
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
         Assert.Equal("map<property, declaration>", input.ValueKind);
-        Assert.Empty(input.Operations);
+        Assert.Contains(VsirMutationKind.Add, input.Operations);
+        Assert.Contains(VsirMutationKind.Remove, input.Operations);
+        Assert.Contains(VsirMutationKind.Set, input.Operations);
         Assert.Contains("before Domain Type validity", input.Meaning, StringComparison.Ordinal);
 
         var construction = Assert.Single(frontier, item => item.Path == "construction");
         Assert.Equal(VsirFrontierStatus.Required, construction.Status);
         Assert.Equal("sequence<step>", construction.ValueKind);
-        Assert.Empty(construction.Operations);
+        Assert.Single(construction.Operations);
+        Assert.Contains(VsirMutationKind.Set, construction.Operations);
         Assert.Contains("establish a valid Domain Type", construction.Meaning, StringComparison.Ordinal);
     }
 
