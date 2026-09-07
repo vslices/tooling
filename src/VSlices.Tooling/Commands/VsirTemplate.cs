@@ -15,24 +15,6 @@ internal sealed record VsirTemplateResult(
 
 internal static class VsirTemplate
 {
-    private const string CurrentVsirVersion = "0.1";
-
-    private static readonly HashSet<string> DomainTypeClassifications =
-        new(StringComparer.Ordinal)
-        {
-            "value-object",
-            "identifier",
-            "maintained",
-            "aggregate-root"
-        };
-
-    private static readonly HashSet<string> DomainTypeShapes =
-        new(StringComparer.Ordinal)
-        {
-            "product",
-            "sum"
-        };
-
     public static VsirTemplateResult Create(
         string name,
         string? kind = null,
@@ -66,24 +48,26 @@ internal static class VsirTemplate
                 "NEW002: --classification, --shape and --traits require --kind because their validity is kind-specific.");
         }
 
-        if (hasKind && !kind!.Equals("domain-type", StringComparison.Ordinal))
+        if (hasKind && !VsirAuthoringContract.Kinds.Contains(kind!, StringComparer.Ordinal))
         {
             return VsirTemplateResult.Failure(
-                $"NEW003: Unsupported VSIR kind '{kind}'. Current supported kind: domain-type.");
+                $"NEW003: Unsupported VSIR kind '{kind}'. Current supported values: {string.Join(", ", VsirAuthoringContract.Kinds)}.");
         }
 
-        if (classification is not null && !DomainTypeClassifications.Contains(classification))
+        if (classification is not null &&
+            !VsirAuthoringContract.DomainTypeClassifications.Contains(classification, StringComparer.Ordinal))
         {
             return VsirTemplateResult.Failure(
                 $"NEW004: Classification '{classification}' is not valid for kind 'domain-type'. " +
-                $"Supported classifications: {string.Join(", ", DomainTypeClassifications.Order())}.");
+                $"Supported classifications: {string.Join(", ", VsirAuthoringContract.DomainTypeClassifications)}.");
         }
 
-        if (shape is not null && !DomainTypeShapes.Contains(shape))
+        if (shape is not null &&
+            !VsirAuthoringContract.DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
         {
             return VsirTemplateResult.Failure(
                 $"NEW005: Shape '{shape}' is not valid for kind 'domain-type'. " +
-                $"Supported shapes: {string.Join(", ", DomainTypeShapes.Order())}.");
+                $"Supported shapes: {string.Join(", ", VsirAuthoringContract.DomainTypeShapes)}.");
         }
 
         var suppliedTraits = traits ?? [];
@@ -95,7 +79,7 @@ internal static class VsirTemplate
         if (explicitTraits.Length != suppliedTraits.Count)
             return VsirTemplateResult.Failure("NEW006: Explicit traits must be non-empty and unique.");
 
-        var inferredTraits = InferredTraits(classification);
+        var inferredTraits = VsirAuthoringContract.InferredTraits(classification);
         var redundant = explicitTraits.FirstOrDefault(inferredTraits.Contains);
         if (redundant is not null)
         {
@@ -105,7 +89,7 @@ internal static class VsirTemplate
 
         var lines = new List<string>
         {
-            $"vsir: {CurrentVsirVersion}"
+            $"vsir: {VsirAuthoringContract.CurrentVsirVersion}"
         };
 
         if (hasKind)
@@ -133,13 +117,4 @@ internal static class VsirTemplate
 
     private static string QuoteYamlScalar(string value) =>
         $"'{value.Replace("'", "''")}'";
-
-    private static HashSet<string> InferredTraits(string? classification) =>
-        classification switch
-        {
-            "identifier" => new(StringComparer.Ordinal) { "identifier" },
-            "maintained" => new(StringComparer.Ordinal) { "maintained" },
-            "aggregate-root" => new(StringComparer.Ordinal) { "aggregate-root", "entity" },
-            _ => new(StringComparer.Ordinal)
-        };
 }
