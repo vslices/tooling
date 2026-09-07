@@ -52,11 +52,11 @@ internal static class UpdateCommands
         return RulesetUpdater.Update(project, cancellationToken);
     }
 
-    /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
+    /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Adds members to collection-valued semantic surfaces. Currently reserved for traits.</param>
+    /// <param name="add">Adds members to collection-valued surfaces. Available for searchable tags metadata and semantic traits.</param>
     /// <param name="remove">Removes collection members or removable semantic assertions. Set-valued surfaces use path=value; assertion removal may use path alone.</param>
-    /// <param name="set">Establishes or replaces semantic assertions as semicolon-separated path=value clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
+    /// <param name="set">Establishes or replaces assertions as semicolon-separated path=value clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -82,14 +82,45 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
-        var result = VsirMutationPipeline.Apply(source, mutations);
-        if (!result.IsSuccess)
+        var metadataMutations = mutations
+            .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+        var semanticMutations = mutations
+            .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+
+        var current = source;
+        if (semanticMutations.Length > 0)
         {
-            TerminalOutput.Error(result.Error!);
+            var semanticResult = VsirMutationPipeline.Apply(current, semanticMutations);
+            if (!semanticResult.IsSuccess)
+            {
+                TerminalOutput.Error(semanticResult.Error!);
+                return 2;
+            }
+
+            current = semanticResult.Source!;
+        }
+
+        if (metadataMutations.Length > 0)
+        {
+            var metadataResult = VsirMetadataAuthoring.Apply(current, metadataMutations);
+            if (!metadataResult.IsSuccess)
+            {
+                TerminalOutput.Error(metadataResult.Error!);
+                return 2;
+            }
+
+            current = metadataResult.Source!;
+        }
+
+        if (mutations.Count == 0)
+        {
+            TerminalOutput.Error("UPDATE001: At least one mutation is required.");
             return 2;
         }
 
-        var formatted = VsirSourceFormatter.FormatAfterMutation(result.Source!);
+        var formatted = VsirSourceFormatter.FormatAfterMutation(current);
         await CommandInfrastructure.AtomicWrite(resolution.Path!, formatted, cancellationToken);
         Console.WriteLine($"Updated '{resolution.Path}'.");
         return 0;
