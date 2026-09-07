@@ -7,13 +7,19 @@ public sealed class MaintainedAuthoringTests
     {
         Assert.DoesNotContain("maintained", VsirAuthoringContract.DomainTypeClassifications);
 
-        var result = VsirTemplate.Create(
-            "IdentityType",
-            kind: "domain-type",
-            classification: "maintained");
+        var created = VsirTemplate.Create("IdentityType");
+        Assert.True(created.IsSuccess, created.Error);
+
+        var result = VsirMutationPipeline.Apply(
+            created.Source!,
+            [
+                new(VsirMutationKind.Set, "kind", "domain-type"),
+                new(VsirMutationKind.Set, "shape", "product"),
+                new(VsirMutationKind.Set, "classification", "maintained")
+            ]);
 
         Assert.False(result.IsSuccess);
-        Assert.StartsWith("NEW", result.Error);
+        Assert.StartsWith("UPDATE008:", result.Error);
     }
 
     [Fact]
