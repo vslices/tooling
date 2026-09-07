@@ -28,6 +28,12 @@ internal static class VsirAuthoringContract
 
     public static IReadOnlyList<string> Kinds { get; } = [DomainTypeKind];
 
+    public static IReadOnlyList<string> DomainTypeShapes { get; } =
+    [
+        "product",
+        "sum"
+    ];
+
     public static IReadOnlyList<string> DomainTypeClassifications { get; } =
     [
         "value-object",
@@ -80,6 +86,14 @@ internal static class VsirAuthoringContract
 
         if (!kind.Equals(DomainTypeKind, StringComparison.Ordinal))
             return result;
+
+        result.Add(new(
+            "shape",
+            "enum",
+            VsirFrontierStatus.Required,
+            "Declares how one valid Domain Type instance is structurally composed. Product means all state coordinates coexist; sum means exactly one declared state variant is active.",
+            new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+            DomainTypeShapes));
 
         result.Add(new(
             "state",
@@ -192,6 +206,10 @@ internal static class VsirAuthoringContract
         {
             "kind" when !Kinds.Contains(value, StringComparer.Ordinal) =>
                 $"UPDATE006: Unsupported VSIR kind '{value}'. Supported values: {string.Join(", ", Kinds)}.",
+            "shape" when !string.Equals(currentKind, DomainTypeKind, StringComparison.Ordinal) =>
+                "UPDATE033: 'shape' is not writable until kind 'domain-type' is established.",
+            "shape" when !DomainTypeShapes.Contains(value, StringComparer.Ordinal) =>
+                $"UPDATE034: Shape '{value}' is not valid for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeShapes)}.",
             "classification" when !string.Equals(currentKind, DomainTypeKind, StringComparison.Ordinal) =>
                 "UPDATE007: 'classification' is not writable until kind 'domain-type' is established.",
             "classification" when !DomainTypeClassifications.Contains(value, StringComparer.Ordinal) =>
