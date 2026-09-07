@@ -119,12 +119,17 @@ public static class DomainTypeValidator
                 $"Only construction input references are supported by the current ensure boundary, got '{value}'.");
         }
 
-        if (document.Equality is not null)
-            ValidateEquality(document.Equality);
-
         var hasIdentifierCapability =
             document.Classification == "identifier" ||
             document.Traits.Contains("identifier", StringComparer.Ordinal);
+
+        if (document.Equality is not null)
+        {
+            Require(hasIdentifierCapability, "VSIR252",
+                "Equality semantics require identifier capability through either identifier classification or explicit trait 'identifier'.");
+            ValidateEquality(document.Equality);
+        }
+
         if (hasIdentifierCapability)
         {
             Require(document.Equality is not null, "VSIR216",
