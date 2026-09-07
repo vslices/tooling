@@ -88,9 +88,143 @@ Unknown or contradictory semantics must not silently disappear or be guessed.
 
 A consumer, parser, validator, lowerer, or AI agent must stop when reconstructing a valid meaning would require inventing missing authority.
 
-## 3. Document skeleton
+## 3. Minimum document identity
 
-A Domain Type VSIR document has this conceptual shape:
+Every `.vsir` file must be self-identifying before any artifact-specific semantics are considered.
+
+The minimum valid document header is:
+
+```yaml
+vsir: 0.1
+kind: domain-type
+name: StreetName
+```
+
+These three declarations answer different questions:
+
+```text
+vsir
+  -> under which VSIR language rules must this document be interpreted?
+
+kind
+  -> what family of semantic artifact does this document describe?
+
+name
+  -> which concrete semantic artifact is being described?
+```
+
+A `.vsir` document must therefore be able to answer **how it must be interpreted, what category of artifact it represents, and which artifact it is** without depending on its file name, directory, associated source file, or chat history.
+
+Each of these declarations is required and must appear exactly once.
+
+### 3.1 `vsir`
+
+```yaml
+vsir: 0.1
+```
+
+`vsir` identifies the version of the VSIR specification used to interpret the document.
+
+It is the version of the semantic language itself. It is not the version of the represented domain, project, product, application, target platform, source language, or generated materialization.
+
+Conceptually:
+
+```text
+vsir
+  -> selects the grammar and semantics used to read the document
+```
+
+A reader must not silently interpret a document according to the latest known version when `vsir` is absent. The version is part of the document's reconstructible meaning.
+
+If a future VSIR version changes the meaning or structure of a declaration, a document that still declares an earlier version remains interpreted according to that earlier specification unless an explicit migration occurs.
+
+### 3.2 `kind`
+
+```yaml
+kind: domain-type
+```
+
+`kind` identifies the semantic artifact family described by the document.
+
+It determines which additional declarations are meaningful and valid for that artifact family.
+
+Conceptually:
+
+```text
+kind
+  -> selects the family of semantic rules that applies after the minimum header
+```
+
+For example, `kind: domain-type` makes declarations such as `classification`, `state`, `representation`, `construction`, `identity`, `variants`, and `equality` meaningful when allowed by the Domain Type specification.
+
+A future kind must define its own valid structure rather than inheriting Domain Type semantics accidentally. Possible future kinds must be introduced from actual evidence rather than assumed in advance.
+
+`kind` is distinct from `classification`:
+
+```text
+kind
+  -> what kind of VSIR artifact is this?
+
+classification
+  -> what semantic class does that artifact belong to within its kind?
+```
+
+Therefore this is not redundant:
+
+```yaml
+kind: domain-type
+classification: identifier
+```
+
+The first declaration selects the Domain Type artifact family. The second classifies that Domain Type as an identifier.
+
+### 3.3 `name`
+
+```yaml
+name: StreetName
+```
+
+`name` is the primary semantic identifier of the represented artifact inside the context in which the VSIR document is interpreted.
+
+It names the concept, not a target-language declaration.
+
+The semantic name may coincide with a realization:
+
+```text
+StreetName.vsir
+StreetName.cs
+class StreetName
+```
+
+but that coincidence is not what defines `name`.
+
+Another target may realize the same semantic artifact using a different target-native identifier while the VSIR name remains unchanged.
+
+The file name is therefore a discovery convention, not a substitute for `name`. A document named `StreetName.vsir` without an explicit `name: StreetName` is incomplete because it cannot identify itself independently of its storage path.
+
+### 3.4 Minimum-header invariant
+
+A conforming `.vsir` document must satisfy:
+
+```text
+exactly one vsir
+exactly one kind
+exactly one name
+```
+
+and those declarations must be sufficient to establish:
+
+```text
+language version
+artifact family
+artifact identity
+```
+
+before any kind-specific interpretation begins.
+
+## 4. Domain Type document skeleton
+
+For `kind: domain-type`, a document may continue with the following conceptual shape:
 
 ```yaml
 vsir: 0.1
@@ -124,38 +258,6 @@ equality:
 ```
 
 Not every section applies to every classification or shape.
-
-## 4. Root declarations
-
-### `vsir`
-
-Schema version of the document.
-
-Current experimental value:
-
-```yaml
-vsir: 0.1
-```
-
-### `kind`
-
-Semantic artifact family.
-
-Current Domain Type documents use:
-
-```yaml
-kind: domain-type
-```
-
-`kind` determines which root semantics are meaningful. A future kind must define its own valid structure rather than inheriting Domain Type rules accidentally.
-
-### `name`
-
-Semantic name of the represented concept.
-
-```yaml
-name: Location
-```
 
 ### `classification`
 
@@ -731,6 +833,8 @@ representation mapping != arbitrary target expression
 
 At minimum, a conforming validator should enforce the following semantic invariants as support is implemented:
 
+- `vsir`, `kind`, and `name` are required exactly once;
+- interpretation of kind-specific semantics begins only after the minimum header is valid;
 - unknown fixed semantic keys fail closed;
 - user-defined field names remain allowed only inside variable-key maps;
 - explicit traits must not repeat inferred traits;
@@ -772,6 +876,7 @@ A `.vsir` file should optimize for semantic discoverability rather than YAML cle
 
 When editing:
 
+- preserve the minimum self-identifying header (`vsir`, `kind`, `name`);
 - prefer shorthand when only a type must be stated;
 - expand a field only when additional semantics are required;
 - keep derivation under the state field it derives;
