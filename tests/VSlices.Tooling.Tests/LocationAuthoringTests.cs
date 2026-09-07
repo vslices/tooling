@@ -106,9 +106,9 @@ public sealed class LocationAuthoringTests
         Assert.Contains(transformFrontier, item => item.Path == "construction" && item.Status == VsirFrontierStatus.Required);
         Assert.Contains(transformFrontier, item => item.Path == "state.Region.from" && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "state.Province.from" && item.Operations.Contains(VsirMutationKind.Set));
-        Assert.Contains(transformFrontier, item => item.Path == "representation.CommuneId.mapping" && item.Operations.SetEquals([VsirMutationKind.Set]));
-        Assert.Contains(transformFrontier, item => item.Path == "representation.Street.mapping" && item.Operations.SetEquals([VsirMutationKind.Set]));
-        Assert.Contains(transformFrontier, item => item.Path == "representation.Ext.mapping" && item.Operations.SetEquals([VsirMutationKind.Set]));
+        Assert.Contains(transformFrontier, item => item.Path == "representation.CommuneId.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
+        Assert.Contains(transformFrontier, item => item.Path == "representation.Street.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
+        Assert.Contains(transformFrontier, item => item.Path == "representation.Ext.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
 
         var semanticRelations = VsirMutationPipeline.Apply(
             current,
