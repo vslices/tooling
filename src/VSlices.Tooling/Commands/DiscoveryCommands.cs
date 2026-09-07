@@ -65,7 +65,7 @@ internal static class DiscoveryCommands
             Console.WriteLine(path.Path);
             Console.WriteLine($"  status: {DisplayStatus(path.Status)}");
             Console.WriteLine($"  meaning: {path.Meaning}");
-            Console.WriteLine($"  value kind: {path.ValueKind}");
+            Console.WriteLine($"  value kind: {VsirGrammarDiscovery.ValueKind(path)}");
             Console.WriteLine(path.Operations.Count == 0
                 ? "  operations: not implemented"
                 : $"  operations: {string.Join(", ", path.Operations.Select(DisplayOperation))}");
@@ -74,6 +74,18 @@ internal static class DiscoveryCommands
 
             foreach (var template in VsirCommandTemplates.For(artifact, path))
                 Console.WriteLine($"  command: {template}");
+
+            var grammar = VsirGrammarDiscovery.For(path);
+            if (grammar is not null)
+            {
+                Console.WriteLine($"  grammar root: {grammar.RootKind}");
+                foreach (var form in grammar.Forms)
+                {
+                    Console.WriteLine($"  grammar {form.Name}: {form.Template}");
+                    foreach (var slot in form.Slots)
+                        Console.WriteLine($"    {slot.Name}: {slot.ValueKind}");
+                }
+            }
         }
 
         return 0;
