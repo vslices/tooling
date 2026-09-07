@@ -131,8 +131,8 @@ public sealed class CSharpRebaserTests
 
             public sealed class TicketId
             {
-                public static Req<Input, TicketId>.Full Invariants =>
-                    Transform((Input input) => Instance(input));
+                public static VSlices.Arrows.Req<Input, TicketId>.Full Invariants =>
+                    VSlices.Arrows.Req<Input, TicketId>.Transform((Input input) => Instance(input));
 
                 public Repr To() =>
                     new(_value);
@@ -162,8 +162,8 @@ public sealed class CSharpRebaserTests
 
             public sealed class TicketId
             {
-                public static Req<TicketId.Input, TicketId>.Full Invariants =>
-                    Transform((TicketId.Input input) => Instance(input));
+                public static VSlices.Arrows.Req<TicketId.Input, TicketId>.Full Invariants =>
+                    VSlices.Arrows.Req<TicketId.Input, TicketId>.Transform((TicketId.Input input) => Instance(input));
 
                 public Repr To() =>
                     new(_value);
@@ -177,11 +177,11 @@ public sealed class CSharpRebaserTests
             CSharpRebaseResolution.Deterministic);
 
         Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
-        Assert.Contains("Req<TicketId.Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
-        Assert.Contains("Transform((TicketId.Input input) => Instance(input))", result.Source, StringComparison.Ordinal);
+        Assert.Contains("VSlices.Arrows.Req<TicketId.Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+        Assert.Contains("VSlices.Arrows.Req<TicketId.Input, TicketId>.Transform((TicketId.Input input) => Instance(input))", result.Source, StringComparison.Ordinal);
         Assert.Contains("using static VSlices.Arrows.Req<", result.Source, StringComparison.Ordinal);
         Assert.Contains("public override string ToString()", result.Source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Req<Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("public static Req<Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
     }
 
     [Fact]
