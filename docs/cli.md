@@ -91,7 +91,7 @@ classification: value-object
 
 Tags are different: they are organizational and associative metadata, so `--tags` does not require a kind or classification and does not imply either one.
 
-No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, input and construction remain outside the current CLI authoring frontier until their contracts are introduced deliberately.
+No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
 
 ## 4. Tags
 
@@ -156,7 +156,18 @@ Search respects the existing artifact discovery policy, including built-in exclu
 
 ## 6. `discovery vsir`
 
-`discovery vsir` exposes only the immediate semantic frontier currently implemented by Tooling, together with the always-available tags surface.
+`discovery vsir` exposes the immediate semantic frontier currently implemented by Tooling, together with always-available organizational surfaces.
+
+Each discovered attribute explains both its role and its current obligation status:
+
+```text
+status: required | optional
+meaning: <semantic explanation>
+value kind: <expected structure>
+operations: <currently supported mutations>
+```
+
+A required attribute is part of the contract activated by the artifact's current semantic declarations. An optional attribute is available but is not required merely by the current state.
 
 For a named artifact without `kind`:
 
@@ -166,35 +177,67 @@ vslices discovery vsir StreetName
 Immediate frontier:
 
   tags
+    status: optional
+    meaning: Organizational labels used to associate and search artifacts. Tags do not imply semantic behavior.
     value kind: set<string>
     operations: add, remove, set
 
   kind
+    status: required
+    meaning: Selects the VSIR artifact family and determines which declarations are meaningful for the artifact.
     value kind: enum
     operations: set
     values: domain-type
 ```
 
-After `kind: domain-type` is established, `classification` becomes available while tags remain available:
+After `kind: domain-type` is established, `classification` becomes available while tags remain available.
 
-```text
-tags
-  value kind: set<string>
-  operations: add, remove, set
+For a classified value object such as:
 
-classification
-  value kind: enum
-  operations: set
-  values: value-object, entity, identifier, maintained, aggregate-root
+```yaml
+vsir: 0.1
+kind: domain-type
+name: StreetName
+tags: ['addressing', 'street']
+classification: value-object
 ```
 
-After classification is established, tags remain the only currently implemented authoring surface. This is an implementation boundary, not a claim that a classified VSIR artifact has no further semantic structure.
+classification obligations become visible:
 
-Discovery may project mutations without mutating the artifact:
+```text
+state
+  status: required
+  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type.
+  value kind: mapping
+  operations: not implemented
+
+representation
+  status: required
+  meaning: Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity.
+  value kind: mapping
+  operations: not implemented
+
+traits
+  status: optional
+  meaning: Declares additional semantic capabilities that are not already implied by the Domain Type classification.
+  value kind: set<string>
+  operations: add, remove, set
+```
+
+`state` and `representation` are reported as required for `value-object`, `entity`, and `aggregate-root` because those obligations are established by the VSIR specification. Their structured mutation syntax is not yet implemented, so discovery makes the requirement visible without inventing an editing mechanism.
+
+`traits` is currently writable after a Domain Type classification is known:
+
+```text
+vslices update vsir StreetName --add traits=transform
+```
+
+Discovery may project supported mutations without mutating the artifact:
 
 ```text
 vslices discovery vsir StreetName --set kind=domain-type
 vslices discovery vsir StreetName --add tags=addressing
+vslices discovery vsir StreetName --add traits=transform
 ```
 
 The projected candidate is validated in memory and discarded after discovery.
@@ -211,6 +254,9 @@ classification
   -> set
 
 tags
+  -> add, remove, set
+
+traits
   -> add, remove, set
 ```
 
@@ -231,6 +277,10 @@ vslices update vsir StreetName --remove tags=street
 vslices update vsir StreetName --set tags=identity,addressing
 ```
 
+```text
+vslices update vsir StreetName --add traits=transform
+```
+
 A complete invocation is one semantic/organizational transaction:
 
 ```text
@@ -247,15 +297,17 @@ Unsupported semantic paths or operations fail closed. Tooling must not become a 
 
 ## 8. Current authoring frontier
 
-The implemented semantic sequence remains deliberately small:
+The implemented semantic sequence now reaches the first classification obligations:
 
 ```text
 name
   -> kind
   -> classification
+  -> required state / representation where implied
+  -> optional traits
 ```
 
-Tags are orthogonal to that sequence:
+Tags remain orthogonal to that sequence:
 
 ```text
 tags
@@ -273,18 +325,19 @@ new vsir
 discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
+  -> after value-object/entity/aggregate-root, exposes missing state and representation as required
+  -> after classification, exposes traits as optional
 
 search
   -> may filter current VSIR artifacts by an implemented root property filter
 
 update vsir
-  -> can add/remove/set tags
+  -> can add/remove/set tags and traits
   -> can set kind and classification atomically
+  -> does not yet author structured state or representation mappings
 ```
 
-Nothing semantically after `classification` should be treated as implemented CLI behavior yet.
-
-The next semantic authoring capability must be added only after its VSIR contract has been specified from evidence.
+The next structured authoring capability must be added only after its mutation contract has been specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -292,6 +345,11 @@ The next semantic authoring capability must be added only after its VSIR contrac
 - tags remain organizational metadata and must not imply semantic declarations;
 - tags are non-empty, single-line and unique;
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
+- `value-object`, `entity`, and `aggregate-root` discovery exposes missing `state` and `representation` as required obligations;
+- discovery distinguishes required obligations from optional authoring surfaces;
+- every discovered attribute carries a concise explanation of what it means;
+- reporting a required attribute does not authorize mutation when its editing contract is not yet implemented;
+- `traits` is an optional Domain Type capability surface and supports add/remove/set after a Domain Type kind is established;
 - `search` is read-only and explicit about its filter operator;
 - unsupported search operators fail closed;
 - `discovery` must not mutate filesystem or artifact state;
