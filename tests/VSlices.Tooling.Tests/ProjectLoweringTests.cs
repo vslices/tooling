@@ -89,16 +89,16 @@ public sealed class ProjectLoweringTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
+                  failure:
+                    message: required
             """);
     }
 }
