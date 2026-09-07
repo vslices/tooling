@@ -45,8 +45,11 @@ internal static class VsirAuthoringContract
     public static IReadOnlyList<VsirPathContract> Discover(
         string? kind,
         string? classification,
+        IReadOnlyList<string> explicitTraits,
         bool hasState,
-        bool hasRepresentation)
+        bool hasRepresentation,
+        bool hasInput,
+        bool hasConstruction)
     {
         var result = new List<VsirPathContract>
         {
@@ -129,6 +132,29 @@ internal static class VsirAuthoringContract
                 VsirMutationKind.Set
             },
             ExplicitDomainTypeTraits));
+
+        if (explicitTraits.Contains("transform", StringComparer.Ordinal))
+        {
+            if (!hasInput)
+            {
+                result.Add(new(
+                    "input",
+                    "map<property, declaration>",
+                    VsirFrontierStatus.Required,
+                    "Declares what enters the transform before Domain Type validity has been established.",
+                    new HashSet<VsirMutationKind>()));
+            }
+
+            if (!hasConstruction)
+            {
+                result.Add(new(
+                    "construction",
+                    "sequence<step>",
+                    VsirFrontierStatus.Required,
+                    "Declares the semantic conditions and steps that establish a valid Domain Type from the transform input.",
+                    new HashSet<VsirMutationKind>()));
+            }
+        }
 
         return result;
     }
