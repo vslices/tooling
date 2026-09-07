@@ -152,6 +152,7 @@ public sealed class VsirMutationEngineTests
         Assert.Contains(VsirMutationKind.Add, traits.Operations);
         Assert.Contains(VsirMutationKind.Remove, traits.Operations);
         Assert.Contains(VsirMutationKind.Set, traits.Operations);
+        Assert.Equal(["transform"], traits.AllowedValues);
         Assert.Contains("additional semantic capabilities", traits.Meaning, StringComparison.Ordinal);
     }
 
@@ -194,6 +195,25 @@ public sealed class VsirMutationEngineTests
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("traits: [transform]", result.Source);
+    }
+
+    [Fact]
+    public void Unknown_explicit_trait_is_rejected_fail_closed()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "traits", "unknown")]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("UPDATE026:", result.Error);
+        Assert.Contains("transform", result.Error);
     }
 
     [Fact]
