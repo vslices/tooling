@@ -190,6 +190,10 @@ public static class DomainTypeValidator
                             $"Construction binding '{apply.As}' is declared more than once.");
                         break;
 
+                    case IntrinsicRefineStep refine:
+                        ValidateIntrinsicRefine(refine, bindings);
+                        break;
+
                     case RefineStep refine:
                         ValidateRefine(refine, bindings);
                         break;
@@ -218,6 +222,28 @@ public static class DomainTypeValidator
                         $"Mapped apply source currently requires an input reference, got '{mapped.Source}'.");
                     Require(mapped.Map.Count > 0, "VSIR246", "Mapped apply requires at least one input mapping.");
                     break;
+            }
+        }
+
+        void ValidateIntrinsicRefine(IntrinsicRefineStep refine, ISet<string> bindings)
+        {
+            Require(!string.IsNullOrWhiteSpace(refine.Intrinsic), "VSIR253", "Intrinsic refine requires an intrinsic name.");
+            Require(!string.IsNullOrWhiteSpace(refine.FailureMessage), "VSIR254", "Intrinsic refine requires failure.message.");
+            Require(refine.As.Count > 0, "VSIR255", "Intrinsic refine requires at least one named output binding.");
+
+            var sourceIsInput = TryInputReferenceType(refine.Value, out _);
+            Require(sourceIsInput || bindings.Contains(refine.Value), "VSIR256",
+                $"Intrinsic refine value must reference transform input or a previously established construction binding, got '{refine.Value}'.");
+
+            foreach (var output in refine.As)
+            {
+                Require(!string.IsNullOrWhiteSpace(output.Key), "VSIR257", "Intrinsic refine output names must be non-empty.");
+                Require(!string.IsNullOrWhiteSpace(output.Value), "VSIR258", "Intrinsic refine binding names must be non-empty.");
+                if (!string.IsNullOrWhiteSpace(output.Value))
+                {
+                    Require(bindings.Add(output.Value), "VSIR243",
+                        $"Construction binding '{output.Value}' is declared more than once.");
+                }
             }
         }
 
