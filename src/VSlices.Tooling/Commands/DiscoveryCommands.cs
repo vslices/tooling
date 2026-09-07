@@ -6,9 +6,9 @@ internal static class DiscoveryCommands
 {
     /// <summary>Shows the immediate semantic mutation frontier for a VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Projected add mutations as semicolon-separated path=value clauses. Current add-capable paths: tags, traits.</param>
-    /// <param name="remove">Projected remove mutations as semicolon-separated path=value clauses. Current remove-capable paths: tags, traits.</param>
-    /// <param name="set">Projected set mutations as semicolon-separated path=value clauses. Current writable paths: tags, traits, kind, classification.</param>
+    /// <param name="add">Projected add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state properties and representation properties.</param>
+    /// <param name="remove">Projected remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties may use path alone.</param>
+    /// <param name="set">Projected set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties and representation properties.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
