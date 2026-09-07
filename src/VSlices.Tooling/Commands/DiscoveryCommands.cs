@@ -54,6 +54,14 @@ internal static class DiscoveryCommands
             return 2;
         }
 
+        var state = VsirArtifactState.Assess(inspectedSource, frontier);
+        Console.WriteLine("Artifact state:");
+        Console.WriteLine($"  progressive validity: {DisplayProgressiveValidity(state.ProgressiveValidity)}");
+        Console.WriteLine($"  conformance: {DisplayConformance(state.Conformance)}");
+        if (state.MissingRequiredPaths.Count > 0)
+            Console.WriteLine($"  missing required: {string.Join(", ", state.MissingRequiredPaths)}");
+        Console.WriteLine("  lowerability: not evaluated by discovery; it requires target, Ruleset and project context");
+
         if (projections.Count > 0)
             Console.WriteLine("Projected immediate frontier:");
         else
@@ -88,6 +96,14 @@ internal static class DiscoveryCommands
             }
         }
 
+        if (state.ConformanceDiagnostics.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Conformance diagnostics:");
+            foreach (var diagnostic in state.ConformanceDiagnostics)
+                Console.WriteLine($"  {diagnostic.Code}: {diagnostic.Message}");
+        }
+
         return 0;
     }
 
@@ -96,4 +112,10 @@ internal static class DiscoveryCommands
 
     private static string DisplayStatus(VsirFrontierStatus status) =>
         status.ToString().ToLowerInvariant();
+
+    private static string DisplayProgressiveValidity(VsirProgressiveValidity validity) =>
+        validity.ToString().ToLowerInvariant();
+
+    private static string DisplayConformance(VsirConformanceState conformance) =>
+        conformance.ToString().ToLowerInvariant();
 }
