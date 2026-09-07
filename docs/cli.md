@@ -314,25 +314,7 @@ Discovery advertises the corresponding grammar forms. `from` and `mapping` remai
 
 ## 9. Local state and representation relations
 
-Derived state uses:
-
-```text
-state.<property>.from
-```
-
-Representation may use either a direct source:
-
-```text
-representation.<property>.from
-```
-
-or a semantic mapping:
-
-```text
-representation.<property>.mapping
-```
-
-The two are mutually exclusive for the same representation field.
+Derived state uses `state.<property>.from`. Representation may use either `representation.<property>.from` or `representation.<property>.mapping`; the two are mutually exclusive for the same field.
 
 ## 10. Grammar-driven representation mappings
 
@@ -348,7 +330,7 @@ map
 intrinsic
 ```
 
-The grammar is compositional. In particular `select(represent(state.Street), Value)` and `select(state.Street, Value)` remain distinct semantic trees. Tooling does not insert `represent` implicitly.
+The grammar is compositional. `select(represent(state.Street), Value)` and `select(state.Street, Value)` remain distinct semantic trees. Tooling does not insert `represent` implicitly.
 
 ## 11. Transform, identifier and refined authoring
 
@@ -445,19 +427,13 @@ admitted corpus form conflicts with an implementation restriction
 
 ## 13. `search`
 
-`search` locates VSIR artifacts beneath the current directory using filters of the form:
-
-```text
-<property>:<operator>:<value>
-```
-
-The motivating searchable metadata case is:
+`search` locates VSIR artifacts beneath the current directory using filters of the form `<property>:<operator>:<value>`. The motivating searchable metadata case is:
 
 ```text
 vslices search --filter tags:contains:ticket
 ```
 
-Search is read-only and respects artifact discovery exclusions. Search may also inspect semantic root properties, but that does not make search metadata semantic or semantic fields free-form metadata.
+Search is read-only and respects artifact discovery exclusions.
 
 ## 14. Lowering lifecycle
 
@@ -505,7 +481,7 @@ Because `new` contributes only version and name, semantic authoring parity is sp
 - identifier capability may be established by identifier classification or identifier trait;
 - identifier capability requires explicit equality semantics and maps to the Framework Identifier contract;
 - construction grammar includes `normalize`, with TicketCode as the concrete witness;
-- product transform input may establish matching state directly without an explicit construction sequence;
+- product transform input may establish matching state directly without an explicit `construction` sequence;
 - `sum`, `maintained`, `entity`, and `aggregate-root` remain gated until corpus evidence crosses the complete pipeline;
 - no command may silently invent unsupported semantics;
 - repeated `--set`, `--add`, and `--remove` occurrences are preserved;
