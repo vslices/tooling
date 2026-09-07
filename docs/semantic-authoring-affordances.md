@@ -84,7 +84,7 @@ Its purpose is operational discovery and grouping, including filters such as:
 vslices search --filter tags:contains:ticket
 ```
 
-Tags carry no domain-semantic authority. They do not activate VSIR obligations, change validation meaning, or participate in lowering decisions. The semantic parser validates the metadata shape and removes it before interpreting the canonical semantic document.
+Tags carry no domain-semantic authority. They do not activate VSIR obligations, change validation meaning, or participate in lowering decisions. The public artifact parser validates the metadata shape and removes it before interpreting the canonical semantic document.
 
 ### Semantic affordances
 
@@ -186,18 +186,36 @@ construction
 
 ## 4. State-driven discovery
 
-Semantic discovery is computed from the current artifact, not from a static list of all legal VSIR properties.
+Semantic discovery is computed from the current artifact, not from a static list of every historical or hypothetical VSIR property.
+
+The current end-to-end Domain Type envelope is deliberately narrow:
+
+```text
+kind: domain-type
+shape: product
+classification: value-object
+traits: transform | identifier | refined
+```
+
+`transform` is currently required by canonical Domain Type validation. `identifier` and `refined` are additional semantic capabilities expressed through `traits`, not alternate classifications.
 
 Examples:
 
 ```text
-classification: maintained
-  -> equality required
-  -> values required
+traits does not contain transform
+  -> traits is required
+  -> transform is an admitted capability
 
 traits contains transform
   -> input required while absent
   -> construction required while absent
+
+traits contains identifier
+  -> equality required
+
+traits contains refined
+  -> refined-from required
+  -> scalar input required while absent
 
 representation.Value has from
   -> mapping unavailable
@@ -205,6 +223,8 @@ representation.Value has from
 representation.Value has mapping
   -> from unavailable
 ```
+
+Historical experiments for `sum`, `maintained`, `entity`, and `aggregate-root` are not advertised by the public authoring frontier until parser, conformance and lowering evidence cross the same form end-to-end. They are research candidates, not compatibility promises.
 
 `tags` is deliberately different: it is an always-available metadata affordance and does not depend on `kind`, `shape`, `classification`, or semantic completeness.
 
@@ -291,6 +311,12 @@ If any step fails, the original artifact remains unchanged.
 
 An advertised command is permission to attempt a transition, not permission to bypass validation.
 
+An additional parity rule now applies to advertised semantics:
+
+> If the canonical parser/validator/lowering path cannot consume a semantic form, discovery must not advertise that form as an available public transition.
+
+That rule is why experimental `sum` and `maintained` authoring knowledge is gated instead of exposed prematurely.
+
 ## 7. Agent-facing traversal
 
 A capable authoring agent should be able to begin with only:
@@ -320,7 +346,7 @@ Tests claiming progressive CLI authorability should follow the same rule: they s
 
 The current experiment introduced a stronger completeness criterion for Tooling.
 
-A VSIR construction is fully supported when:
+A semantic VSIR construction is fully supported when:
 
 ```text
 discovery can explain how to express it
@@ -351,9 +377,21 @@ partial knowledge -> VSIR
 VSIR -> target witness
 ```
 
-Search metadata is orthogonal to this parity criterion: it survives on the artifact surface but is intentionally removed before semantic interpretation/lowering.
+Artifact acceptance is slightly broader because searchable metadata is orthogonal to semantic parity:
 
-`Location.vsir` is the current strongest witness for semantic parity because it exercises structured types, derived state, representation expressions, transform input, `resolve`, nested `apply`, mapped `apply`, and `refine`.
+```text
+.vsir artifact
+  -> VsirParser
+       tags -> validate + strip from semantic view
+       semantic VSIR -> canonical parser/validator
+  -> conformance / transpile / lower / rebase
+```
+
+Therefore a tagged artifact must be accepted by the same public parser used for conformance and target materialization, while `semantic effect(tags) = none`.
+
+`Location.vsir` is the strongest structured-expression witness for semantic parity because it exercises structured types, derived state, representation expressions, transform input, `resolve`, nested `apply`, mapped `apply`, and `refine`.
+
+`SrvIdentityId.vsir` is now an additional parity witness for scalar transform input plus `identifier` and `refined` traits, `refined-from`, equality over a semantic type, `stringify`, and final refinement.
 
 ## 9. Evidence precedence
 
@@ -381,7 +419,10 @@ set = establish-or-replace for ordinary assertions
 add restricted to collection-valued public surfaces
 tags add-remove-set metadata semantics
 traits add-remove-set semantic semantics
-semantic parser validates/strips tags before interpretation
+one public VsirParser boundary for metadata-aware conformance and target materialization
+product + value-object public Domain Type envelope
+transform / identifier / refined trait authoring
+refined-from and equality obligations driven by traits
 a local from/mapping mutual exclusion
 grammar-driven discovery for structured field declarations
 expression grammar discovery for representation mappings
@@ -389,8 +430,10 @@ construction grammar discovery
 atomic update
 fail-closed unsupported transitions
 progressive Location reconstruction through discovered surfaces
-canonical Location lowering
+progressive SrvIdentityId refined/identifier reconstruction
+canonical C# lowering
 explicit preservation of represent/select composition
+sum / maintained / entity / aggregate-root authoring gated until end-to-end evidence exists
 ```
 
 Remaining work should be treated as corpus-driven coverage expansion rather than a need for a new authoring protocol.
