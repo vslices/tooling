@@ -14,6 +14,7 @@
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../src/VSlices.Tooling/Commands/RepresentationTemplate.cs" Link="Linked/RepresentationTemplate.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticNamespaceMovePreflight.cs" Link="Linked/SemanticNamespaceMovePreflight.cs" />
