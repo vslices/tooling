@@ -104,16 +104,13 @@ internal static class VsirMutationEngine
                    "Deep paths require an explicit contract before they can be mutated.";
         }
 
-        var kind = Scalar(root, "kind");
         return mutation.Path switch
         {
             "tags" => ApplySetMutation(root, "tags", mutation),
-            "traits" when string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal) =>
-                ApplySetMutation(root, "traits", mutation),
-            "traits" => "UPDATE011: 'traits' is not writable until kind 'domain-type' is established.",
-            "kind" => ApplyScalarMutation(root, "kind", mutation, kind),
-            "classification" => ApplyScalarMutation(root, "classification", mutation, kind),
-            "shape" => ApplyScalarMutation(root, "shape", mutation, kind),
+            "traits" => ApplySetMutation(root, "traits", mutation),
+            "kind" => ApplyScalarMutation(root, "kind", mutation),
+            "classification" => ApplyScalarMutation(root, "classification", mutation),
+            "shape" => ApplyScalarMutation(root, "shape", mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
     }
@@ -121,16 +118,14 @@ internal static class VsirMutationEngine
     private static string? ApplyScalarMutation(
         YamlMappingNode root,
         string path,
-        VsirMutation mutation,
-        string? currentKind)
+        VsirMutation mutation)
     {
         if (mutation.Kind != VsirMutationKind.Set)
             return $"UPDATE012: Semantic path '{path}' supports only 'set'.";
 
         var value = mutation.Value ?? string.Empty;
-        var error = VsirAuthoringContract.ValidateScalar(path, value, currentKind);
-        if (error is not null)
-            return error;
+        if (string.IsNullOrWhiteSpace(value))
+            return $"UPDATE005: Value for semantic path '{path}' must not be empty.";
 
         root.Children[new YamlScalarNode(path)] = new YamlScalarNode(value);
         return null;
