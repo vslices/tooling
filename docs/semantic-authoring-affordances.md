@@ -136,19 +136,7 @@ Operations describe authoring intent rather than incidental YAML storage mechani
 
 For an ordinary semantic property or named map member, `set` creates the assertion when absent and replaces it when already present.
 
-```text
-state.Extensions absent
-  + set state.Extensions={sequence: StreetExtension}
-  -> establish
-
-state.Extensions present
-  + set state.Extensions={sequence: AnotherExtension}
-  -> replace
-```
-
 For `tags`, `set` replaces the complete metadata set.
-
-Internal mutation code may realize the first case as a mapping insertion. That is not part of the public CLI semantics.
 
 ### `add`
 
@@ -161,17 +149,9 @@ tags    searchable metadata
 traits  semantic capabilities
 ```
 
-`add` against an ordinary semantic assertion fails closed and instructs the client to use `set`.
-
 ### `remove`
 
 `remove` withdraws an assertion or collection member only when the current contract permits it. Required facts may therefore expose `set` without `remove`.
-
-For set-valued surfaces such as `tags` and `traits`, removal targets a member:
-
-```text
-vslices update vsir StreetName --remove "tags=ticket"
-```
 
 ### Ordered structures
 
@@ -199,7 +179,7 @@ classification: value-object | identifier
 traits: transform | identifier | refined
 ```
 
-Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability, therefore requires explicit equality semantics and lowers to the Framework `Identifier<T, T.Repr>` contract. `refined` remains an additional trait-driven capability.
+Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability, therefore requires explicit equality semantics and lowers to the Framework `Identifier<T, T.Repr>` contract. Equality without identifier capability is rejected. `refined` remains an additional trait-driven capability.
 
 Examples:
 
@@ -218,85 +198,43 @@ classification is identifier
 traits contains identifier
   -> equality required
 
+equality exists without either identifier form
+  -> invalid
+
 traits contains refined
   -> refined-from required
   -> scalar input required while absent
-
-representation.Value has from
-  -> mapping unavailable
-
-representation.Value has mapping
-  -> from unavailable
 ```
 
 Historical experiments for `sum`, `maintained`, `entity`, and `aggregate-root` are not advertised by the public authoring frontier until parser, conformance and lowering evidence cross the same form end-to-end. They are research candidates, not compatibility promises.
-
-`tags` is deliberately different: it is an always-available metadata affordance and does not depend on `kind`, `shape`, `classification`, or semantic completeness.
-
-Discovery may also project a candidate without persistence:
-
-```text
-vslices discovery vsir StreetName --set kind=domain-type
-vslices discovery vsir StreetName --add tags=ticket
-```
-
-Projection uses the same public mutation/candidate-validation paths as `update`, then discards the candidate.
 
 ## 5. Grammar-driven discovery
 
 Structured semantic values are not exposed as opaque YAML blobs. Discovery advertises the grammar admitted for those values.
 
-The distinction is:
+For a representation mapping, discovery currently advertises expression forms including `stringify`, `represent`, `select`, `map`, and `intrinsic`.
+
+The grammar is compositional. `Select(Represent(state.Street), Value)` and `Select(state.Street, Value)` remain distinct unless explicit semantics establish equivalence.
+
+The current construction grammar includes:
 
 ```text
-artifact affordance
-  -> what semantic assertion can be established now
-
-value grammar affordance
-  -> which semantic forms can be composed to express its value
+normalize
+ensure
+resolve
+apply
+refine
 ```
 
-For a representation mapping, discovery currently advertises expression forms including:
-
-```text
-stringify
-  {stringify: <semantic-reference>}
-
-represent
-  {represent: <semantic-reference>}
-
-select
-  {select: {source: <expression>, field: <field>}}
-
-map
-  {map: {source: <expression>, bind: <name>, value: <expression>}}
-
-intrinsic
-  {intrinsic: <ruleset-intrinsic>, ...}
-```
-
-The grammar is compositional. `select.source` is an `expression`, so it can itself be a `represent` expression:
+`TicketCode` is the corpus witness for:
 
 ```yaml
-select:
-  source:
-    represent: state.Street
-  field: Value
+- normalize:
+    target: input.Value
+    intrinsic: trim
 ```
 
-This distinction is semantic, not cosmetic:
-
-```text
-Select(Represent(state.Street), Value)
-  !=
-Select(state.Street, Value)
-```
-
-unless an explicit rule proves equivalence. Discovery therefore advertises valid composition but does not choose the domain decision on behalf of the author.
-
-The current grammar-driven layer also advertises structured semantic field declarations and the construction forms exercised by the consumer corpus, including `normalize`, `ensure`, `resolve`, direct `apply`, mapped `apply`, and state `refine`. `TicketCode` is the corpus witness for `normalize` with `intrinsic: trim`.
-
-Grammar-driven discovery is constrained semantic authority, not generic YAML-schema introspection.
+Normalization updates the semantic reference carried forward, so later `ensure` and final state construction observe the normalized value rather than the original input.
 
 ## 6. Atomicity and fail-closed behavior
 
@@ -316,7 +254,7 @@ If any step fails, the original artifact remains unchanged.
 
 An advertised command is permission to attempt a transition, not permission to bypass validation.
 
-An additional parity rule now applies to advertised semantics:
+An additional parity rule applies:
 
 > If the canonical parser/validator/lowering path cannot consume a semantic form, discovery must not advertise that form as an available public transition.
 
@@ -324,7 +262,7 @@ The inverse matters too:
 
 > If an admitted corpus artifact already carries a semantic form, an accidental restriction in one implementation layer must not be promoted into language authority. Repair the first stale layer instead of rewriting the corpus to match it.
 
-`TicketId` exposed classification drift; `TicketCode` exposed both the missing `normalize` authoring affordance and the fact that identifier capability may also be carried explicitly as a trait on a value-object classification.
+`TicketId` exposed classification drift; `TicketCode` exposed the missing `normalize` affordance and the second, trait-based route to identifier capability.
 
 ## 7. Agent-facing traversal
 
@@ -336,24 +274,9 @@ vslices discovery vsir <artifact>
 vslices update vsir <artifact> ...
 ```
 
-and then traverse:
-
-```text
-create
-  -> discover
-  -> optionally classify/index with tags at any point
-  -> choose an advertised semantic affordance
-  -> inspect advertised value grammar
-  -> compose one admitted value
-  -> execute advertised command
-  -> discover again
-```
-
-Tests claiming progressive CLI authorability should follow the same rule: they should not use a public semantic mutation or structured value form that the preceding discovery state could not advertise. Tags are the deliberate exception because the metadata affordance is invariant across semantic states.
+and then traverse through advertised operations and grammars without embedding a second copy of the VSIR authoring language.
 
 ## 8. Authoring parity
-
-The current experiment introduced a stronger completeness criterion for Tooling.
 
 A semantic VSIR construction is fully supported when:
 
@@ -365,62 +288,46 @@ lower can consume it
 Ruleset can materialize it when target knowledge is required
 ```
 
-This is **authoring parity**.
-
-Conceptually:
+Artifact metadata has the related invariant:
 
 ```text
-                 one VSIR language
-                        |
-             +----------+----------+
-             |                     |
-     new/discovery/update         lower
-             |                     |
-      can help express it      can consume it
+authorable metadata
+  -> accepted by the common artifact parser
+  -> semantic effect = none
 ```
 
-The two sides are not mathematical inverses. They traverse the same semantic language from opposite directions:
+Current parity witnesses:
 
 ```text
-partial knowledge -> VSIR
-VSIR -> target witness
+Location
+  -> structured types, derived state, representation composition,
+     resolve, apply direct/mapped, refine
+
+TicketId
+  -> identifier classification, equality, direct product input-to-state,
+     zero explicit construction steps
+
+TicketCode
+  -> value-object classification + identifier trait,
+     normalize trim, ensure, equality,
+     normalized input flowing into state construction
+
+SrvIdentityId
+  -> identifier classification + refined trait,
+     scalar input, refined-from, semantic equality, stringify, refine
 ```
-
-Artifact acceptance is slightly broader because searchable metadata is orthogonal to semantic parity:
-
-```text
-.vsir artifact
-  -> VsirParser
-       tags -> validate + strip from semantic view
-       semantic VSIR -> canonical parser/validator
-  -> conformance / transpile / lower / rebase
-```
-
-Therefore a tagged artifact must be accepted by the same public parser used for conformance and target materialization, while `semantic effect(tags) = none`.
-
-`Location.vsir` is the strongest structured-expression witness for semantic parity because it exercises structured types, derived state, representation expressions, transform input, `resolve`, nested `apply`, mapped `apply`, and `refine`.
-
-`TicketId.vsir` is the direct witness for identifier classification, intrinsic equality, product transform input, and deterministic input-to-state construction without an explicit `construction` sequence.
-
-`TicketCode.vsir` is the witness for value-object classification plus explicit identifier capability, `normalize: trim`, intrinsic equality, and normalized input flowing through validation into state construction.
-
-`SrvIdentityId.vsir` is an additional parity witness for identifier classification combined with the `refined` trait, scalar transform input, `refined-from`, equality over a semantic type, `stringify`, and final refinement.
 
 ## 9. Evidence precedence
 
-The Location lowering pass exposed one reusable semantic rule:
+Two current precedence rules are explicit:
 
 > Explicit authored semantic evidence outranks a convenience convention.
 
-For example, when construction explicitly establishes `state.Street` through an `apply` binding followed by `refine`, that explicit relation takes precedence over a same-name `input.Street` convention.
-
-Conventions may reduce authoring burden. They must not override stronger authored evidence.
-
-The TicketId/TicketCode corrections add another precedence rule:
+and:
 
 > Concrete admitted corpus evidence outranks an accidental implementation restriction.
 
-Search metadata is never evidence for either precedence relation.
+Search metadata is never semantic evidence for either rule.
 
 ## 10. Current implementation conformance
 
@@ -430,42 +337,20 @@ Implemented in the current Tooling branch:
 progressive new
 always-available searchable tags metadata
 state-driven semantic discovery
-non-persistent discovery projection for tags and semantics
-command templates emitted from discovered affordances
-set = establish-or-replace for ordinary assertions
-add restricted to collection-valued public surfaces
-tags add-remove-set metadata semantics
-traits add-remove-set semantic semantics
-one public VsirParser boundary for metadata-aware conformance and target materialization
+set/add/remove mutations with repeated CLI occurrences preserved
+one public VsirParser artifact boundary
 product + value-object/identifier public Domain Type envelope
 transform / identifier / refined trait authoring
-identifier classification or identifier trait -> equality obligation + Identifier<T,T.Repr> target contract
-refined trait -> refined-from obligation
-product transform input may establish same-name state directly without an explicit construction sequence
-a local from/mapping mutual exclusion
-grammar-driven discovery for structured field declarations
-expression grammar discovery for representation mappings
-construction grammar discovery including normalize
+identifier classification OR identifier trait -> equality obligation
+identifier classification OR identifier trait -> Identifier<T,T.Repr> target contract
+equality without identifier capability -> fail closed
+product transform input may establish same-name state directly
+construction grammar includes normalize / ensure / resolve / apply / refine
+normalize trim is corpus-backed by TicketCode
 atomic update
-fail-closed unsupported transitions
-progressive Location reconstruction through discovered surfaces
-TicketId identifier/direct-construction parser + lowering regression
-TicketCode identifier-trait/normalize/equality CLI + lowering regression
-progressive SrvIdentityId refined identifier reconstruction
 canonical C# lowering
-explicit preservation of represent/select composition
-sum / maintained / entity / aggregate-root authoring gated until end-to-end evidence exists
+explicit semantic expression preservation
+sum / maintained / entity / aggregate-root remain gated
 ```
 
 Remaining work should be treated as corpus-driven coverage expansion rather than a need for a new authoring protocol.
-
-## 11. Cross-repository authority
-
-Use these repositories together when reconstructing the design:
-
-- [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation) — language semantics and conformance.
-- [`vslices/tooling`](https://github.com/vslices/tooling) — executable authoring, validation, discovery and lowering mechanisms.
-- [`vslices/ruleset`](https://github.com/vslices/ruleset) — target-owned deterministic realization knowledge.
-- [`vslices/planifications`](https://github.com/vslices/planifications) — progressive migration/reconstruction traversal and feedback loops.
-
-Unknown semantics remain unknown. Missing authority remains a closed semantic frontier rather than an invitation to infer meaning from metadata.
