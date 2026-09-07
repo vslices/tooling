@@ -61,22 +61,27 @@ internal sealed class ToolingTestProject : IDisposable
               - node: intrinsic.non-empty
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "!string.IsNullOrEmpty({value})"
               - node: intrinsic.not-whitespace
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "!string.IsNullOrWhiteSpace({value})"
               - node: intrinsic.length-at-most
                 mode: deterministic
                 renderer: expression
+                bindings: [value, max]
                 template: "{value}.Length <= {max}"
               - node: equality.ordinal-equals.equals
                 mode: deterministic
                 renderer: expression
+                bindings: [left, right]
                 template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
               - node: equality.ordinal-equals.hash
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "StringComparer.Ordinal.GetHashCode({value})"
             """);
         if (marker is not null)
