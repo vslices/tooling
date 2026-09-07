@@ -338,7 +338,7 @@ construction grammar discovery
 atomic update
 fail-closed unsupported transitions
 progressive Location reconstruction through discovered surfaces
-normalized Location lowering
+canonical Location lowering
 explicit preservation of represent/select composition
 ```
 
