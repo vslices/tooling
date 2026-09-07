@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using YamlDotNet.RepresentationModel;
 using VSlices.Vsir;
 
@@ -7,10 +8,14 @@ public sealed record CSharpLoweringRule(
     string Node,
     string Mode,
     string Renderer,
+    IReadOnlyList<string> Bindings,
     string Template);
 
 public sealed class CSharpLoweringRuleSet
 {
+    private static readonly Regex PlaceholderPattern =
+        new(@"\{(?<name>[A-Za-z][A-Za-z0-9_-]*)\}", RegexOptions.CultureInvariant);
+
     private readonly IReadOnlyDictionary<string, CSharpLoweringRule> _rules;
 
     private CSharpLoweringRuleSet(IReadOnlyDictionary<string, CSharpLoweringRule> rules) =>
@@ -85,7 +90,7 @@ public sealed class CSharpLoweringRuleSet
 
                     RejectUnknownKeys(
                         entry,
-                        ["node", "mode", "renderer", "template"],
+                        ["node", "mode", "renderer", "bindings", "template"],
                         $"ruleset rule in '{relativePath}'",
                         diagnostics);
                     AddRule(entry, relativePath, rules, diagnostics);
@@ -132,6 +137,10 @@ public sealed class CSharpLoweringRuleSet
             return false;
         }
 
+        var required = rule.Bindings.ToHashSet(StringComparer.Ordinal);
+        if (bindings.Count != required.Count || bindings.Keys.Any(key => !required.Contains(key)))
+            return false;
+
         rendered = bindings.Aggregate(
             rule.Template,
             static (current, pair) => current.Replace(
@@ -169,11 +178,26 @@ public sealed class CSharpLoweringRuleSet
         IDictionary<string, CSharpLoweringRule> rules,
         ICollection<VsirDiagnostic> diagnostics)
     {
+        if (!TryRequiredSequence(
+                entry,
+                "bindings",
+                $"ruleset rule in '{relativePath}'",
+                diagnostics,
+                out var bindingsNode))
+        {
+            return;
+        }
+
+        var bindings = ReadBindings(bindingsNode, relativePath, diagnostics);
+        if (bindings is null)
+            return;
+
         AddRule(
             new CSharpLoweringRule(
                 Scalar(entry, "node"),
                 Scalar(entry, "mode"),
                 Scalar(entry, "renderer"),
+                bindings,
                 Scalar(entry, "template")),
             relativePath,
             rules,
@@ -202,8 +226,69 @@ public sealed class CSharpLoweringRuleSet
         if (string.IsNullOrWhiteSpace(rule.Template))
             diagnostics.Add(new("CSR010", $"Lowering rule '{rule.Node}' must declare a non-empty template."));
 
+        ValidateBindingContract(rule, source, diagnostics);
+
         if (!rules.TryAdd(rule.Node, rule))
             diagnostics.Add(new("CSR007", $"Lowering rule '{rule.Node}' is declared more than once."));
+    }
+
+    private static IReadOnlyList<string>? ReadBindings(
+        YamlSequenceNode bindings,
+        string source,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var result = new List<string>(bindings.Children.Count);
+        foreach (var node in bindings.Children)
+        {
+            if (node is not YamlScalarNode scalar || string.IsNullOrWhiteSpace(scalar.Value))
+            {
+                diagnostics.Add(new("CSR016", $"Ruleset source '{source}' contains a non-scalar or empty binding declaration."));
+                return null;
+            }
+
+            result.Add(scalar.Value.Trim());
+        }
+
+        if (result.Distinct(StringComparer.Ordinal).Count() != result.Count)
+        {
+            diagnostics.Add(new("CSR017", $"Ruleset source '{source}' contains duplicate binding declarations."));
+            return null;
+        }
+
+        return result;
+    }
+
+    private static void ValidateBindingContract(
+        CSharpLoweringRule rule,
+        string source,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var declared = rule.Bindings.ToHashSet(StringComparer.Ordinal);
+        if (declared.Count != rule.Bindings.Count || rule.Bindings.Any(string.IsNullOrWhiteSpace))
+        {
+            diagnostics.Add(new("CSR017", $"Lowering rule '{rule.Node}' from '{source}' must declare unique non-empty bindings."));
+            return;
+        }
+
+        var placeholders = PlaceholderPattern.Matches(rule.Template ?? string.Empty)
+            .Select(match => match.Groups["name"].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var undeclared = placeholders.Where(name => !declared.Contains(name)).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        if (undeclared.Length > 0)
+        {
+            diagnostics.Add(new(
+                "CSR018",
+                $"Lowering rule '{rule.Node}' uses undeclared template bindings: {string.Join(", ", undeclared)}."));
+        }
+
+        var unused = declared.Where(name => !placeholders.Contains(name)).OrderBy(name => name, StringComparer.Ordinal).ToArray();
+        if (unused.Length > 0)
+        {
+            diagnostics.Add(new(
+                "CSR019",
+                $"Lowering rule '{rule.Node}' declares bindings not used by its template: {string.Join(", ", unused)}."));
+        }
     }
 
     private static CSharpLoweringRuleSetLoadResult Failure(string code, string message) =>
