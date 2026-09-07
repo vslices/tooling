@@ -157,6 +157,71 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
+    public void Transform_trait_exposes_required_input_and_construction_obligations()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+
+        var input = Assert.Single(frontier, item => item.Path == "input");
+        Assert.Equal(VsirFrontierStatus.Required, input.Status);
+        Assert.Equal("map<property, declaration>", input.ValueKind);
+        Assert.Empty(input.Operations);
+        Assert.Contains("before Domain Type validity", input.Meaning, StringComparison.Ordinal);
+
+        var construction = Assert.Single(frontier, item => item.Path == "construction");
+        Assert.Equal(VsirFrontierStatus.Required, construction.Status);
+        Assert.Equal("sequence<step>", construction.ValueKind);
+        Assert.Empty(construction.Operations);
+        Assert.Contains("establish a valid Domain Type", construction.Meaning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Transform_obligations_stop_being_reported_once_input_and_construction_exist()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            construction:
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
+                      value: input.Value
+                  failure:
+                    message: Debes especificar una calle
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        Assert.DoesNotContain(frontier, item => item.Path == "input");
+        Assert.DoesNotContain(frontier, item => item.Path == "construction");
+        Assert.Contains(frontier, item => item.Path == "traits");
+    }
+
+    [Fact]
     public void Discovery_keeps_state_and_representation_authoring_surfaces_after_they_are_present()
     {
         var source = """
