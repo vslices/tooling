@@ -105,7 +105,6 @@ public sealed class ShapeAuthoringTests
         Assert.Equal("map<variant, declaration>", variants.ValueKind);
         Assert.True(variants.Operations.SetEquals(
             [
-                VsirMutationKind.Add,
                 VsirMutationKind.Remove,
                 VsirMutationKind.Set
             ]));
@@ -172,7 +171,7 @@ public sealed class ShapeAuthoringTests
     }
 
     [Fact]
-    public void Sum_variants_support_add_set_and_remove_at_the_variant_boundary()
+    public void Sum_variants_support_low_level_add_set_and_remove_at_the_variant_boundary()
     {
         var source = """
             vsir: 0.1
