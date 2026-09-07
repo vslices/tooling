@@ -104,7 +104,7 @@ internal static class VsirAuthoringContract
             VsirFrontierStatus.Required,
             sumShape
                 ? "Declares state shared by every variant of the sum-shaped Domain Type. The map may be empty; establish a named shared coordinate with set over state.<property>."
-                : "Declares the observable semantic properties that constitute a valid instance. Establish a named coordinate with set over state.<property>; discovery exposes existing coordinates separately when they can be replaced or removed.",
+                : "Declares the observable semantic properties that constitute a valid instance. Establish a named coordinate such as state.Value with set over state.<property>; derived coordinates may declare semantic provenance through state.<property>.from.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
 
         result.Add(new(
@@ -112,8 +112,8 @@ internal static class VsirAuthoringContract
             "map<property, declaration>",
             VsirFrontierStatus.Required,
             sumShape
-                ? "Declares representation shared by every variant. Establish a named shared coordinate with set over representation.<property>."
-                : "Declares the observable representation. Establish a named coordinate with set over representation.<property>; local from or mapping relations are separate affordances.",
+                ? "Declares representation shared by every variant. Establish a named shared coordinate with set over representation.<property>; the effective representation must preserve the active variant."
+                : "Declares the observable representation. Establish a named coordinate such as representation.Value with set over representation.<property>; direct reuse uses representation.<property>.from and semantic transformation uses representation.<property>.mapping.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
 
         if (sumShape)
@@ -181,7 +181,7 @@ internal static class VsirAuthoringContract
                     "input",
                     "map<property, declaration> | scalar semantic type",
                     VsirFrontierStatus.Required,
-                    "Declares what enters the transform before validity has been established. Establish scalar input with set input=<type>, or establish a named product field with set over input.<property>.",
+                    "Declares what enters the transform before Domain Type validity has been established. Establish scalar input with set input=<type>, or establish a named product field with set over input.<property>.",
                     new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
             }
 
