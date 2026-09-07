@@ -195,25 +195,28 @@ internal static class VsirAuthoringContract
 
         if (explicitTraits.Contains("transform", StringComparer.Ordinal))
         {
-            if (!hasInput)
-            {
-                result.Add(new(
-                    "input",
-                    "map<property, declaration>",
-                    VsirFrontierStatus.Required,
-                    "Declares what enters the transform before Domain Type validity has been established.",
-                    new HashSet<VsirMutationKind>()));
-            }
+            result.Add(new(
+                "input",
+                "map<property, declaration> | scalar semantic type",
+                VsirFrontierStatus.Required,
+                hasInput
+                    ? "Declares what enters the transform before Domain Type validity has been established. Structured input supports add/remove/set at input.<property>; the complete input contract may also be replaced with set."
+                    : "Declares what enters the transform before Domain Type validity has been established. Establish structured fields through input.<property>, or set the complete scalar/product input declaration.",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                }));
 
-            if (!hasConstruction)
-            {
-                result.Add(new(
-                    "construction",
-                    "sequence<step>",
-                    VsirFrontierStatus.Required,
-                    "Declares the semantic conditions and steps that establish a valid Domain Type from the transform input.",
-                    new HashSet<VsirMutationKind>()));
-            }
+            result.Add(new(
+                "construction",
+                "sequence<step>",
+                VsirFrontierStatus.Required,
+                hasConstruction
+                    ? "Declares the ordered semantic conditions and steps that establish a valid Domain Type from transform input. The current authoring boundary replaces the complete ordered sequence with set."
+                    : "Declares the ordered semantic conditions and steps that establish a valid Domain Type from transform input. Establish the complete ordered sequence with set.",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
         return result;
