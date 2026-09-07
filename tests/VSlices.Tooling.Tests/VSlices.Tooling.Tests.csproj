@@ -15,6 +15,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/VSlices.Tooling/Commands/VsirTemplate.cs" Link="Linked/VsirTemplate.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Commands/VsirAuthoringContract.cs" Link="Linked/VsirAuthoringContract.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Commands/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticNamespaceMovePreflight.cs" Link="Linked/SemanticNamespaceMovePreflight.cs" />
