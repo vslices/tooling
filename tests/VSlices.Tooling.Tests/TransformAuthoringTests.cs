@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class TransformAuthoringTests
 {
     [Fact]
-    public void Transform_discovery_exposes_writable_input_and_construction()
+    public void Transform_discovery_exposes_required_input_and_optional_construction()
     {
         var source = """
             vsir: 0.1
@@ -29,7 +29,7 @@ public sealed class TransformAuthoringTests
         Assert.Contains(VsirMutationKind.Set, input.Operations);
 
         var construction = Assert.Single(frontier, item => item.Path == "construction");
-        Assert.Equal(VsirFrontierStatus.Required, construction.Status);
+        Assert.Equal(VsirFrontierStatus.Optional, construction.Status);
         Assert.Equal("sequence<step>", construction.ValueKind);
         Assert.Single(construction.Operations);
         Assert.Contains(VsirMutationKind.Set, construction.Operations);
