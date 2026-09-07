@@ -139,6 +139,7 @@ internal static class VsirMutationEngine
             "traits" => ApplySetMutation(root, "traits", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
+            "equality" => ApplyEqualityMutation(root, mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
     }
@@ -432,6 +433,64 @@ internal static class VsirMutationEngine
         return null;
     }
 
+    private static string? ApplyEqualityMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'equality' supports only 'set'.";
+
+        if (!string.Equals(Scalar(root, "classification"), "maintained", StringComparison.Ordinal))
+            return "UPDATE031: 'equality' authoring is currently available only for classification 'maintained'.";
+
+        var parsed = ParseEqualityDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[new YamlScalarNode("equality")] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseEqualityDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'equality' requires a strategy declaration.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+            {
+                return (null,
+                    "UPDATE032: Equality must use a mapping declaration such as {intrinsic: ordinal-equals, by: state.Name}.");
+            }
+
+            var hasIntrinsic = declaration.Children.TryGetValue(new YamlScalarNode("intrinsic"), out var intrinsicNode);
+            var hasOver = declaration.Children.TryGetValue(new YamlScalarNode("over"), out var overNode);
+            var hasBy = declaration.Children.TryGetValue(new YamlScalarNode("by"), out var byNode);
+
+            if (hasIntrinsic == hasOver || !hasBy || declaration.Children.Count != 2)
+            {
+                return (null,
+                    "UPDATE032: Equality must declare exactly one strategy ('intrinsic' or 'over') plus one 'by' state reference.");
+            }
+
+            var strategyNode = hasIntrinsic ? intrinsicNode : overNode;
+            if (strategyNode is not YamlScalarNode strategy || string.IsNullOrWhiteSpace(strategy.Value))
+                return (null, "UPDATE032: Equality strategy must be a non-empty scalar value.");
+
+            if (byNode is not YamlScalarNode by || string.IsNullOrWhiteSpace(by.Value) || !IsStateReference(by.Value))
+                return (null, "UPDATE032: Equality 'by' must be a direct state reference such as 'state.Name'.");
+
+            return (declaration, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE032: Could not parse equality declaration: {ex.Message}");
+        }
+    }
+
     private static string? ApplyScalarMutation(
         YamlMappingNode root,
         string path,
@@ -545,6 +604,9 @@ internal static class VsirMutationEngine
 
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
+
+        if (HasKey(root, "equality") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
+            return "UPDATE031: 'equality' authoring is currently available only for classification 'maintained'.";
 
         var representationSourceError = ValidateRepresentationSources(root);
         if (representationSourceError is not null)
