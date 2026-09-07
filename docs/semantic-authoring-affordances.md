@@ -45,7 +45,7 @@ The governing rule is:
 
 A discovery entry is not only documentation. It is an executable authoring affordance.
 
-An affordance should provide enough information for a client to understand:
+An affordance provides:
 
 ```text
 path
@@ -70,39 +70,48 @@ command template
   -> how to invoke the transition through the CLI
 ```
 
-Target discovery shape:
+For example:
 
 ```text
-state.Extensions
-  status: optional
-  meaning: establishes one state coordinate
-  value kind: semantic-field-declaration
+state
+  status: required
+  value kind: map<property, declaration>
   operations: set
   command:
-    vslices update vsir Location --set "state.Extensions=<semantic-field-declaration>"
+    vslices update vsir Location --set "state.<property>=<semantic-field-declaration>"
 ```
 
-For a set-valued surface, multiple operations may remain semantically meaningful:
+A concrete existing relation may advertise its own local transition:
+
+```text
+representation.Value.mapping
+  status: optional
+  value kind: mapping
+  operations: set
+  command:
+    vslices update vsir StreetExtension --set "representation.Value.mapping=<mapping>"
+```
+
+For a set-valued surface, multiple operations remain semantically meaningful:
 
 ```text
 traits
   status: optional
   value kind: set<string>
   operations: add, remove, set
-  commands:
-    add:
-      vslices update vsir Location --add "traits=<value>"
-    remove:
-      vslices update vsir Location --remove "traits=<value>"
-    set:
-      vslices update vsir Location --set "traits=<value[,value...]>"
+  command:
+    vslices update vsir Location --set "traits=<set<string>>"
+  command:
+    vslices update vsir Location --add "traits=<value>"
+  command:
+    vslices update vsir Location --remove "traits=<value>"
 ```
 
-Command templates are an intended part of the affordance contract. They are not yet emitted by the current implementation.
+Command templates are emitted by the current CLI and are derived from the same discovered affordance rather than maintained as separate prose examples.
 
 ## 3. Operation semantics
 
-Operations should describe semantic intent rather than incidental YAML existence.
+Operations describe semantic intent rather than incidental YAML existence.
 
 ### `set`
 
@@ -110,9 +119,7 @@ Operations should describe semantic intent rather than incidental YAML existence
 
 > Establish this semantic assertion with the supplied value.
 
-For an ordinary semantic property or named map member, `set` should normally be valid whether that assertion is being established for the first time or replacing an existing value.
-
-Desired behavior:
+For an ordinary semantic property or named map member, `set` is valid whether that assertion is being established for the first time or replacing an existing value.
 
 ```text
 state.Extensions absent
@@ -124,18 +131,22 @@ state.Extensions present
   -> replace the assertion
 ```
 
-A client should not need to select `add` merely because a YAML mapping key does not yet exist.
+A client does not select `add` merely because a YAML mapping key does not yet exist.
+
+Internally, Tooling may still lower an establishment into an implementation-specific map insertion. That lowering is not part of the public authoring semantics.
 
 ### `add`
 
 `add` is reserved for collection semantics where union is meaningfully different from replacement.
 
-Examples:
+Current examples:
 
 ```text
 tags
 traits
 ```
+
+Attempting `add` on an ordinary semantic assertion fails closed and instructs the caller to use `set`.
 
 ### `remove`
 
@@ -145,7 +156,7 @@ Required facts may therefore expose `set` without `remove`.
 
 ### Ordered structures
 
-Ordered structures without stable member identity should normally expose only whole-boundary `set`.
+Ordered structures without stable member identity expose whole-boundary `set`.
 
 Current example:
 
@@ -156,7 +167,7 @@ construction
 
 ## 4. Discovery is state dependent
 
-Discovery must be evaluated from the current artifact, not from a static list of all possible VSIR properties.
+Discovery is evaluated from the current artifact, not from a static list of all possible VSIR properties.
 
 Examples:
 
@@ -182,7 +193,7 @@ representation.Value has mapping
   -> from is not an available affordance
 ```
 
-After every successful update, a client should be able to call discovery again and receive the next authorized frontier.
+After every successful update, a client can call discovery again and receive the next authorized frontier.
 
 ## 5. Projection
 
@@ -192,7 +203,7 @@ After every successful update, a client should be able to call discovery again a
 vslices discovery vsir StreetName --set kind=domain-type
 ```
 
-Projection must use the same mutation and candidate-validation path as `update` and then discard the candidate.
+Projection uses the same public mutation pipeline and candidate-validation path as `update`, then discards the candidate.
 
 This lets a client ask:
 
@@ -218,7 +229,7 @@ read current artifact
 
 If any step fails, the original artifact remains unchanged.
 
-Discovery must not advertise transitions that are known to be contradictory with the current state.
+Discovery must not advertise transitions known to contradict the current state.
 
 ## 7. Agent-facing objective
 
@@ -243,77 +254,32 @@ create
   -> discover again
 ```
 
-Tests claiming progressive CLI authorability should therefore exercise this loop. A test should not rely on a mutation that the preceding discovery state did not advertise.
+Tests claiming progressive CLI authorability should exercise this loop. A test should not rely on a public mutation that the preceding discovery state did not advertise.
 
 ## 8. Current implementation conformance
 
-The current CLI already satisfies several parts of this model:
+The current CLI implements the core affordance model:
 
 ```text
 implemented
   new establishes progressive artifacts
   discovery is computed from current artifact state
   update produces a new state atomically
-  discovery projection shares the update mutation pipeline
+  discovery projection shares the public update mutation pipeline
   classification/trait obligations alter the frontier
   local from/mapping affordances depend on current field state
+  command templates are emitted for discovered operations
+  set establishes or replaces ordinary semantic assertions
+  add is rejected outside collection-valued surfaces
+  tags and traits retain add/remove/set collection semantics
+  construction uses whole-boundary set
   unsupported transitions fail closed
-  tests exist that traverse new -> discovery -> update -> discovery
+  tests traverse new -> discovery -> update -> discovery
 ```
 
-There are two important remaining mismatches.
+The public model deliberately differs from some lower-level mutation-engine mechanics. Internal code may still use insertion-oriented operations to materialize a missing map member, but those mechanics are not advertised to CLI clients.
 
-### 8.1 No command templates yet
-
-Discovery currently reports:
-
-```text
-path
-status
-meaning
-value kind
-operations
-allowed values
-```
-
-but does not emit the CLI command template that executes the affordance.
-
-Target addition:
-
-```text
-command template(s)
-```
-
-The template should be derived from the same affordance contract rather than assembled independently in the presentation layer.
-
-### 8.2 Map-member `add` versus `set` still reflects storage existence
-
-Several current mutation boundaries distinguish:
-
-```text
-absent member -> add
-existing member -> set
-```
-
-for ordinary state, representation, input, variants, and maintained members.
-
-That behavior is operationally valid but does not yet match the desired semantic meaning of `set`.
-
-The intended direction is:
-
-```text
-ordinary semantic assertion / named member
-  -> set establishes or replaces
-  -> remove when withdrawal is valid
-
-set-valued collection
-  -> add, remove, set
-
-ordered structure without stable member identity
-  -> set complete structure
-```
-
-This change should be made deliberately because it affects discovery output, mutation authorization, error codes, documentation, and existing tests.
+A remaining refinement area is the granularity of discovery for already-existing named map members. The important invariant is that discovery must not require clients to infer storage-level create-versus-update semantics; any newly advertised member-level affordances must preserve `set = establish or replace`.
 
 ## 9. Design constraint
 
