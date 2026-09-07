@@ -165,6 +165,7 @@ status: required | optional
 meaning: <semantic explanation>
 value kind: <expected structure>
 operations: <currently supported mutations>
+values: <currently supported values, when the contract is enumerated>
 ```
 
 A required attribute is part of the contract activated by the artifact's current semantic declarations. An optional attribute is available but is not required merely by the current state.
@@ -222,7 +223,19 @@ traits
   meaning: Declares additional semantic capabilities that are not already implied by the Domain Type classification.
   value kind: set<string>
   operations: add, remove, set
+  values: transform
 ```
+
+The `values` line on `traits` is authoritative for the explicit trait vocabulary currently supported by Tooling. At this stage the only explicitly authorable trait is:
+
+```text
+transform
+  -> declares that the Domain Type can be established from an explicit input contract
+  -> requires input
+  -> requires construction
+```
+
+Classification-implied traits such as `identifier`, `entity`, or `aggregate-root` are not offered as explicit choices merely because they exist in the effective trait model. Additional explicit traits must be introduced deliberately as their contracts are specified.
 
 `state` and `representation` remain visible after their first property is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
 
@@ -260,6 +273,8 @@ Removing `state.Region.from` collapses the declaration back to scalar shorthand 
 vslices update vsir StreetName --add traits=transform
 ```
 
+Unknown explicit trait values fail closed rather than being accepted as opaque strings.
+
 Discovery may project supported mutations without mutating the artifact:
 
 ```text
@@ -287,6 +302,7 @@ tags
 
 traits
   -> add, remove, set
+  -> current explicit values: transform
 
 state.<property>
   -> add, remove, set
@@ -349,7 +365,7 @@ read current artifact
 
 If validation or persistence fails, the original artifact remains unchanged.
 
-Unsupported semantic paths or operations fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
+Unsupported semantic paths, operations, or enumerated semantic values fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
 
 ## 8. Current authoring frontier
 
@@ -360,7 +376,8 @@ name
   -> kind
   -> classification
   -> state / representation property authoring where implied
-  -> optional traits
+  -> optional explicit traits
+       -> transform
 ```
 
 Tags remain orthogonal to that sequence:
@@ -382,19 +399,20 @@ discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
   -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
-  -> after classification, exposes traits as optional
+  -> after classification, exposes traits as optional and transform as the currently available explicit value
 
 search
   -> may filter current VSIR artifacts by an implemented root property filter
 
 update vsir
   -> can add/remove/set tags and traits
+  -> validates explicit traits against the currently supported vocabulary
   -> can set kind and classification atomically
   -> can add/remove/set direct state and representation properties
   -> can establish/change/remove the direct state `from` relation
 ```
 
-Deeper field declaration forms remain unavailable until their contracts are specified from evidence.
+Deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -412,6 +430,9 @@ Deeper field declaration forms remain unavailable until their contracts are spec
 - the currently authorized local state relation is `from: <state-reference>`;
 - unsupported deeper state/representation paths remain fail-closed;
 - `traits` is an optional Domain Type capability surface and supports add/remove/set after a Domain Type kind is established;
+- discovery exposes the currently supported explicit trait vocabulary;
+- the currently supported explicit trait vocabulary contains only `transform`;
+- unknown explicit trait values fail closed;
 - `search` is read-only and explicit about its filter operator;
 - unsupported search operators fail closed;
 - `discovery` must not mutate filesystem or artifact state;
