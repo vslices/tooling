@@ -53,11 +53,12 @@ name: StreetName
 
 The absence of `kind` or `classification` is not permission to infer them.
 
-The currently implemented semantic authoring flags are only:
+The currently implemented authoring flags are:
 
 ```text
 --kind
 --classification
+--tags
 ```
 
 For example:
@@ -71,16 +72,47 @@ or:
 ```text
 vslices new vsir StreetName \
   --kind domain-type \
-  --classification value-object
+  --classification value-object \
+  --tags addressing,street
+```
+
+which may produce:
+
+```yaml
+vsir: 0.1
+kind: domain-type
+name: StreetName
+tags: ['addressing', 'street']
+classification: value-object
 ```
 
 `--classification` requires `--kind` because classification validity is kind-specific.
 
-No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, tags, state, representation, input and construction are intentionally outside the current CLI authoring frontier until their contracts are specified and introduced deliberately.
+Tags are different: they are organizational and associative metadata, so `--tags` does not require a kind or classification and does not imply either one.
 
-## 4. `discovery vsir`
+No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, input and construction remain outside the current CLI authoring frontier until their contracts are introduced deliberately.
 
-`discovery vsir` exposes only the immediate semantic frontier currently implemented by Tooling.
+## 4. Tags
+
+Tags preserve provisional organizational knowledge without pretending that such knowledge is semantic classification.
+
+```text
+tags
+  -> association / organization knowledge
+
+kind / classification
+  -> semantic knowledge
+```
+
+Tags do not imply kind, classification, traits, sections, lowering rules or target realizations.
+
+They form a set of non-empty, single-line, unique strings. Their order is preserved when possible, but order has no semantic meaning.
+
+Because tags may evolve independently from semantic classification, they remain available throughout progressive authoring rather than occupying one step in the `name -> kind -> classification` semantic sequence.
+
+## 5. `discovery vsir`
+
+`discovery vsir` exposes only the immediate semantic frontier currently implemented by Tooling, together with the always-available tags surface.
 
 For a named artifact without `kind`:
 
@@ -89,40 +121,53 @@ vslices discovery vsir StreetName
 
 Immediate frontier:
 
+  tags
+    value kind: set<string>
+    operations: add, remove, set
+
   kind
     value kind: enum
     operations: set
     values: domain-type
 ```
 
-After `kind: domain-type` is established, the frontier advances to `classification`:
+After `kind: domain-type` is established, `classification` becomes available while tags remain available:
 
 ```text
+tags
+  value kind: set<string>
+  operations: add, remove, set
+
 classification
   value kind: enum
   operations: set
   values: value-object, entity, identifier, maintained, aggregate-root
 ```
 
-After classification is established, the current implementation reports no further semantic frontier.
+After classification is established, tags remain the only currently implemented authoring surface. This is an implementation boundary, not a claim that a classified VSIR artifact has no further semantic structure.
 
-This is an implementation boundary, not a claim that a classified VSIR artifact has no further semantic structure.
-
-Discovery may project a `set` transition without mutating the artifact:
+Discovery may project mutations without mutating the artifact:
 
 ```text
 vslices discovery vsir StreetName --set kind=domain-type
+vslices discovery vsir StreetName --add tags=addressing
 ```
 
 The projected candidate is validated in memory and discarded after discovery.
 
-## 5. `update vsir`
+## 6. `update vsir`
 
-The current progressive VSIR update surface supports only `set` mutations over the semantic paths already implemented:
+The current progressive VSIR update surface supports:
 
 ```text
 kind
+  -> set
+
 classification
+  -> set
+
+tags
+  -> add, remove, set
 ```
 
 Examples:
@@ -136,11 +181,17 @@ vslices update vsir StreetName \
   --set "kind=domain-type;classification=value-object"
 ```
 
-A complete invocation is one semantic transaction:
+```text
+vslices update vsir StreetName --add tags=addressing,street
+vslices update vsir StreetName --remove tags=street
+vslices update vsir StreetName --set tags=identity,addressing
+```
+
+A complete invocation is one semantic/organizational transaction:
 
 ```text
 read current artifact
-  -> apply requested set mutations to an in-memory candidate
+  -> apply requested mutations to an in-memory candidate
   -> validate the candidate
   -> serialize candidate
   -> commit atomically
@@ -148,11 +199,11 @@ read current artifact
 
 If validation or persistence fails, the original artifact remains unchanged.
 
-Unsupported semantic paths fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
+Unsupported semantic paths or operations fail closed. Tooling must not become a generic YAML editor merely because a path can be addressed syntactically.
 
-## 6. Current authoring frontier
+## 7. Current authoring frontier
 
-The implemented progressive authoring sequence is deliberately small:
+The implemented semantic sequence remains deliberately small:
 
 ```text
 name
@@ -160,33 +211,45 @@ name
   -> classification
 ```
 
+Tags are orthogonal to that sequence:
+
+```text
+tags
+  <-> may be added, removed or replaced at any current authoring stage
+```
+
 Concretely:
 
 ```text
 new vsir
+  -> may establish --tags
   -> may establish --kind
   -> may establish --classification when kind is known
 
 discovery vsir
+  -> always exposes tags
   -> exposes kind, then classification
 
 update vsir
+  -> can add/remove/set tags
   -> can set kind and classification atomically
 ```
 
-Nothing after `classification` should be treated as implemented CLI behavior yet.
+Nothing semantically after `classification` should be treated as implemented CLI behavior yet.
 
-The next authoring capability must be added only after its VSIR contract has been specified from evidence.
+The next semantic authoring capability must be added only after its VSIR contract has been specified from evidence.
 
-## 7. Agent-facing invariants
+## 8. Agent-facing invariants
 
 - creating or updating an artifact must not silently infer unsupported semantic knowledge;
+- tags remain organizational metadata and must not imply semantic declarations;
+- tags are non-empty, single-line and unique;
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
 - `discovery` must not mutate filesystem or artifact state;
 - discovery projections use the same candidate validation as update;
-- a complete `update` invocation is one semantic transaction;
+- a complete `update` invocation is one transaction;
 - candidate validation occurs before persistence;
 - failure leaves the original artifact unchanged;
-- unsupported paths fail closed;
+- unsupported paths and operations fail closed;
 - current implementation limitations must not be mistaken for conceptual VSIR limits;
 - VSIR language semantics remain owned by `vslices/intermediate-representation`.
