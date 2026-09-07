@@ -112,18 +112,18 @@ public sealed class LocationLoweringTests
     {
         var additional = new List<CSharpLoweringRule>
         {
-            new("type.sequence", "deterministic", "type", "Seq<{value}>"),
-            new("projection.select", "deterministic", "expression", "{source}.{field}"),
-            new("projection.map", "deterministic", "expression", "{source}.Map({bind} => {value})"),
-            new("construction.resolve.condition", "deterministic", "expression", "exists(({source} value) => value.Id == {id})"),
-            new("construction.resolve.value", "deterministic", "expression", "first(({source} value) => value.Id == {id})"),
-            new("construction.apply.input", "deterministic", "expression", "new {over}.Input({arguments})"),
-            new("construction.apply.value", "deterministic", "expression", "{over}.New({input})"),
-            new("construction.apply-sequence.input", "deterministic", "expression", "{source}.Map({bind} => new {over}.Input({arguments}))"),
-            new("construction.apply-sequence.value", "deterministic", "expression", "{over}.New({input})")
+            new("type.sequence", "deterministic", "type", ["value"], "Seq<{value}>"),
+            new("projection.select", "deterministic", "expression", ["source", "field"], "{source}.{field}"),
+            new("projection.map", "deterministic", "expression", ["source", "bind", "value"], "{source}.Map({bind} => {value})"),
+            new("construction.resolve.condition", "deterministic", "expression", ["source", "id"], "exists(({source} value) => value.Id == {id})"),
+            new("construction.resolve.value", "deterministic", "expression", ["source", "id"], "first(({source} value) => value.Id == {id})"),
+            new("construction.apply.input", "deterministic", "expression", ["over", "arguments"], "new {over}.Input({arguments})"),
+            new("construction.apply.value", "deterministic", "expression", ["over", "input"], "{over}.New({input})"),
+            new("construction.apply-sequence.input", "deterministic", "expression", ["source", "bind", "over", "arguments"], "{source}.Map({bind} => new {over}.Input({arguments}))"),
+            new("construction.apply-sequence.value", "deterministic", "expression", ["over", "input"], "{over}.New({input})")
         };
         if (includeRepresent)
-            additional.Add(new("projection.represent", "deterministic", "expression", "{value}.To()"));
+            additional.Add(new("projection.represent", "deterministic", "expression", ["value"], "{value}.To()"));
 
         var loaded = CSharpLoweringRuleSet.Load(RulesetPath, additional);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
