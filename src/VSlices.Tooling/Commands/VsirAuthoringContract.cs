@@ -37,6 +37,11 @@ internal static class VsirAuthoringContract
         "aggregate-root"
     ];
 
+    public static IReadOnlyList<string> ExplicitDomainTypeTraits { get; } =
+    [
+        "transform"
+    ];
+
     public static IReadOnlyList<VsirPathContract> Discover(
         string? kind,
         string? classification,
@@ -122,7 +127,8 @@ internal static class VsirAuthoringContract
                 VsirMutationKind.Add,
                 VsirMutationKind.Remove,
                 VsirMutationKind.Set
-            }));
+            },
+            ExplicitDomainTypeTraits));
 
         return result;
     }
