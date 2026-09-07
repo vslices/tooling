@@ -80,16 +80,16 @@ public sealed class LocationGrammarDrivenDiscoveryTests
     }
 
     [Fact]
-    public void Map_discovers_a_semantic_source_and_recursive_value_expression()
+    public void Map_discovers_recursive_source_and_value_expressions()
     {
         var contract = MappingContract();
         var grammar = Assert.IsType<VsirValueGrammar>(VsirGrammarDiscovery.For(contract));
 
         var map = Assert.Single(grammar.Forms, form => form.Name == "map");
         Assert.Equal(
-            "{map: {source: <semantic-reference>, bind: <name>, value: <expression>}}",
+            "{map: {source: <expression>, bind: <name>, value: <expression>}}",
             map.Template);
-        Assert.Contains(map.Slots, slot => slot.Name == "source" && slot.ValueKind == "semantic-reference");
+        Assert.Contains(map.Slots, slot => slot.Name == "source" && slot.ValueKind == "expression");
         Assert.Contains(map.Slots, slot => slot.Name == "bind" && slot.ValueKind == "name");
         Assert.Contains(map.Slots, slot => slot.Name == "value" && slot.ValueKind == "expression");
     }
