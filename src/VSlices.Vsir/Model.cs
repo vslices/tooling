@@ -78,6 +78,11 @@ public sealed record ResolveStep(
     string As,
     string FailureMessage) : ConstructionStep;
 public sealed record ApplyStep(string Over, ApplyInput Input, string As) : ConstructionStep;
+public sealed record IntrinsicRefineStep(
+    string Intrinsic,
+    string Value,
+    IReadOnlyDictionary<string, string> As,
+    string FailureMessage) : ConstructionStep;
 public sealed record RefineStep(string Value, string As) : ConstructionStep;
 
 public abstract record ApplyInput;
