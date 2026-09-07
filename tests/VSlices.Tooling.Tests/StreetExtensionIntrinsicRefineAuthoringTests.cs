@@ -1,3 +1,5 @@
+using VSlices.Vsir;
+
 namespace VSlices.Tooling.Tests;
 
 public sealed class StreetExtensionIntrinsicRefineAuthoringTests
@@ -76,7 +78,7 @@ public sealed class StreetExtensionIntrinsicRefineAuthoringTests
     }
 
     [Fact]
-    public void Update_fails_closed_when_intrinsic_refine_reuses_a_binding()
+    public void Duplicate_intrinsic_refine_binding_remains_authorable_but_fails_semantic_conformance()
     {
         var source = """
             vsir: 0.1
@@ -101,11 +103,16 @@ public sealed class StreetExtensionIntrinsicRefineAuthoringTests
             """;
 
         var invalid = "[{refine: {intrinsic: split-first-rest, value: input.Value, as: {Name: part, Value: part}, failure: {message: invalid}}}, {refine: {state: {Name: part, Value: part}}}]";
-        var result = VsirMutationPipeline.Apply(
+        var update = VsirMutationPipeline.Apply(
             source,
             [new(VsirMutationKind.Set, "construction", invalid)]);
 
-        Assert.False(result.IsSuccess);
-        Assert.Contains("VSIR243", result.Error);
+        // update protects the progressive authoring grammar, not final semantic conformance;
+        // discovery/conformance must therefore be able to explain the invalid candidate.
+        Assert.True(update.IsSuccess, update.Error);
+
+        var parsed = VsirParser.Parse(update.Source!);
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "VSIR243");
     }
 }
