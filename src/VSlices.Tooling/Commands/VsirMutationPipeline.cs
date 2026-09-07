@@ -41,6 +41,114 @@ internal static class VsirMutationPipeline
         return VsirMutationResult.Success(current);
     }
 
+    public static IReadOnlyList<VsirPathContract> Discover(string source, out string? error)
+    {
+        var frontier = VsirMutationEngine.Discover(source, out error).ToList();
+        if (error is not null)
+            return frontier;
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+                return frontier;
+
+            AddStateSourceContracts(root, frontier);
+            AddRepresentationSourceContracts(root, frontier);
+            return frontier;
+        }
+        catch (Exception ex)
+        {
+            error = $"DISC002: Could not parse VSIR artifact: {ex.Message}";
+            return [];
+        }
+    }
+
+    private static void AddStateSourceContracts(
+        YamlMappingNode root,
+        ICollection<VsirPathContract> frontier)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) ||
+            stateNode is not YamlMappingNode state)
+            return;
+
+        foreach (var (fieldNode, declarationNode) in state.Children)
+        {
+            if (fieldNode is not YamlScalarNode field || string.IsNullOrWhiteSpace(field.Value))
+                continue;
+
+            var hasFrom = declarationNode is YamlMappingNode declaration &&
+                declaration.Children.ContainsKey(new YamlScalarNode("from"));
+
+            frontier.Add(new(
+                $"state.{field.Value}.from",
+                "state-reference",
+                VsirFrontierStatus.Optional,
+                "Declares semantic provenance for a derived state coordinate. The source must be a direct state.* reference.",
+                hasFrom
+                    ? new HashSet<VsirMutationKind>
+                    {
+                        VsirMutationKind.Remove,
+                        VsirMutationKind.Set
+                    }
+                    : new HashSet<VsirMutationKind>
+                    {
+                        VsirMutationKind.Add,
+                        VsirMutationKind.Set
+                    }));
+        }
+    }
+
+    private static void AddRepresentationSourceContracts(
+        YamlMappingNode root,
+        ICollection<VsirPathContract> frontier)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode("representation"), out var representationNode) ||
+            representationNode is not YamlMappingNode representation)
+            return;
+
+        foreach (var (fieldNode, declarationNode) in representation.Children)
+        {
+            if (fieldNode is not YamlScalarNode field || string.IsNullOrWhiteSpace(field.Value))
+                continue;
+
+            var declaration = declarationNode as YamlMappingNode;
+            var hasFrom = declaration?.Children.ContainsKey(new YamlScalarNode("from")) == true;
+            var hasMapping = declaration?.Children.ContainsKey(new YamlScalarNode("mapping")) == true;
+
+            if (!hasMapping)
+            {
+                frontier.Add(new(
+                    $"representation.{field.Value}.from",
+                    "state-reference",
+                    VsirFrontierStatus.Optional,
+                    "Declares a direct state source for a representation field when no semantic transformation is required.",
+                    hasFrom
+                        ? new HashSet<VsirMutationKind>
+                        {
+                            VsirMutationKind.Remove,
+                            VsirMutationKind.Set
+                        }
+                        : new HashSet<VsirMutationKind>
+                        {
+                            VsirMutationKind.Add,
+                            VsirMutationKind.Set
+                        }));
+            }
+
+            if (!hasFrom)
+            {
+                frontier.Add(new(
+                    $"representation.{field.Value}.mapping",
+                    "mapping",
+                    VsirFrontierStatus.Optional,
+                    "Declares the semantic projection or transformation used to expose this representation field. It is mutually exclusive with a direct from source.",
+                    new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
+            }
+        }
+    }
+
     private static bool IsRepresentationMappingMutation(VsirMutation mutation) =>
         TryRepresentationMappingPath(mutation.Path, out _);
 
