@@ -251,7 +251,7 @@ public sealed class VsirParserSemanticConservationTests
     }
 
     [Fact]
-    public void Pre_normalized_surface_is_rejected_instead_of_compatibility_parsed()
+    public void Obsolete_construction_shape_is_rejected_without_a_compatibility_parser()
     {
         const string source = """
             vsir: 0.1
@@ -272,7 +272,8 @@ public sealed class VsirParserSemanticConservationTests
         var parsed = VsirParser.Parse(source);
 
         Assert.False(parsed.IsSuccess);
-        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR090");
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR111");
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR002");
     }
 
     private static string TicketIdLike(string traits) => $$"""
