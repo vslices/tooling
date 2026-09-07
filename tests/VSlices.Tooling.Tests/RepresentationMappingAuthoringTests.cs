@@ -28,14 +28,10 @@ public sealed class RepresentationMappingAuthoringTests
 
         var result = VsirMutationPipeline.Apply(
             source,
-            [new(
-                VsirMutationKind.Set,
-                "representation.Value.mapping",
-                "{intrinsic: concat-space, values: [state.Name, state.Value]}")]);
+            [new(VsirMutationKind.Set, "representation.Value.mapping", "{intrinsic: concat-space, values: [state.Name, state.Value]}")]);
 
         Assert.True(result.IsSuccess, result.Error);
         var normalized = VsirSourceFormatter.FormatAfterMutation(result.Source!).Replace("\r\n", "\n");
-
         Assert.Contains("Value:\n    type: string\n    mapping:\n      intrinsic: concat-space", normalized);
         Assert.Contains("state.Name", normalized);
         Assert.Contains("state.Value", normalized);
@@ -58,15 +54,12 @@ public sealed class RepresentationMappingAuthoringTests
             """;
 
         var frontier = VsirMutationPipeline.Discover(source, out var error);
-
         Assert.Null(error);
-
         var mapping = Assert.Single(frontier, item => item.Path == "representation.Value.mapping");
         Assert.Equal(VsirFrontierStatus.Optional, mapping.Status);
         Assert.Equal("mapping", mapping.ValueKind);
         Assert.Single(mapping.Operations);
         Assert.Contains(VsirMutationKind.Set, mapping.Operations);
-
         var from = Assert.Single(frontier, item => item.Path == "representation.Value.from");
         Assert.Single(from.Operations);
         Assert.Contains(VsirMutationKind.Set, from.Operations);
@@ -88,12 +81,9 @@ public sealed class RepresentationMappingAuthoringTests
                 type: string
                 from: state.Name
             """;
-
         var frontier = VsirMutationPipeline.Discover(source, out var error);
-
         Assert.Null(error);
         Assert.DoesNotContain(frontier, item => item.Path == "representation.Value.mapping");
-
         var from = Assert.Single(frontier, item => item.Path == "representation.Value.from");
         Assert.Contains(VsirMutationKind.Remove, from.Operations);
         Assert.Contains(VsirMutationKind.Set, from.Operations);
@@ -121,12 +111,9 @@ public sealed class RepresentationMappingAuthoringTests
                     - state.Name
                     - state.Value
             """;
-
         var frontier = VsirMutationPipeline.Discover(source, out var error);
-
         Assert.Null(error);
         Assert.DoesNotContain(frontier, item => item.Path == "representation.Value.from");
-
         var mapping = Assert.Single(frontier, item => item.Path == "representation.Value.mapping");
         Assert.Single(mapping.Operations);
         Assert.Contains(VsirMutationKind.Set, mapping.Operations);
@@ -148,14 +135,7 @@ public sealed class RepresentationMappingAuthoringTests
                 type: string
                 from: state.Name
             """;
-
-        var result = VsirMutationPipeline.Apply(
-            source,
-            [new(
-                VsirMutationKind.Set,
-                "representation.Value.mapping",
-                "{intrinsic: concat-space, values: [state.Name]}")]);
-
+        var result = VsirMutationPipeline.Apply(source, [new(VsirMutationKind.Set, "representation.Value.mapping", "{intrinsic: concat-space, values: [state.Name]}")]);
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE030:", result.Error);
     }
@@ -174,14 +154,7 @@ public sealed class RepresentationMappingAuthoringTests
             representation:
               Name: string
             """;
-
-        var result = VsirMutationPipeline.Apply(
-            source,
-            [new(
-                VsirMutationKind.Set,
-                "representation.Value.mapping",
-                "{stringify: state.Name}")]);
-
+        var result = VsirMutationPipeline.Apply(source, [new(VsirMutationKind.Set, "representation.Value.mapping", "{stringify: state.Name}")]);
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE022:", result.Error);
     }
@@ -200,14 +173,7 @@ public sealed class RepresentationMappingAuthoringTests
             representation:
               Value: string
             """;
-
-        var result = VsirMutationPipeline.Apply(
-            source,
-            [new(
-                VsirMutationKind.Add,
-                "representation.Value.mapping",
-                "{stringify: state.Name}")]);
-
+        var result = VsirMutationPipeline.Apply(source, [new(VsirMutationKind.Add, "representation.Value.mapping", "{stringify: state.Name}")]);
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE044:", result.Error);
     }
@@ -215,13 +181,7 @@ public sealed class RepresentationMappingAuthoringTests
     [Fact]
     public void StreetExtension_can_be_authored_step_by_step_through_discovery_and_supported_updates()
     {
-        var created = VsirTemplate.Create(
-            "StreetExtension",
-            "domain-type",
-            "product",
-            "value-object",
-            []);
-
+        var created = VsirTemplate.Create("StreetExtension", "domain-type", "product", "value-object");
         Assert.True(created.IsSuccess, created.Error);
         var current = created.Source!;
 
@@ -231,8 +191,7 @@ public sealed class RepresentationMappingAuthoringTests
         AssertCan(initialFrontier, "representation", VsirMutationKind.Set);
         AssertCan(initialFrontier, "traits", VsirMutationKind.Add);
 
-        current = Apply(
-            current,
+        current = Apply(current,
             new VsirMutation(VsirMutationKind.Set, "state.Name", "string"),
             new VsirMutation(VsirMutationKind.Set, "state.Value", "string"),
             new VsirMutation(VsirMutationKind.Set, "representation.Value", "string"),
@@ -246,20 +205,13 @@ public sealed class RepresentationMappingAuthoringTests
         AssertCan(transformFrontier, "representation.Value.from", VsirMutationKind.Set);
 
         current = Apply(current, new VsirMutation(VsirMutationKind.Set, "input.Value", "string"));
-
         var inputFrontier = VsirMutationPipeline.Discover(current, out var inputError);
         Assert.Null(inputError);
         Assert.DoesNotContain(inputFrontier, item => item.Path == "input");
         AssertCan(inputFrontier, "construction", VsirMutationKind.Set);
         AssertCan(inputFrontier, "representation.Value.mapping", VsirMutationKind.Set);
 
-        current = Apply(
-            current,
-            new VsirMutation(
-                VsirMutationKind.Set,
-                "representation.Value.mapping",
-                "{intrinsic: concat-space, values: [state.Name, state.Value]}"));
-
+        current = Apply(current, new VsirMutation(VsirMutationKind.Set, "representation.Value.mapping", "{intrinsic: concat-space, values: [state.Name, state.Value]}"));
         var mappedFrontier = VsirMutationPipeline.Discover(current, out var mappedError);
         Assert.Null(mappedError);
         AssertCan(mappedFrontier, "representation.Value.mapping", VsirMutationKind.Set);
@@ -292,10 +244,7 @@ public sealed class RepresentationMappingAuthoringTests
         return result.Source!;
     }
 
-    private static void AssertCan(
-        IReadOnlyList<VsirPathContract> frontier,
-        string path,
-        VsirMutationKind operation)
+    private static void AssertCan(IReadOnlyList<VsirPathContract> frontier, string path, VsirMutationKind operation)
     {
         var contract = Assert.Single(frontier, item => item.Path == path);
         Assert.Contains(operation, contract.Operations);
