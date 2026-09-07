@@ -148,8 +148,7 @@ public sealed class TransformAuthoringTests
             "StreetName",
             "domain-type",
             "product",
-            "value-object",
-            []);
+            "value-object");
 
         Assert.True(created.IsSuccess, created.Error);
 
