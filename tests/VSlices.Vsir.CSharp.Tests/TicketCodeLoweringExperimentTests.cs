@@ -87,6 +87,14 @@ public sealed class TicketCodeLoweringExperimentTests
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
         Assert.NotNull(lowered.Source);
         Assert.Contains(
+            "DomainType<TicketCode, TicketCode.Repr>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Identifier<TicketCode>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
             "Identifier<TicketCode, TicketCode.Repr>",
             lowered.Source,
             StringComparison.Ordinal);
