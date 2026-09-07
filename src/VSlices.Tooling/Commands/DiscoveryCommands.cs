@@ -25,12 +25,12 @@ internal static class DiscoveryCommands
 
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
         var projections = new List<VsirMutation>();
-        var parseError = UpdateCommands.AddGenericMutations(projections, VsirMutationKind.Add, add)
-            ?? UpdateCommands.AddGenericMutations(projections, VsirMutationKind.Remove, remove)
-            ?? UpdateCommands.AddGenericMutations(projections, VsirMutationKind.Set, set);
+        var parseError = VsirMutationArgumentParser.AddMutations(projections, VsirMutationKind.Add, add, "DISC020")
+            ?? VsirMutationArgumentParser.AddMutations(projections, VsirMutationKind.Remove, remove, "DISC020")
+            ?? VsirMutationArgumentParser.AddMutations(projections, VsirMutationKind.Set, set, "DISC020");
         if (parseError is not null)
         {
-            TerminalOutput.Error(parseError.Replace("UPDATE020", "DISC020", StringComparison.Ordinal));
+            TerminalOutput.Error(parseError);
             return 2;
         }
 
