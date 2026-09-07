@@ -38,7 +38,7 @@ public sealed class VsirSourceFormatterTests
         Assert.Contains("equality:\n  intrinsic: ordinal-equals\n  by: state.Name", normalized);
         Assert.DoesNotContain("equality: {", normalized, StringComparison.Ordinal);
         Assert.DoesNotContain("\n...", normalized, StringComparison.Ordinal);
-        Assert.DoesNotStartWith("---", normalized, StringComparison.Ordinal);
+        Assert.False(normalized.StartsWith("---", StringComparison.Ordinal));
         Assert.EndsWith("\n", normalized, StringComparison.Ordinal);
         Assert.False(normalized.EndsWith("\n\n", StringComparison.Ordinal));
     }
