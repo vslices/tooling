@@ -63,7 +63,7 @@ Current convenience flags include:
 --classification
 ```
 
-They establish semantic facts only when supplied; they do not authorize Tooling to infer missing semantics.
+They establish semantic facts only when supplied; they do not authorize Tooling to infer missing semantics. Their accepted values are constrained to the current end-to-end surface advertised by discovery rather than every historical experiment.
 
 Search metadata does not need to be known at creation time because `tags` is always exposed immediately by `discovery` and writable by `update`.
 
@@ -174,7 +174,7 @@ For set-valued surfaces it targets a member:
 
 ```text
 vslices update vsir StreetName --remove "tags=ticket"
-vslices update vsir StreetName --remove "traits=transform"
+vslices update vsir StreetName --remove "traits=identifier"
 ```
 
 ### Atomicity
@@ -213,50 +213,72 @@ traits
 
 Do not move search labels into `traits`, and do not infer semantics from `tags`.
 
-The semantic parser validates `tags` as a sequence of non-empty unique strings and removes it before interpreting the canonical semantic document.
+The public `VsirParser` validates `tags` as a sequence of non-empty unique strings and removes it before interpreting the canonical semantic document. Conformance assessment, `transpile`, `lower`, and `rebase` enter through that same artifact parser.
 
-## 6. Domain Type frontier
+## 6. Current Domain Type frontier
 
-For `kind: domain-type`, the language requires the current structural/core decisions represented by the active VSIR specification, including:
+For `kind: domain-type`, the current public end-to-end envelope is:
+
+```text
+shape: product
+classification: value-object
+traits: transform | identifier | refined
+```
+
+`transform` is currently required by the canonical Domain Type validator. `identifier` and `refined` are semantic capabilities expressed through `traits`, not alternate classifications.
+
+The base structural decisions are:
 
 ```text
 shape
 state
 representation
 classification
+traits
 ```
 
-Current shapes:
+Current public shape:
 
 ```text
 product
-sum
 ```
 
-Current classifications exercised by Tooling authoring:
+Current public classification:
 
 ```text
 value-object
-entity
-identifier
-maintained
-aggregate-root
 ```
 
-Classification and explicit traits may activate additional obligations such as `equality`, `values`, `input`, and `construction`.
+Current explicit trait vocabulary:
+
+```text
+transform
+identifier
+refined
+```
+
+Trait-driven obligations include:
+
+```text
+transform  -> input + construction
+identifier -> equality
+refined    -> refined-from + scalar refined input constraints
+```
+
+Historical experiments around `sum`, `maintained`, `entity`, and `aggregate-root` are deliberately gated. Tooling does not advertise them as current authoring capabilities until the same form has executable parser, conformance, and lowering evidence.
 
 ## 7. Named semantic members use `set`
 
 Named members are assertions, not set-union operations.
 
-Examples:
+Examples from the admitted surface:
 
 ```text
 vslices update vsir Location --set "state.Commune=Commune"
 vslices update vsir Location --set "representation.Street=string"
 vslices update vsir Location --set "input.CommuneId=CommuneId"
-vslices update vsir Name --set "variants.CompanyName=<variant-declaration>"
-vslices update vsir IdentityType --set "values.Natural={state: {Name: Natural}}"
+vslices update vsir SrvIdentityId --set "refined-from=Rut"
+vslices update vsir SrvIdentityId --set "equality={over: Rut, by: state.Value}"
 ```
 
 Existing replaceable/removable members may expose `set` and/or `remove` from discovery.
@@ -341,15 +363,19 @@ select(state.Street, Value)
 
 are distinct semantic trees. Tooling does not insert `represent` implicitly.
 
-## 11. Transform authoring
+## 11. Transform, identifier and refined authoring
 
-The currently explicit root trait vocabulary exercised by this branch includes:
+The currently explicit root trait vocabulary is:
 
 ```text
 transform
+identifier
+refined
 ```
 
-A transform activates `input` and `construction` obligations.
+### `transform`
+
+`transform` activates `input` and `construction` obligations.
 
 Root input may be scalar:
 
@@ -377,15 +403,47 @@ refine
 
 One semantic `apply` covers both direct and mapped/container input shapes. Target-specific realization such as `Apply` versus `ApplySeq` belongs to lowering/Ruleset knowledge, not VSIR command vocabulary.
 
-## 12. Equality, maintained values and variants
+### `identifier`
 
-Equality is established with `set` when required by the active classification contract.
+`identifier` activates the `equality` obligation:
 
-Maintained members are named semantic assertions and therefore use `set` at `values.<member>`.
+```text
+vslices update vsir SrvIdentityId --set "equality={over: Rut, by: state.Value}"
+```
 
-Sum variants are likewise named semantic assertions and use `set` at `variants.<variant>`.
+Equality can use an admitted intrinsic or equality over a semantic type according to the canonical grammar.
 
-Nested variant editing remains constrained by explicitly admitted contracts; addressability alone does not authorize arbitrary deep YAML mutation.
+### `refined`
+
+`refined` activates `refined-from` and the canonical refined construction constraints:
+
+```text
+vslices update vsir SrvIdentityId --set "refined-from=Rut"
+```
+
+For the current refined witness, scalar `input` matches the refined base and construction culminates in `refine`.
+
+## 12. Gated semantic families
+
+The CLI previously contained experimental authoring knowledge for semantic families that had not crossed the canonical consumer path. They are now gated rather than advertised:
+
+```text
+sum variants
+maintained values
+entity classification
+aggregate-root classification
+```
+
+This does not claim those ideas are invalid VSIR concepts. It means the current Tooling branch has not yet earned public authoring parity for them.
+
+The rule is:
+
+```text
+no parser/conformance/lowering evidence
+  -> no public discovery affordance
+```
+
+When a real corpus witness reaches one of these families, the experiment resumes at the first gated/open layer rather than relying on dormant authoring assumptions.
 
 ## 13. `search`
 
@@ -412,13 +470,15 @@ Authoring commands and lowering commands operate on the same canonical VSIR sema
 ```text
 partial knowledge
   -> new / discovery / update
-  -> artifact surface
+  -> .vsir artifact
        tags metadata -----> search/index only
-       semantic VSIR -----> lower
+       semantic VSIR -----> VsirParser -----> transpile / lower / rebase
   -> target witness
 ```
 
-Before semantic parsing/lowering, valid `tags` metadata is removed. Lowering therefore cannot accidentally derive target behavior from search labels.
+The artifact boundary is shared. `VsirParser` validates and removes `tags` before semantic interpretation, so a tagged artifact accepted by authoring is also accepted by conformance and target-materialization paths without tags gaining semantic authority.
+
+`transpile` produces the deterministic target projection. `rebase` obtains its previous and next deterministic projections through that same transpilation operation. `lower` orchestrates the same deterministic projection with lineage/rebase behavior; it does not own a second semantic grammar.
 
 Current lowering evidence from `Location` includes:
 
@@ -434,6 +494,18 @@ apply mapped/container
 refine
 ```
 
+`SrvIdentityId` adds evidence for:
+
+```text
+scalar input
+identifier trait
+refined trait
+refined-from
+equality over semantic type
+stringify
+refine
+```
+
 ## 15. Authoring parity
 
 A VSIR semantic construction is considered fully supported by Tooling when:
@@ -446,7 +518,15 @@ lower can consume it
 Ruleset can materialize it when target realization is required
 ```
 
-`Location.vsir` is the strongest current witness for this semantic parity. Tags are intentionally outside the parity relation because they never enter semantic interpretation.
+`Location.vsir` is the strongest structured semantic witness. `SrvIdentityId.vsir` is the current identifier/refined witness.
+
+Artifact metadata has a related but different requirement:
+
+```text
+authorable metadata
+  -> accepted by the common artifact parser
+  -> no semantic effect
+```
 
 ## 16. Agent-facing invariants
 
@@ -454,6 +534,11 @@ Ruleset can materialize it when target realization is required
 - `tags` exists to support indexing/grouping/search, including `vslices search --filter tags:contains:<value>`;
 - `tags` carries no semantic or lowering authority;
 - `traits` remains a distinct semantic capability surface;
+- conformance, transpile, lower and rebase use the common metadata-aware artifact parser;
+- discovery advertises only forms that belong to the current end-to-end public surface;
+- `product` / `value-object` is the current public Domain Type envelope;
+- `transform`, `identifier`, and `refined` are current explicit semantic traits;
+- `sum`, `maintained`, `entity`, and `aggregate-root` remain gated until corpus evidence crosses the complete pipeline;
 - no command may silently invent unsupported semantics;
 - `set` means establish-or-replace for ordinary assertions;
 - `add` is reserved for genuine collection membership (`tags` and `traits` currently);
@@ -471,6 +556,6 @@ Ruleset can materialize it when target realization is required
 ## 17. Cross-repository map
 
 - [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation) — VSIR semantic language.
-- [`vslices/tooling`](https://github.com/vslices/tooling) — CLI, parser, validator, discovery, mutation, search metadata and lowering mechanisms.
+- [`vslices/tooling`](https://github.com/vslices/tooling) — CLI, artifact parser, validator, discovery, mutation, search metadata and lowering mechanisms.
 - [`vslices/ruleset`](https://github.com/vslices/ruleset) — deterministic target realization knowledge.
 - [`vslices/planifications`](https://github.com/vslices/planifications) — progressive source reconstruction process and feedback loops.
