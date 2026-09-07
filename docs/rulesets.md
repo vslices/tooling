@@ -58,6 +58,7 @@ extensions:
       csharp:
         mode: deterministic
         renderer: expression
+        bindings: [value]
         template: "Rut.Normalize({value})"
 ```
 
@@ -72,6 +73,33 @@ targets.csharp
 ```
 
 A target renderer alone cannot create semantic validity.
+
+## Renderer binding contracts
+
+Each target rule declares the values its renderer expects independently of the concrete template text:
+
+```yaml
+- node: projection.map
+  mode: deterministic
+  renderer: expression
+  bindings: [source, bind, value]
+  template: "{source}.Map({bind} => {value})"
+```
+
+`bindings` is target realization knowledge owned alongside the rule. Tooling does not hardcode a global `node -> bindings` vocabulary.
+
+The loader validates the contract before a Ruleset becomes active:
+
+```text
+bindings must be scalar, non-empty and unique
+all template placeholders must be declared bindings
+all declared bindings must be used by the template
+render calls must supply exactly the declared binding set
+```
+
+Consequently a typo such as `{banana}` is an invalid Ruleset at load/update time rather than a malformed expression discovered later during materialization or compilation.
+
+A constant renderer can explicitly declare `bindings: []`.
 
 ## Shared Ruleset acquisition pipeline
 
@@ -137,6 +165,9 @@ Validation rejects, among other current cases:
 - unsupported mode;
 - unsupported renderer;
 - empty template;
+- malformed or duplicate binding declarations;
+- undeclared template placeholders;
+- declared bindings unused by their template;
 - Ruleset manifests attempting to own project `extensions`.
 
 Only a fully validated prepared snapshot reaches replacement. Failure preserves the previous `.vslices/ruleset` and never mutates `.vslices/extensions`.
@@ -151,6 +182,7 @@ referenced catalog graph
 path containment
 semantic declarations
 target realizations
+renderer binding contracts
 structural validation
 collision input
 ```
