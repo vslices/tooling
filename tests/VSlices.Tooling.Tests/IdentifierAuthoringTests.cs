@@ -5,18 +5,36 @@ namespace VSlices.Tooling.Tests;
 public sealed class IdentifierAuthoringTests
 {
     [Fact]
-    public void Identifier_is_authored_as_a_semantic_trait_on_value_object()
+    public void Identifier_is_an_evidenced_classification_not_a_trait()
     {
-        Assert.Contains("identifier", VsirAuthoringContract.ExplicitDomainTypeTraits);
-        Assert.DoesNotContain("identifier", VsirAuthoringContract.DomainTypeClassifications);
+        Assert.Contains("identifier", VsirAuthoringContract.DomainTypeClassifications);
+        Assert.DoesNotContain("identifier", VsirAuthoringContract.ExplicitDomainTypeTraits);
 
         var source = """
             vsir: 0.1
             kind: domain-type
-            name: SrvIdentityId
+            name: TicketId
             shape: product
-            classification: value-object
-            traits: [transform, identifier]
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        var classification = Assert.Single(frontier, item => item.Path == "classification");
+        Assert.Contains("value-object", classification.AllowedValues!);
+        Assert.Contains("identifier", classification.AllowedValues!);
+    }
+
+    [Fact]
+    public void Identifier_classification_requires_equality_in_discovery()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketId
+            shape: product
+            classification: identifier
+            traits: [transform]
             """;
 
         var frontier = VsirMutationEngine.Discover(source, out var error);
@@ -30,43 +48,42 @@ public sealed class IdentifierAuthoringTests
     }
 
     [Fact]
-    public void Identifier_trait_supports_setting_equality_and_canonical_parser_accepts_it()
+    public void TicketId_classification_supports_equality_and_direct_construction()
     {
         var source = """
             vsir: 0.1
             kind: domain-type
-            name: SrvIdentityId
-            classification: value-object
+            name: TicketId
+            classification: identifier
             shape: product
-            traits: [transform, identifier]
+            traits: [transform]
             state:
-              Value: Rut
+              Value: string
             representation:
-              Value:
-                type: Rut
-                from: state.Value
-            input: Rut
-            construction:
-              - refine:
-                  value: input
-                  as: state.Value
+              Value: string
+            input:
+              Value: string
             """;
 
         var result = VsirMutationEngine.Apply(
             source,
-            [new(VsirMutationKind.Set, "equality", "{over: Rut, by: state.Value}")]);
+            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: state.Value}")]);
 
         Assert.True(result.IsSuccess, result.Error);
         Assert.Contains("equality:", result.Source);
-        Assert.Contains("over: Rut", result.Source);
+        Assert.Contains("intrinsic: ordinal-equals", result.Source);
         Assert.Contains("by: state.Value", result.Source);
+        Assert.DoesNotContain("construction:", result.Source);
 
         var parsed = VsirParser.Parse(result.Source!);
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics.Select(x => $"{x.Code}: {x.Message}")));
+        Assert.Equal("identifier", parsed.Document!.Classification);
+        Assert.DoesNotContain("identifier", parsed.Document.Traits);
+        Assert.Empty(parsed.Document.Construction.Steps);
     }
 
     [Fact]
-    public void Equality_without_identifier_trait_fails_closed()
+    public void Equality_without_identifier_classification_fails_closed()
     {
         var source = """
             vsir: 0.1
@@ -79,7 +96,7 @@ public sealed class IdentifierAuthoringTests
 
         var result = VsirMutationEngine.Apply(
             source,
-            [new(VsirMutationKind.Set, "equality", "{over: Rut, by: state.Value}")]);
+            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: state.Value}")]);
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE031:", result.Error);
