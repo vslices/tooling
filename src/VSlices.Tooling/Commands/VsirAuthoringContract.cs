@@ -48,6 +48,7 @@ internal static class VsirAuthoringContract
         IReadOnlyList<string> explicitTraits,
         bool hasState,
         bool hasRepresentation,
+        bool hasEquality,
         bool hasInput,
         bool hasConstruction)
     {
@@ -133,6 +134,16 @@ internal static class VsirAuthoringContract
                     VsirMutationKind.Remove,
                     VsirMutationKind.Set
                 }));
+
+            if (!hasEquality)
+            {
+                result.Add(new(
+                    "equality",
+                    "strategy",
+                    VsirFrontierStatus.Required,
+                    "Declares the authoritative equality strategy for maintained members. IdentityType currently evidences intrinsic ordinal-equals over state.Name.",
+                    new HashSet<VsirMutationKind>()));
+            }
         }
 
         result.Add(new(
