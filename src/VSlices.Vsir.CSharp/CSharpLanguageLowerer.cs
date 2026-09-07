@@ -4,25 +4,17 @@ using VSlices.Vsir;
 namespace VSlices.Vsir.CSharp;
 
 /// <summary>
-/// Keeps legacy lowering stable while the normalized VSIR surface is introduced.
-/// Normalized semantic structures are lowered here without flattening their expression tree.
+/// Lowers the canonical VSIR 0.1 semantic surface without flattening its expression tree.
+/// Pre-normalized experimental grammars are migration inputs, not compatibility surfaces.
 /// </summary>
 public static class CSharpLanguageLowerer
 {
     public static CSharpLoweringResult Lower(
         DomainTypeVsir document,
         CSharpLoweringContext context) =>
-        RequiresNormalizedLowering(document)
-            ? LowerNormalized(document, context)
-            : CSharpLowerer.Lower(document, context);
+        LowerCanonical(document, context);
 
-    private static bool RequiresNormalizedLowering(DomainTypeVsir document) =>
-        document.State.Fields.Any(field => field.From is not null) ||
-        document.Representation.Fields.Any(field => field.From is not null) ||
-        document.RepresentationMapping?.Fields.Values.Any(projection => projection is not StringifyProjection) == true ||
-        document.Construction.Steps.Any(step => step is ResolveStep);
-
-    private static CSharpLoweringResult LowerNormalized(
+    private static CSharpLoweringResult LowerCanonical(
         DomainTypeVsir document,
         CSharpLoweringContext context)
     {
