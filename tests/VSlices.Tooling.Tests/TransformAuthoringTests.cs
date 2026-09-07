@@ -142,18 +142,24 @@ public sealed class TransformAuthoringTests
     }
 
     [Fact]
-    public void StreetName_can_be_authored_from_the_progressive_template_using_only_advertised_cli_semantics()
+    public void StreetName_can_be_authored_from_zero_using_only_advertised_cli_semantics()
     {
-        var created = VsirTemplate.Create(
-            "StreetName",
-            "domain-type",
-            "product",
-            "value-object");
+        var created = VsirTemplate.Create("StreetName");
 
         Assert.True(created.IsSuccess, created.Error);
 
-        var core = VsirMutationPipeline.Apply(
+        var envelope = VsirMutationPipeline.Apply(
             created.Source!,
+            [
+                new(VsirMutationKind.Set, "kind", "domain-type"),
+                new(VsirMutationKind.Set, "shape", "product"),
+                new(VsirMutationKind.Set, "classification", "value-object")
+            ]);
+
+        Assert.True(envelope.IsSuccess, envelope.Error);
+
+        var core = VsirMutationPipeline.Apply(
+            envelope.Source!,
             [
                 new(VsirMutationKind.Set, "state.Value", "string"),
                 new(VsirMutationKind.Set, "representation.Value", "string"),
