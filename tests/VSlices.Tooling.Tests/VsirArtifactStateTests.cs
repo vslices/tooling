@@ -64,6 +64,29 @@ public sealed class VsirArtifactStateTests
     }
 
     [Fact]
+    public async Task Discovery_reports_repairable_invalid_assertion_as_progressively_valid_and_conformance_invalid()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        File.WriteAllText(Path.Combine(project.Root, "Repairable.vsir"), """
+            vsir: 0.1
+            kind: domain-type
+            name: Repairable
+            shape: triangle
+            """);
+
+        var result = await project.Run(project.Root, "discovery", "vsir", "Repairable.vsir");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("progressive validity: valid", result.StandardOutput);
+        Assert.Contains("conformance: invalid", result.StandardOutput);
+        Assert.Contains("VSIR-AUTH001", result.StandardOutput);
+        Assert.Contains("shape", result.StandardOutput);
+        Assert.Contains("values: product, sum", result.StandardOutput);
+        Assert.DoesNotContain("\nstate\n", result.StandardOutput.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
     public async Task Discovery_rejects_an_artifact_without_progressive_identity()
     {
         using var project = new ToolingTestProject();
