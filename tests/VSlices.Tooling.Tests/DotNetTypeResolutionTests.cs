@@ -52,9 +52,9 @@ public sealed class DotNetTypeResolutionTests
               Value: Rut
             representation:
               Value: Rut
-            construction:
-              input:
-                Value: Rut
+            input:
+              Value: Rut
+            construction: []
             """);
 
         var restore = await RunDotNet(project.Root, "restore", domainProject);
