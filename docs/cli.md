@@ -58,10 +58,11 @@ Current convenience flags include:
 --kind
 --shape
 --classification
---tags
 ```
 
-They establish facts only when supplied; they do not authorize Tooling to infer missing semantics.
+They establish semantic facts only when supplied; they do not authorize Tooling to infer missing semantics.
+
+Organizational labels are not VSIR semantics and are intentionally not persisted as undeclared `.vsir` root keys. A future search/index metadata surface must remain separate from the canonical semantic document.
 
 ## 3. `discovery vsir`
 
@@ -123,17 +124,15 @@ A missing named member is established by `set`; clients do not switch to `add` b
 
 ### `add`
 
-`add` is reserved for genuine collection membership semantics.
+`add` is reserved for genuine semantic collection membership.
 
-Current examples:
+Current example:
 
 ```text
-tags
 traits
 ```
 
 ```text
-vslices update vsir StreetName --add tags=addressing
 vslices update vsir StreetName --add traits=transform
 ```
 
@@ -321,11 +320,9 @@ refine
 
 One semantic `apply` covers both direct and mapped/container input shapes. Target-specific realization such as `Apply` versus `ApplySeq` belongs to lowering/Ruleset knowledge, not VSIR command vocabulary.
 
-## 11. Tags and traits
+## 11. Traits and non-semantic metadata
 
-`tags` are organizational metadata and imply no semantic behavior.
-
-`tags` and `traits` are current examples of genuine set-valued surfaces and may expose:
+`traits` is the current genuine set-valued semantic surface and may expose:
 
 ```text
 add
@@ -333,7 +330,9 @@ remove
 set
 ```
 
-Their ordering has no semantic meaning.
+Trait ordering has no semantic meaning.
+
+Organizational metadata such as search labels does not imply semantic behavior and is not part of canonical VSIR. It must not be smuggled into the document merely because the CLI can search or index artifacts.
 
 ## 12. Equality, maintained values and variants
 
@@ -401,7 +400,8 @@ Ruleset can materialize it when target realization is required
 
 - no command may silently invent unsupported semantics;
 - `set` means establish-or-replace for ordinary assertions;
-- `add` is reserved for genuine collection semantics;
+- `add` is reserved for genuine semantic collection semantics;
+- organizational metadata stays outside canonical VSIR;
 - discovery is state-dependent and may be projected without persistence;
 - discovery command templates and grammar forms are part of the authoring contract;
 - grammar-driven discovery advertises valid forms but does not choose the domain decision;
