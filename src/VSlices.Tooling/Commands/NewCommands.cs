@@ -7,6 +7,7 @@ internal static class NewCommands
     /// <summary>Creates a progressive VSIR artifact from the semantic facts currently known.</summary>
     /// <param name="name">Semantic name of the concept being introduced.</param>
     /// <param name="kind">Optional VSIR artifact kind. Current supported value: domain-type.</param>
+    /// <param name="shape">Optional structural shape valid for the selected kind. Current domain-type values: product, sum.</param>
     /// <param name="classification">Optional classification valid for the selected kind.</param>
     /// <param name="tags">Optional comma-separated organizational tags. Tags do not require a kind.</param>
     /// <param name="output">-o, Optional output path. By default &lt;name&gt;.vsir is created in the current directory.</param>
@@ -15,6 +16,7 @@ internal static class NewCommands
     public static async Task<int> Vsir(
         [Argument] string name,
         string? kind = null,
+        string? shape = null,
         string? classification = null,
         string? tags = null,
         string? output = null,
@@ -29,6 +31,7 @@ internal static class NewCommands
         var result = VsirTemplate.Create(
             name,
             kind,
+            shape,
             classification,
             explicitTags);
 
