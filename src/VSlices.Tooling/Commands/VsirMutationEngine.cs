@@ -96,30 +96,93 @@ internal static class VsirMutationEngine
         }
     }
 
-    private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation)
-    {
-        if (mutation.Kind != VsirMutationKind.Set)
-            return "UPDATE012: The current VSIR authoring frontier supports only 'set'.";
-
-        return mutation.Path switch
+    private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation) =>
+        mutation.Path switch
         {
+            "tags" => ApplySetMutation(root, "tags", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
-    }
 
     private static string? ApplyScalarMutation(
         YamlMappingNode root,
         string path,
         VsirMutation mutation)
     {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return $"UPDATE012: Semantic path '{path}' supports only 'set'.";
+
         var value = mutation.Value ?? string.Empty;
         if (string.IsNullOrWhiteSpace(value))
             return $"UPDATE005: Value for semantic path '{path}' must not be empty.";
 
         root.Children[new YamlScalarNode(path)] = new YamlScalarNode(value);
         return null;
+    }
+
+    private static string? ApplySetMutation(
+        YamlMappingNode root,
+        string path,
+        VsirMutation mutation)
+    {
+        var requested = ParseSetValues(mutation.Value);
+        if (requested.Error is not null)
+            return requested.Error.Replace("VALUE", path, StringComparison.Ordinal);
+
+        var current = Sequence(root, path).ToList();
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add:
+                foreach (var value in requested.Values!)
+                {
+                    if (!current.Contains(value, StringComparer.Ordinal))
+                        current.Add(value);
+                }
+                break;
+
+            case VsirMutationKind.Remove:
+                current.RemoveAll(value => requested.Values!.Contains(value, StringComparer.Ordinal));
+                break;
+
+            case VsirMutationKind.Set:
+                current = requested.Values!.ToList();
+                break;
+        }
+
+        if (current.Count == 0)
+        {
+            root.Children.Remove(new YamlScalarNode(path));
+            return null;
+        }
+
+        root.Children[new YamlScalarNode(path)] =
+            new YamlSequenceNode(current.Select(value => new YamlScalarNode(value)))
+            {
+                Style = YamlDotNet.Core.Events.SequenceStyle.Flow
+            };
+        return null;
+    }
+
+    private static (IReadOnlyList<string>? Values, string? Error) ParseSetValues(string? value)
+    {
+        if (value is null)
+            return (null, "UPDATE013: VALUE mutation requires a value.");
+
+        var values = value
+            .Split(',', StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        if (values.Length == 0 || values.Any(string.IsNullOrWhiteSpace))
+            return (null, "UPDATE013: VALUE values must be non-empty.");
+
+        if (values.Distinct(StringComparer.Ordinal).Count() != values.Length)
+            return (null, "UPDATE014: VALUE values must be unique.");
+
+        if (values.Any(ContainsLineBreak))
+            return (null, "UPDATE013: VALUE values must be single-line.");
+
+        return (values, null);
     }
 
     private static string? ValidateCandidate(YamlMappingNode root)
@@ -159,7 +222,22 @@ internal static class VsirMutationEngine
     {
         foreach (var group in mutations.GroupBy(mutation => mutation.Path, StringComparer.Ordinal))
         {
-            if (group.Count() > 1)
+            if (group.Any(mutation => mutation.Kind == VsirMutationKind.Set) && group.Count() > 1)
+                return $"UPDATE018: Semantic path '{group.Key}' cannot combine 'set' with another mutation in the same transaction.";
+
+            var adds = group
+                .Where(mutation => mutation.Kind == VsirMutationKind.Add)
+                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
+                .ToHashSet(StringComparer.Ordinal);
+            var removes = group
+                .Where(mutation => mutation.Kind == VsirMutationKind.Remove)
+                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
+                .ToHashSet(StringComparer.Ordinal);
+            var overlap = adds.FirstOrDefault(removes.Contains);
+            if (overlap is not null)
+                return $"UPDATE019: Value '{overlap}' is both added to and removed from semantic path '{group.Key}' in the same transaction.";
+
+            if (!group.Key.Equals("tags", StringComparison.Ordinal) && group.Count() > 1)
                 return $"UPDATE018: Semantic path '{group.Key}' cannot be set more than once in the same transaction.";
         }
 
@@ -170,4 +248,22 @@ internal static class VsirMutationEngine
         root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
             ? scalar.Value
             : null;
+
+    private static IReadOnlyList<string> Sequence(YamlMappingNode root, string key)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode(key), out var node))
+            return [];
+
+        if (node is not YamlSequenceNode sequence)
+            return [];
+
+        return sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(child => child.Value ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+    }
+
+    private static bool ContainsLineBreak(string value) =>
+        value.Contains('\r') || value.Contains('\n');
 }
