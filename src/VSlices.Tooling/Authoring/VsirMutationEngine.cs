@@ -159,6 +159,7 @@ internal static class VsirMutationEngine
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "shape" => ApplyScalarMutation(root, "shape", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
+            "refined-from" => ApplyRefinedFromMutation(root, mutation),
             "state" => ApplyEmptySharedSumMapMutation(root, "state", mutation),
             "representation" => ApplyEmptySharedSumMapMutation(root, "representation", mutation),
             "input" => ApplyInputContractMutation(root, mutation),
@@ -768,6 +769,24 @@ internal static class VsirMutationEngine
         return null;
     }
 
+    private static string? ApplyRefinedFromMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'refined-from' supports only 'set'.";
+
+        if (!Sequence(root, "traits").Contains("refined", StringComparer.Ordinal))
+            return "UPDATE048: 'refined-from' authoring requires explicit trait 'refined'.";
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
+            return "UPDATE049: Semantic path 'refined-from' requires a non-empty single-line semantic type.";
+
+        root.Children[new YamlScalarNode("refined-from")] = new YamlScalarNode(value);
+        return null;
+    }
+
     private static string? ApplyEqualityMutation(
         YamlMappingNode root,
         VsirMutation mutation)
@@ -775,9 +794,8 @@ internal static class VsirMutationEngine
         if (mutation.Kind != VsirMutationKind.Set)
             return "UPDATE012: Semantic path 'equality' supports only 'set'.";
 
-        var classification = Scalar(root, "classification");
-        if (classification is not ("identifier" or "maintained"))
-            return "UPDATE031: 'equality' authoring is currently available only for classifications 'identifier' and 'maintained'.";
+        if (!Sequence(root, "traits").Contains("identifier", StringComparer.Ordinal))
+            return "UPDATE031: 'equality' authoring is currently available only when explicit trait 'identifier' is established.";
 
         var parsed = ParseEqualityDeclaration(mutation.Value);
         if (parsed.Error is not null)
@@ -979,8 +997,11 @@ internal static class VsirMutationEngine
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
 
-        if (HasKey(root, "equality") && classification is not ("identifier" or "maintained"))
-            return "UPDATE031: 'equality' authoring is currently available only for classifications 'identifier' and 'maintained'.";
+        if (HasKey(root, "equality") && !traits.Contains("identifier", StringComparer.Ordinal))
+            return "UPDATE031: 'equality' authoring requires explicit trait 'identifier'.";
+
+        if (HasKey(root, "refined-from") && !traits.Contains("refined", StringComparer.Ordinal))
+            return "UPDATE048: 'refined-from' authoring requires explicit trait 'refined'.";
 
         var representationSourceError = ValidateRepresentationSources(root);
         if (representationSourceError is not null)
