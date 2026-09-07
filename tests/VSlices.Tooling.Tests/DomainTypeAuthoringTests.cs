@@ -9,6 +9,7 @@ public sealed class DomainTypeAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: Example
+            shape: product
             """;
 
         var frontier = VsirMutationEngine.Discover(source, out var error);
