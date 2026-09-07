@@ -54,9 +54,9 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state properties and representation properties.</param>
-    /// <param name="remove">Remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties may use path alone.</param>
-    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties and representation properties.</param>
+    /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state properties, representation properties and maintained values.</param>
+    /// <param name="remove">Remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties and maintained members may use path alone.</param>
+    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties, representation properties and maintained values.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
