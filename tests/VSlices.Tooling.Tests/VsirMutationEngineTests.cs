@@ -57,7 +57,7 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_after_kind_exposes_explained_classification()
+    public void Discovery_after_kind_stops_at_shape_before_shape_dependent_decisions()
     {
         var source = """
             vsir: 0.1
@@ -69,12 +69,12 @@ public sealed class VsirMutationEngineTests
 
         Assert.Null(error);
         Assert.DoesNotContain(frontier, item => item.Path == "tags");
-        var classification = Assert.Single(frontier, item => item.Path == "classification");
-        Assert.Equal(VsirFrontierStatus.Required, classification.Status);
-        Assert.Contains("semantic class", classification.Meaning, StringComparison.Ordinal);
-        Assert.Contains("value-object", classification.AllowedValues!);
-        Assert.Contains("entity", classification.AllowedValues!);
-        Assert.Contains("aggregate-root", classification.AllowedValues!);
+        var shape = Assert.Single(frontier, item => item.Path == "shape");
+        Assert.Equal(VsirFrontierStatus.Required, shape.Status);
+        Assert.Equal(["product", "sum"], shape.AllowedValues);
+        Assert.DoesNotContain(frontier, item => item.Path == "classification");
+        Assert.DoesNotContain(frontier, item => item.Path == "state");
+        Assert.DoesNotContain(frontier, item => item.Path == "representation");
     }
 
     [Fact]
