@@ -482,14 +482,14 @@ public static class CSharpLanguageLowerer
 
     private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
     {
-        var isIdentifier =
+        var hasIdentifierCapability =
             document.Classification == "identifier" ||
             document.Traits.Contains("identifier", StringComparer.Ordinal);
         var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
-        if (isIdentifier)
-            yield return $"Identifier<{document.Name}, {document.Name}.Repr>";
-        else if (!isRefined)
-            yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
+
+        yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
+        if (hasIdentifierCapability)
+            yield return $"Identifier<{document.Name}>";
         if (isRefined)
             yield return $"Refined<{document.Name}, {document.RefinedFrom}, {document.Name}.Repr>";
         yield return $"Transform<{document.Name}, {inputType}>";
