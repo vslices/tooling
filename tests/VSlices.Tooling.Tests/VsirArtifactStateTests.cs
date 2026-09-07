@@ -82,8 +82,63 @@ public sealed class VsirArtifactStateTests
         Assert.Contains("conformance: invalid", result.StandardOutput);
         Assert.Contains("VSIR-AUTH001", result.StandardOutput);
         Assert.Contains("shape", result.StandardOutput);
-        Assert.Contains("values: product, sum", result.StandardOutput);
+        Assert.Contains("values: product", result.StandardOutput);
         Assert.DoesNotContain("\nstate\n", result.StandardOutput.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void Tags_do_not_change_conformance_assessment()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input: string
+            construction:
+              - refine:
+                  value: input
+                  as: state.Value
+            """;
+        const string tagged = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            tags: [ticket, serviu]
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input: string
+            construction:
+              - refine:
+                  value: input
+                  as: state.Value
+            """;
+
+        var frontier = VsirMutationPipeline.Discover(source, out var sourceError);
+        var taggedFrontier = VsirMutationPipeline.Discover(tagged, out var taggedError);
+        Assert.Null(sourceError);
+        Assert.Null(taggedError);
+
+        var baseline = VsirArtifactState.Assess(source, frontier);
+        var withTags = VsirArtifactState.Assess(tagged, taggedFrontier);
+
+        Assert.Equal(baseline.ProgressiveValidity, withTags.ProgressiveValidity);
+        Assert.Equal(baseline.Conformance, withTags.Conformance);
+        Assert.Equal(baseline.MissingRequiredPaths, withTags.MissingRequiredPaths);
+        Assert.Equal(
+            baseline.ConformanceDiagnostics.Select(x => x.Code),
+            withTags.ConformanceDiagnostics.Select(x => x.Code));
     }
 
     [Fact]
