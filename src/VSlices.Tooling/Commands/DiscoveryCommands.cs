@@ -47,7 +47,7 @@ internal static class DiscoveryCommands
             inspectedSource = projected.Source!;
         }
 
-        var frontier = VsirMutationEngine.Discover(inspectedSource, out var error);
+        var frontier = VsirMutationPipeline.Discover(inspectedSource, out var error);
         if (error is not null)
         {
             TerminalOutput.Error(error);
