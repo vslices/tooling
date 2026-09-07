@@ -48,7 +48,4 @@ app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);
 
-// Compatibility surface while callers migrate to subject-oriented update commands.
-app.Add("update", UpdateCommands.Update);
-
 app.Run(args);
