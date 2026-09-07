@@ -440,8 +440,9 @@ internal static class VsirMutationEngine
         if (mutation.Kind != VsirMutationKind.Set)
             return "UPDATE012: Semantic path 'equality' supports only 'set'.";
 
-        if (!string.Equals(Scalar(root, "classification"), "maintained", StringComparison.Ordinal))
-            return "UPDATE031: 'equality' authoring is currently available only for classification 'maintained'.";
+        var classification = Scalar(root, "classification");
+        if (classification is not ("identifier" or "maintained"))
+            return "UPDATE031: 'equality' authoring is currently available only for classifications 'identifier' and 'maintained'.";
 
         var parsed = ParseEqualityDeclaration(mutation.Value);
         if (parsed.Error is not null)
@@ -605,8 +606,8 @@ internal static class VsirMutationEngine
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
 
-        if (HasKey(root, "equality") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
-            return "UPDATE031: 'equality' authoring is currently available only for classification 'maintained'.";
+        if (HasKey(root, "equality") && classification is not ("identifier" or "maintained"))
+            return "UPDATE031: 'equality' authoring is currently available only for classifications 'identifier' and 'maintained'.";
 
         var representationSourceError = ValidateRepresentationSources(root);
         if (representationSourceError is not null)
