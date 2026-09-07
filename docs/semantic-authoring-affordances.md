@@ -179,7 +179,21 @@ classification: value-object | identifier
 traits: transform | identifier | refined
 ```
 
-Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability, therefore requires explicit equality semantics and lowers to the Framework `Identifier<T, T.Repr>` contract. Equality without identifier capability is rejected. `refined` remains an additional trait-driven capability.
+Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability and therefore requires explicit equality semantics. Equality without identifier capability is rejected. `refined` remains an additional trait-driven capability.
+
+Target contract lowering follows the same separation of semantic facts:
+
+```text
+kind: domain-type
+  -> DomainType<T, T.Repr>
+
+classification: identifier
+        OR
+traits contains identifier
+  -> Identifier<T>
+```
+
+`Identifier<T, T.Repr>` may remain a Framework convenience composite, but it is not used as the canonical lowering decision because it would conflate the domain-type fact with identifier capability.
 
 Examples:
 
@@ -262,7 +276,7 @@ The inverse matters too:
 
 > If an admitted corpus artifact already carries a semantic form, an accidental restriction in one implementation layer must not be promoted into language authority. Repair the first stale layer instead of rewriting the corpus to match it.
 
-`TicketId` exposed classification drift; `TicketCode` exposed the missing `normalize` affordance and the second, trait-based route to identifier capability.
+`TicketId` exposed classification drift; `TicketCode` exposed the missing `normalize` affordance and the second, trait-based route to identifier capability. `SrvIdentityId` exposed that a Framework convenience composite must not become semantic authority for target contract selection.
 
 ## 7. Agent-facing traversal
 
@@ -314,7 +328,8 @@ TicketCode
 
 SrvIdentityId
   -> identifier classification + refined trait,
-     scalar input, refined-from, semantic equality, stringify, refine
+     scalar input, refined-from, semantic equality, stringify, refine,
+     primitive DomainType + Identifier target contracts
 ```
 
 ## 9. Evidence precedence
@@ -341,8 +356,9 @@ set/add/remove mutations with repeated CLI occurrences preserved
 one public VsirParser artifact boundary
 product + value-object/identifier public Domain Type envelope
 transform / identifier / refined trait authoring
+kind: domain-type -> DomainType<T,T.Repr> target contract
 identifier classification OR identifier trait -> equality obligation
-identifier classification OR identifier trait -> Identifier<T,T.Repr> target contract
+identifier classification OR identifier trait -> Identifier<T> target contract
 equality without identifier capability -> fail closed
 product transform input may establish same-name state directly
 construction grammar includes normalize / ensure / resolve / apply / refine
