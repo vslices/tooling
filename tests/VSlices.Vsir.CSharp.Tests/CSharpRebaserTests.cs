@@ -117,8 +117,88 @@ public sealed class CSharpRebaserTests
         var result = CSharpRebaser.Rebase(previous, human, next);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains(result.Diagnostics, x => x.Code == "REB001");
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("REB001", diagnostic.Code);
+        Assert.Contains("--resolve deterministic", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("MaxLength = GetConfiguredMaximum();", human);
+    }
+
+    [Fact]
+    public void Rebase_can_resolve_a_uniquely_bounded_replacement_conflict_deterministically()
+    {
+        const string previous = """
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static Req<Input, TicketId>.Full Invariants =>
+                    Transform((Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+            }
+            """;
+
+        const string human = """
+            using static VSlices.Arrows.Req<Tickets.Domain.Aggregates.TicketId.Input, Tickets.Domain.Aggregates.TicketId>;
+
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static Req<Input, TicketId>.Full Invariants =>
+                    Transform((Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+
+                public override string ToString() =>
+                    _value;
+            }
+            """;
+
+        const string next = """
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static Req<TicketId.Input, TicketId>.Full Invariants =>
+                    Transform((TicketId.Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+            }
+            """;
+
+        var result = CSharpRebaser.Rebase(
+            previous,
+            human,
+            next,
+            CSharpRebaseResolution.Deterministic);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Contains("Req<TicketId.Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+        Assert.Contains("Transform((TicketId.Input input) => Instance(input))", result.Source, StringComparison.Ordinal);
+        Assert.Contains("using static VSlices.Arrows.Req<", result.Source, StringComparison.Ordinal);
+        Assert.Contains("public override string ToString()", result.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Req<Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deterministic_replacement_resolution_still_fails_closed_when_the_conflict_has_no_unique_boundary()
+    {
+        const string previous = "left generated right";
+        const string human = "left human right left human right";
+        const string next = "left regenerated right";
+
+        var result = CSharpRebaser.Rebase(
+            previous,
+            human,
+            next,
+            CSharpRebaseResolution.Deterministic);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Diagnostics, x => x.Code == "REB001");
     }
 
     [Fact]
