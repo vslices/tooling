@@ -356,6 +356,14 @@ internal static class VsirMutationEngine
         if (traits.Count > 0 && !string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
             return "UPDATE011: 'traits' requires kind 'domain-type'.";
 
+        var unsupportedTrait = traits.FirstOrDefault(
+            trait => !VsirAuthoringContract.ExplicitDomainTypeTraits.Contains(trait, StringComparer.Ordinal));
+        if (unsupportedTrait is not null)
+        {
+            return $"UPDATE026: Trait '{unsupportedTrait}' is not currently available for explicit authoring. " +
+                   $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
+        }
+
         return null;
     }
 
