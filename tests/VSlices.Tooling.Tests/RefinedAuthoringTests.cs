@@ -11,7 +11,7 @@ public sealed class RefinedAuthoringTests
             "SrvIdentityId",
             "domain-type",
             "product",
-            "value-object");
+            "identifier");
 
         Assert.True(created.IsSuccess, created.Error);
         var current = created.Source!;
@@ -20,7 +20,7 @@ public sealed class RefinedAuthoringTests
             current,
             new(VsirMutationKind.Set, "state.Value", "Rut"),
             new(VsirMutationKind.Set, "representation.Value", "string"),
-            new(VsirMutationKind.Add, "traits", "transform,identifier,refined"));
+            new(VsirMutationKind.Add, "traits", "transform,refined"));
 
         var frontier = VsirMutationPipeline.Discover(current, out var error);
         Assert.Null(error);
@@ -42,10 +42,11 @@ public sealed class RefinedAuthoringTests
         Assert.True(
             parsed.IsSuccess,
             string.Join(Environment.NewLine, parsed.Diagnostics.Select(x => $"{x.Code}: {x.Message}")));
-        Assert.Equal("Rut", parsed.Document!.RefinedFrom);
-        Assert.Contains("identifier", parsed.Document.Traits);
+        Assert.Equal("identifier", parsed.Document!.Classification);
+        Assert.Equal("Rut", parsed.Document.RefinedFrom);
         Assert.Contains("refined", parsed.Document.Traits);
         Assert.Contains("transform", parsed.Document.Traits);
+        Assert.DoesNotContain("identifier", parsed.Document.Traits);
         Assert.Equal(new NamedVsirType("Rut"), parsed.Document.Construction.Input.ScalarType);
         Assert.Equal("Rut", parsed.Document.Equality!.Over);
     }
