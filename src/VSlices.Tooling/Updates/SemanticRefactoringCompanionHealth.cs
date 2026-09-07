@@ -45,5 +45,8 @@ internal static class SemanticRefactoringCompanionHealth
     private static bool IsSelfUpdate(IReadOnlyList<string> args) =>
         args.Count >= 2 &&
         args[0].Equals("update", StringComparison.OrdinalIgnoreCase) &&
-        args.Skip(1).Any(x => x.Equals("--self", StringComparison.OrdinalIgnoreCase));
+        (
+            args[1].Equals("self", StringComparison.OrdinalIgnoreCase) ||
+            args.Skip(1).Any(x => x.Equals("--self", StringComparison.OrdinalIgnoreCase))
+        );
 }
