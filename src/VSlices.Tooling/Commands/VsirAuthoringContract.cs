@@ -93,7 +93,7 @@ internal static class VsirAuthoringContract
             return result;
         }
 
-        if (classification is "value-object" or "entity" or "aggregate-root")
+        if (classification is "value-object" or "entity" or "maintained" or "aggregate-root")
         {
             result.Add(new(
                 "state",
@@ -112,6 +112,21 @@ internal static class VsirAuthoringContract
                 "map<property, declaration>",
                 VsirFrontierStatus.Required,
                 "Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity. Add, remove and set operate on child property paths such as representation.Value.",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                }));
+        }
+
+        if (classification == "maintained")
+        {
+            result.Add(new(
+                "values",
+                "map<member, state>",
+                VsirFrontierStatus.Required,
+                "Declares the maintained members and the semantic state associated with each member. Authoring supports add, remove and set over maintained members.",
                 new HashSet<VsirMutationKind>
                 {
                     VsirMutationKind.Add,
