@@ -10,8 +10,8 @@ public sealed class VsirSourceFormatterTests
             kind: domain-type
             name: IdentityType
             shape: product
-            classification: value-object
-            traits: [transform, identifier]
+            classification: identifier
+            traits: [transform]
             state:
               Name: string
             representation:
