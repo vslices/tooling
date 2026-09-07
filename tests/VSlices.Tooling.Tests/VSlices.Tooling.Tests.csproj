@@ -18,8 +18,8 @@
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirAuthoringContract.cs" Link="Linked/VsirAuthoringContract.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirCommandTemplates.cs" Link="Linked/VsirCommandTemplates.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationArgumentParser.cs" Link="Linked/VsirMutationArgumentParser.cs" />
-    <Compile Include="../../src/VSlices.Tooling/Commands/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
-    <Compile Include="../../src/VSlices.Tooling/Commands/VsirMutationPipeline.cs" Link="Linked/VsirMutationPipeline.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationPipeline.cs" Link="Linked/VsirMutationPipeline.cs" />
     <Compile Include="../../src/VSlices.Tooling/Authoring/Source/VsirSourceFormatter.cs" Link="Linked/VsirSourceFormatter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Commands/SearchFilter.cs" Link="Linked/SearchFilter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
