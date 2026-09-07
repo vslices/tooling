@@ -21,16 +21,16 @@ public sealed class NotWhitespaceIntrinsicTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: not-whitespace
+              - ensure:
+                  condition:
+                    intrinsic: not-whitespace
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
+                  failure:
+                    message: required
             """);
 
         var result = await project.Run(
