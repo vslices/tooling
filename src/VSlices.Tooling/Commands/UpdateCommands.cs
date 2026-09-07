@@ -54,9 +54,13 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable paths: kind, classification.</param>
+    /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable path: tags.</param>
+    /// <param name="remove">Remove mutations as semicolon-separated path=value clauses. Current remove-capable path: tags.</param>
+    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable paths: tags, kind, classification.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
+        string? add = null,
+        string? remove = null,
         string? set = null,
         CancellationToken cancellationToken = default)
     {
@@ -68,7 +72,9 @@ internal static class UpdateCommands
         }
 
         var mutations = new List<VsirMutation>();
-        var parseError = AddSetMutations(mutations, set);
+        var parseError = AddGenericMutations(mutations, VsirMutationKind.Add, add)
+            ?? AddGenericMutations(mutations, VsirMutationKind.Remove, remove)
+            ?? AddGenericMutations(mutations, VsirMutationKind.Set, set);
         if (parseError is not null)
         {
             TerminalOutput.Error(parseError);
@@ -88,8 +94,9 @@ internal static class UpdateCommands
         return 0;
     }
 
-    internal static string? AddSetMutations(
+    internal static string? AddGenericMutations(
         ICollection<VsirMutation> target,
+        VsirMutationKind kind,
         string? clauses)
     {
         if (string.IsNullOrWhiteSpace(clauses))
@@ -106,7 +113,7 @@ internal static class UpdateCommands
             if (path.Length == 0 || value.Length == 0)
                 return $"UPDATE020: Mutation '{clause}' must use non-empty path=value syntax.";
 
-            target.Add(new(VsirMutationKind.Set, path, value));
+            target.Add(new(kind, path, value));
         }
 
         return null;
