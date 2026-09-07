@@ -69,7 +69,7 @@ public sealed class ShapeAuthoringTests
             "value-object");
 
         Assert.False(result.IsSuccess);
-        Assert.StartsWith("NEW", result.Error);
+        Assert.StartsWith("UPDATE034:", result.Error);
     }
 
     [Fact]
