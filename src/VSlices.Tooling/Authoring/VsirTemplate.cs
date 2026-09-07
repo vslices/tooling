@@ -15,67 +15,13 @@ internal sealed record VsirTemplateResult(
 
 internal static class VsirTemplate
 {
-    public static VsirTemplateResult Create(
-        string name,
-        string? kind = null,
-        string? shape = null,
-        string? classification = null)
+    public static VsirTemplateResult Create(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             return VsirTemplateResult.Failure("NEW001: VSIR concept name is required.");
 
-        var hasKind = !string.IsNullOrWhiteSpace(kind);
-
-        if (!hasKind && shape is not null)
-        {
-            return VsirTemplateResult.Failure(
-                "NEW009: --shape requires --kind because its validity is kind-specific.");
-        }
-
-        if (!hasKind && classification is not null)
-        {
-            return VsirTemplateResult.Failure(
-                "NEW002: --classification requires --kind because its validity is kind-specific.");
-        }
-
-        if (hasKind && !VsirAuthoringContract.Kinds.Contains(kind!, StringComparer.Ordinal))
-        {
-            return VsirTemplateResult.Failure(
-                $"NEW003: Unsupported VSIR kind '{kind}'. Current supported values: {string.Join(", ", VsirAuthoringContract.Kinds)}.");
-        }
-
-        if (shape is not null &&
-            !VsirAuthoringContract.DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
-        {
-            return VsirTemplateResult.Failure(
-                $"NEW010: Shape '{shape}' is not valid for kind 'domain-type'. " +
-                $"Supported shapes: {string.Join(", ", VsirAuthoringContract.DomainTypeShapes)}.");
-        }
-
-        if (classification is not null &&
-            !VsirAuthoringContract.DomainTypeClassifications.Contains(classification, StringComparer.Ordinal))
-        {
-            return VsirTemplateResult.Failure(
-                $"NEW004: Classification '{classification}' is not valid for kind 'domain-type'. " +
-                $"Supported classifications: {string.Join(", ", VsirAuthoringContract.DomainTypeClassifications)}.");
-        }
-
-        var lines = new List<string>
-        {
-            $"vsir: {VsirAuthoringContract.CurrentVsirVersion}"
-        };
-
-        if (hasKind)
-            lines.Add($"kind: {kind}");
-
-        lines.Add($"name: {name}");
-
-        if (shape is not null)
-            lines.Add($"shape: {shape}");
-
-        if (classification is not null)
-            lines.Add($"classification: {classification}");
-
-        return VsirTemplateResult.Success(string.Join(Environment.NewLine, lines) + Environment.NewLine);
+        return VsirTemplateResult.Success(
+            $"vsir: {VsirAuthoringContract.CurrentVsirVersion}{Environment.NewLine}" +
+            $"name: {name}{Environment.NewLine}");
     }
 }
