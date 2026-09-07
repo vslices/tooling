@@ -92,7 +92,7 @@ internal static class VsirAuthoringContract
             "shape",
             "enum",
             VsirFrontierStatus.Required,
-            "Declares how one valid Domain Type instance is structurally composed. Product means all state coordinates coexist; sum means exactly one declared state variant is active.",
+            "Declares how one valid Domain Type instance is structurally composed. Product means all state coordinates coexist; sum means shared state plus exactly one named variant is active.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set },
             DomainTypeShapes));
 
@@ -100,10 +100,10 @@ internal static class VsirAuthoringContract
 
         result.Add(new(
             "state",
-            sumShape ? "map<variant, product-payload>" : "map<property, declaration>",
+            "map<property, declaration>",
             VsirFrontierStatus.Required,
             sumShape
-                ? "Declares the mutually exclusive semantic variants of the Domain Type. Exactly one variant is active in a valid instance; each variant carries a product payload with zero or more fields."
+                ? "Declares state shared by every variant of the sum-shaped Domain Type. The map may be empty when the sum has no shared state; variant-specific state belongs under variants.<variant>.state."
                 : "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties such as state.Value support add, remove and set; derived state may declare a direct state source through state.<property>.from.",
             new HashSet<VsirMutationKind>
             {
@@ -117,7 +117,7 @@ internal static class VsirAuthoringContract
             "map<property, declaration>",
             VsirFrontierStatus.Required,
             sumShape
-                ? "Declares the observable form through which a valid sum-shaped Domain Type can be represented. The representation must preserve enough information to reconstruct which state variant is active."
+                ? "Declares representation shared by every variant of the sum-shaped Domain Type. The map may be empty; variant-specific representation belongs under variants.<variant>.representation, and the effective representation must preserve the active variant."
                 : "Declares the observable form through which a valid Domain Type can be represented. Child properties such as representation.Value support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.",
             new HashSet<VsirMutationKind>
             {
@@ -125,6 +125,21 @@ internal static class VsirAuthoringContract
                 VsirMutationKind.Remove,
                 VsirMutationKind.Set
             }));
+
+        if (sumShape)
+        {
+            result.Add(new(
+                "variants",
+                "map<variant, declaration>",
+                VsirFrontierStatus.Required,
+                "Declares the mutually exclusive alternatives of a sum-shaped Domain Type. Exactly one variant is active; each variant may add local state, representation, traits, input and construction over the shared contract.",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                }));
+        }
 
         if (string.IsNullOrWhiteSpace(classification))
         {
