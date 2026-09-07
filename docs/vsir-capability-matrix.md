@@ -30,17 +30,29 @@ Legend:
 
 ```text
 yes      executable evidence exists in this branch
-partial  some forms are admitted but corpus parity is incomplete
+partial  some admitted forms are evidenced but corpus parity is incomplete
+gated    experimental knowledge exists, but the public authoring surface does not advertise it
 n/a      the layer is not required for the semantic form
 open     evidence has not crossed the layer yet
 ```
+
+The current public Domain Type envelope is deliberately narrower than every historical experiment:
+
+```text
+kind: domain-type
+shape: product
+classification: value-object
+traits: transform | identifier | refined
+```
+
+`identifier` and `refined` are semantic capabilities expressed through `traits`, not alternate classifications. `transform` is currently required for a conforming Domain Type by the canonical validator.
 
 | Semantic form | discover | author | parse | conform | lower | ruleset | Current witness / note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | product field, named type | yes | yes | yes | yes | yes | n/a | StreetName / Location |
 | unary semantic type (`sequence`) | yes | yes | yes | yes | yes | yes | Location `Extensions` / `Ext` |
 | derived state `.from` | yes | yes | yes | yes | yes | n/a | Location `Region`, `Province` |
-| direct representation `.from` | yes | yes | yes | yes | yes | n/a | IdentityType-style direct reuse |
+| direct representation `.from` | yes | yes | yes | yes | yes | n/a | canonical direct reuse |
 | representation `stringify` | yes | yes | yes | yes | yes | yes | SrvIdentityId |
 | representation `represent` | yes | yes | yes | yes | yes | yes | Location |
 | representation `select` | yes | yes | yes | yes | yes | yes | Location |
@@ -52,23 +64,36 @@ open     evidence has not crossed the layer yet
 | construction `resolve` | yes | yes | yes | yes | yes | yes | Location `Commune` |
 | construction `apply`, direct | yes | yes | yes | yes | yes | yes | Location `StreetName` |
 | construction `apply`, mapped/container | yes | yes | yes | yes | yes | yes | Location `StreetExtension` |
-| construction `refine` | yes | yes | yes | yes | yes | n/a | Location / StreetName |
-| equality intrinsic | yes | yes | yes | yes | yes | yes | IdentityType-style equality |
-| equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
-| sum variants | partial | partial | open | open | open | open | Name is the next corpus witness to verify |
-| maintained values | partial | partial | open | open | open | open | IdentityType is the next corpus witness to verify |
-| refined / `refined-from` | open | open | partial | partial | partial | n/a | SrvIdentityId exposes remaining authoring parity work |
+| construction `refine` | yes | yes | yes | yes | yes | n/a | Location / StreetName / SrvIdentityId |
+| identifier trait + equality intrinsic | yes | yes | yes | yes | yes | yes | identifier authoring + existing lowering evidence |
+| identifier trait + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
+| refined trait + `refined-from` | yes | yes | yes | yes | yes | n/a | SrvIdentityId authoring/parsing + lowering witness |
+| sum variants | gated | gated | open | open | open | open | historical authoring experiment retained as research only; Name is the next corpus witness |
+| maintained values | gated | gated | open | open | open | open | historical authoring experiment retained as research only; IdentityType is the next corpus witness |
+| entity / aggregate-root classification | gated | gated | open | open | open | open | not advertised until a canonical consumer crosses the full pipeline |
 | aggregate identity | open | open | open | open | open | open | SrvIdentity exposes remaining parity work |
 | TicketTrayFilter flattening relation | open | open | open | open | open | open | deliberately gated; `Option<X.Repr> -> string?` is not inferred |
 
+## Artifact metadata acceptance
+
+`tags` belongs to the canonical `.vsir` artifact surface but carries no domain-semantic authority. It is validated by the public `VsirParser`, stripped before semantic interpretation, and is therefore accepted consistently by conformance assessment and by `transpile` / `lower` / `rebase` without changing the semantic document they consume.
+
+This is an acceptance-parity requirement, not a lowering rule:
+
+```text
+authorable artifact metadata
+  -> accepted by the common artifact parser
+  -> semantic effect = none
+```
+
 ## How to use this matrix
 
-When a consumer exposes a new difficulty, classify it by the first `open`/`partial` column rather than weakening another layer.
+When a consumer exposes a new difficulty, classify it by the first `open`/`partial`/`gated` column rather than weakening another layer.
 
 For example:
 
 ```text
-discovery cannot describe an already-parseable form
+discovery cannot describe an already-parseable admitted form
   -> authoring/discovery gap
 
 parser cannot preserve a form present in the specification
@@ -79,12 +104,15 @@ lower cannot consume a conforming form
 
 Ruleset lacks a deterministic realization
   -> Ruleset gap
+
+historical authoring knows a form that parser/lower cannot consume
+  -> gate it; do not advertise it as public capability yet
 ```
 
 A successful parity experiment should move a row from left to right using the same semantic artifact. It should not make the row look complete by translating that artifact into a different grammar between authoring and lowering.
 
 ## Canonical-surface rule
 
-There is one admitted VSIR 0.1 surface in this experiment. Pre-normalized experimental grammars are not a compatibility target and must not receive fallback parsing or lowering behavior.
+There is one admitted VSIR 0.1 surface in this experiment and one public artifact parser at the boundary. Conformance assessment and target materialization must enter through that artifact parser rather than bypassing metadata handling or validation.
 
-Because VSlices currently has one consumer, migration cost is preferred over carrying ambiguous compatibility indefinitely.
+Pre-normalized experimental grammars are not a compatibility target and must not receive fallback parsing or lowering behavior. Because VSlices currently has one consumer, migration cost is preferred over carrying ambiguous compatibility indefinitely.
