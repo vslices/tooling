@@ -225,13 +225,12 @@ public sealed class NormalizeSemanticExtensionTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - normalize:
-                    target: input.Value
-                    intrinsic: normalize-boundary-probe
+              - normalize:
+                  target: input.Value
+                  intrinsic: normalize-boundary-probe
             """);
         return path;
     }
