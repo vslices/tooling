@@ -2,8 +2,6 @@ namespace VSlices.Tooling;
 
 internal enum VsirMutationKind
 {
-    Add,
-    Remove,
     Set
 }
 
@@ -23,83 +21,44 @@ internal static class VsirAuthoringContract
     public static IReadOnlyList<string> DomainTypeClassifications { get; } =
     [
         "value-object",
+        "entity",
         "identifier",
         "maintained",
         "aggregate-root"
     ];
 
-    public static IReadOnlyList<string> DomainTypeShapes { get; } =
-    [
-        "product",
-        "sum"
-    ];
-
-    public static HashSet<string> InferredTraits(string? classification) =>
-        classification switch
-        {
-            "identifier" => new(StringComparer.Ordinal) { "identifier" },
-            "maintained" => new(StringComparer.Ordinal) { "maintained" },
-            "aggregate-root" => new(StringComparer.Ordinal) { "aggregate-root", "entity" },
-            _ => new(StringComparer.Ordinal)
-        };
-
     public static IReadOnlyList<VsirPathContract> Discover(
         string? kind,
         string? classification)
     {
-        var result = new List<VsirPathContract>
-        {
-            new(
-                "tags",
-                "set<string>",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Add,
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                })
-        };
-
         if (string.IsNullOrWhiteSpace(kind))
         {
-            result.Add(new(
-                "kind",
-                "enum",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-                Kinds));
-            return result;
+            return
+            [
+                new(
+                    "kind",
+                    "enum",
+                    new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+                    Kinds)
+            ];
         }
 
         if (!kind.Equals(DomainTypeKind, StringComparison.Ordinal))
-            return result;
+            return [];
 
         if (string.IsNullOrWhiteSpace(classification))
         {
-            result.Add(new(
-                "classification",
-                "enum",
-                new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-                DomainTypeClassifications));
-            return result;
+            return
+            [
+                new(
+                    "classification",
+                    "enum",
+                    new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+                    DomainTypeClassifications)
+            ];
         }
 
-        result.Add(new(
-            "shape",
-            "enum",
-            new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-            DomainTypeShapes));
-
-        result.Add(new(
-            "traits",
-            "set<string>",
-            new HashSet<VsirMutationKind>
-            {
-                VsirMutationKind.Add,
-                VsirMutationKind.Remove,
-                VsirMutationKind.Set
-            }));
-
-        return result;
+        return [];
     }
 
     public static string? ValidateScalar(string path, string value, string? currentKind)
@@ -115,10 +74,6 @@ internal static class VsirAuthoringContract
                 "UPDATE007: 'classification' is not writable until kind 'domain-type' is established.",
             "classification" when !DomainTypeClassifications.Contains(value, StringComparer.Ordinal) =>
                 $"UPDATE008: Classification '{value}' is not valid for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeClassifications)}.",
-            "shape" when !string.Equals(currentKind, DomainTypeKind, StringComparison.Ordinal) =>
-                "UPDATE009: 'shape' is not writable until kind 'domain-type' is established.",
-            "shape" when !DomainTypeShapes.Contains(value, StringComparer.Ordinal) =>
-                $"UPDATE010: Shape '{value}' is not valid for kind 'domain-type'. Supported values: {string.Join(", ", DomainTypeShapes)}.",
             _ => null
         };
     }
