@@ -98,19 +98,13 @@ internal static class VsirMutationEngine
 
     private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation)
     {
-        if (mutation.Path.Contains('.'))
-        {
-            return $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract. " +
-                   "Deep paths require an explicit contract before they can be mutated.";
-        }
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: The current VSIR authoring frontier supports only 'set'.";
 
         return mutation.Path switch
         {
-            "tags" => ApplySetMutation(root, "tags", mutation),
-            "traits" => ApplySetMutation(root, "traits", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
-            "shape" => ApplyScalarMutation(root, "shape", mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
     }
@@ -120,9 +114,6 @@ internal static class VsirMutationEngine
         string path,
         VsirMutation mutation)
     {
-        if (mutation.Kind != VsirMutationKind.Set)
-            return $"UPDATE012: Semantic path '{path}' supports only 'set'.";
-
         var value = mutation.Value ?? string.Empty;
         if (string.IsNullOrWhiteSpace(value))
             return $"UPDATE005: Value for semantic path '{path}' must not be empty.";
@@ -131,78 +122,16 @@ internal static class VsirMutationEngine
         return null;
     }
 
-    private static string? ApplySetMutation(
-        YamlMappingNode root,
-        string path,
-        VsirMutation mutation)
-    {
-        var requested = ParseSetValues(mutation.Value);
-        if (requested.Error is not null)
-            return requested.Error.Replace("VALUE", path, StringComparison.Ordinal);
-
-        var current = Sequence(root, path).ToList();
-        switch (mutation.Kind)
-        {
-            case VsirMutationKind.Add:
-                foreach (var value in requested.Values!)
-                {
-                    if (!current.Contains(value, StringComparer.Ordinal))
-                        current.Add(value);
-                }
-                break;
-
-            case VsirMutationKind.Remove:
-                current.RemoveAll(value => requested.Values!.Contains(value, StringComparer.Ordinal));
-                break;
-
-            case VsirMutationKind.Set:
-                current = requested.Values!.ToList();
-                break;
-        }
-
-        if (current.Count == 0)
-        {
-            root.Children.Remove(new YamlScalarNode(path));
-            return null;
-        }
-
-        root.Children[new YamlScalarNode(path)] =
-            new YamlSequenceNode(current.Select(value => new YamlScalarNode(value)))
-            {
-                Style = YamlDotNet.Core.Events.SequenceStyle.Flow
-            };
-        return null;
-    }
-
-    private static (IReadOnlyList<string>? Values, string? Error) ParseSetValues(string? value)
-    {
-        if (value is null)
-            return (null, "UPDATE013: VALUE mutation requires a value.");
-
-        var values = value
-            .Split(',', StringSplitOptions.TrimEntries)
-            .ToArray();
-
-        if (values.Length == 0 || values.Any(string.IsNullOrWhiteSpace))
-            return (null, "UPDATE013: VALUE values must be non-empty.");
-
-        if (values.Distinct(StringComparer.Ordinal).Count() != values.Length)
-            return (null, "UPDATE014: VALUE values must be unique.");
-
-        return (values, null);
-    }
-
     private static string? ValidateCandidate(YamlMappingNode root)
     {
         var kind = Scalar(root, "kind");
         var classification = Scalar(root, "classification");
-        var shape = Scalar(root, "shape");
-        var traits = Sequence(root, "traits");
 
-        if (!string.IsNullOrWhiteSpace(kind) &&
-            !VsirAuthoringContract.Kinds.Contains(kind, StringComparer.Ordinal))
+        if (!string.IsNullOrWhiteSpace(kind))
         {
-            return $"UPDATE006: Unsupported VSIR kind '{kind}'.";
+            var error = VsirAuthoringContract.ValidateScalar("kind", kind, kind);
+            if (error is not null)
+                return error;
         }
 
         if (!string.IsNullOrWhiteSpace(classification))
@@ -210,23 +139,6 @@ internal static class VsirMutationEngine
             var error = VsirAuthoringContract.ValidateScalar("classification", classification, kind);
             if (error is not null)
                 return error;
-        }
-
-        if (!string.IsNullOrWhiteSpace(shape))
-        {
-            var error = VsirAuthoringContract.ValidateScalar("shape", shape, kind);
-            if (error is not null)
-                return error;
-        }
-
-        if (traits.Count > 0 && !string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
-            return "UPDATE011: 'traits' requires kind 'domain-type'.";
-
-        var inferred = VsirAuthoringContract.InferredTraits(classification);
-        var redundant = traits.FirstOrDefault(inferred.Contains);
-        if (redundant is not null)
-        {
-            return $"UPDATE015: Trait '{redundant}' is already implied by classification '{classification}'.";
         }
 
         return null;
@@ -247,24 +159,8 @@ internal static class VsirMutationEngine
     {
         foreach (var group in mutations.GroupBy(mutation => mutation.Path, StringComparer.Ordinal))
         {
-            if (group.Any(mutation => mutation.Kind == VsirMutationKind.Set) && group.Count() > 1)
-            {
-                return $"UPDATE018: Semantic path '{group.Key}' cannot combine 'set' with another mutation in the same transaction.";
-            }
-
-            var adds = group
-                .Where(mutation => mutation.Kind == VsirMutationKind.Add)
-                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
-                .ToHashSet(StringComparer.Ordinal);
-            var removes = group
-                .Where(mutation => mutation.Kind == VsirMutationKind.Remove)
-                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
-                .ToHashSet(StringComparer.Ordinal);
-            var overlap = adds.FirstOrDefault(removes.Contains);
-            if (overlap is not null)
-            {
-                return $"UPDATE019: Value '{overlap}' is both added to and removed from semantic path '{group.Key}' in the same transaction.";
-            }
+            if (group.Count() > 1)
+                return $"UPDATE018: Semantic path '{group.Key}' cannot be set more than once in the same transaction.";
         }
 
         return null;
@@ -274,19 +170,4 @@ internal static class VsirMutationEngine
         root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
             ? scalar.Value
             : null;
-
-    private static IReadOnlyList<string> Sequence(YamlMappingNode root, string key)
-    {
-        if (!root.Children.TryGetValue(new YamlScalarNode(key), out var node))
-            return [];
-
-        if (node is not YamlSequenceNode sequence)
-            return [];
-
-        return sequence.Children
-            .OfType<YamlScalarNode>()
-            .Select(child => child.Value ?? string.Empty)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .ToArray();
-    }
 }
