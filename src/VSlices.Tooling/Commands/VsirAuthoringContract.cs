@@ -99,7 +99,7 @@ internal static class VsirAuthoringContract
                 "state",
                 "map<property, declaration>",
                 VsirFrontierStatus.Required,
-                "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties support add, remove and set; derived state may declare a direct state source through state.<property>.from.",
+                "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Child properties such as state.Value support add, remove and set; derived state may declare a direct state source through state.<property>.from.",
                 new HashSet<VsirMutationKind>
                 {
                     VsirMutationKind.Add,
@@ -111,7 +111,7 @@ internal static class VsirAuthoringContract
                 "representation",
                 "map<property, declaration>",
                 VsirFrontierStatus.Required,
-                "Declares the observable form through which a valid Domain Type can be represented. Child properties support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.",
+                "Declares the observable form through which a valid Domain Type can be represented. Child properties such as representation.Value support add, remove and set; a direct state source may be declared through representation.<property>.from when no semantic mapping is required.",
                 new HashSet<VsirMutationKind>
                 {
                     VsirMutationKind.Add,
