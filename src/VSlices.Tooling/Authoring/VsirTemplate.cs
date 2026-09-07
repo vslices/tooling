@@ -17,30 +17,12 @@ internal static class VsirTemplate
 {
     public static VsirTemplateResult Create(
         string name,
-        string? kind,
-        string? classification,
-        IReadOnlyList<string>? tags) =>
-        Create(name, kind, null, classification, tags);
-
-    public static VsirTemplateResult Create(
-        string name,
         string? kind = null,
         string? shape = null,
-        string? classification = null,
-        IReadOnlyList<string>? tags = null)
+        string? classification = null)
     {
         if (string.IsNullOrWhiteSpace(name))
             return VsirTemplateResult.Failure("NEW001: VSIR concept name is required.");
-
-        var suppliedTags = tags ?? [];
-        var explicitTags = suppliedTags
-            .Where(value => !string.IsNullOrWhiteSpace(value) && !ContainsLineBreak(value))
-            .Select(value => value.Trim())
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        if (explicitTags.Length != suppliedTags.Count)
-            return VsirTemplateResult.Failure("NEW008: Tags must be non-empty, single-line and unique.");
 
         var hasKind = !string.IsNullOrWhiteSpace(kind);
 
@@ -88,9 +70,6 @@ internal static class VsirTemplate
 
         lines.Add($"name: {name}");
 
-        if (explicitTags.Length > 0)
-            lines.Add($"tags: [{string.Join(", ", explicitTags.Select(QuoteYamlScalar))}]");
-
         if (shape is not null)
             lines.Add($"shape: {shape}");
 
@@ -99,10 +78,4 @@ internal static class VsirTemplate
 
         return VsirTemplateResult.Success(string.Join(Environment.NewLine, lines) + Environment.NewLine);
     }
-
-    private static bool ContainsLineBreak(string value) =>
-        value.Contains('\r') || value.Contains('\n');
-
-    private static string QuoteYamlScalar(string value) =>
-        $"'{value.Replace("'", "''")}'";
 }
