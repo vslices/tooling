@@ -103,14 +103,12 @@ public sealed class ShapeAuthoringTests
         var variants = Assert.Single(frontier, item => item.Path == "variants");
         Assert.Equal(VsirFrontierStatus.Required, variants.Status);
         Assert.Equal("map<variant, declaration>", variants.ValueKind);
-        Assert.Equal(
-            new HashSet<VsirMutationKind>
-            {
+        Assert.True(variants.Operations.SetEquals(
+            [
                 VsirMutationKind.Add,
                 VsirMutationKind.Remove,
                 VsirMutationKind.Set
-            },
-            variants.Operations);
+            ]));
     }
 
     [Fact]
