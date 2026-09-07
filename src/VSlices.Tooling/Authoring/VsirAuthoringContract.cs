@@ -35,18 +35,17 @@ internal static class VsirAuthoringContract
         "product"
     ];
 
-    // Classification is deliberately narrower than the historical authoring
-    // experiment. Identifier/refined semantics are expressed as traits on the
-    // currently evidenced value-object classification, matching canonical VSIR.
+    // Classifications are semantic identities, not traits. TicketId is the
+    // concrete corpus witness for identifier classification.
     public static IReadOnlyList<string> DomainTypeClassifications { get; } =
     [
-        "value-object"
+        "value-object",
+        "identifier"
     ];
 
     public static IReadOnlyList<string> ExplicitDomainTypeTraits { get; } =
     [
         "transform",
-        "identifier",
         "refined"
     ];
 
@@ -106,7 +105,7 @@ internal static class VsirAuthoringContract
             "classification",
             "enum",
             VsirFrontierStatus.Required,
-            "Declares the base semantic class of the Domain Type. The current canonical end-to-end surface admits value-object; additional capabilities are expressed through traits.",
+            "Declares the semantic class of the Domain Type. The currently evidenced end-to-end surface admits value-object and identifier.",
             new HashSet<VsirMutationKind> { VsirMutationKind.Set },
             DomainTypeClassifications));
 
@@ -122,8 +121,8 @@ internal static class VsirAuthoringContract
             "set<string>",
             hasTransform ? VsirFrontierStatus.Optional : VsirFrontierStatus.Required,
             hasTransform
-                ? "Declares additional semantic capabilities beyond the required transform capability. Identifier and refined are currently evidenced end-to-end."
-                : "Declares semantic capabilities. The current canonical Domain Type surface requires transform; identifier and refined may add further obligations.",
+                ? "Declares additional semantic capabilities beyond the required transform capability. Refined is currently evidenced end-to-end."
+                : "Declares semantic capabilities. The current canonical Domain Type surface requires transform; refined may add further obligations.",
             new HashSet<VsirMutationKind>
             {
                 VsirMutationKind.Add,
@@ -132,13 +131,13 @@ internal static class VsirAuthoringContract
             },
             ExplicitDomainTypeTraits));
 
-        if (explicitTraits.Contains("identifier", StringComparer.Ordinal))
+        if (classification.Equals("identifier", StringComparison.Ordinal))
         {
             result.Add(new(
                 "equality",
                 "strategy",
                 VsirFrontierStatus.Required,
-                "Declares the authoritative equality strategy required by identifier semantics.",
+                "Declares the authoritative equality strategy required by identifier classification.",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
@@ -173,8 +172,8 @@ internal static class VsirAuthoringContract
                 result.Add(new(
                     "construction",
                     "sequence<step>",
-                    VsirFrontierStatus.Required,
-                    "Declares the ordered semantic conditions and steps that establish a valid Domain Type from transform input. Establish the complete ordered sequence with set.",
+                    VsirFrontierStatus.Optional,
+                    "Declares ordered semantic conditions or steps beyond direct deterministic input-to-state construction. Omit it when product input already establishes state directly, as in TicketId.",
                     new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
             }
         }
