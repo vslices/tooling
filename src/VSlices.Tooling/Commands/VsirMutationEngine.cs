@@ -87,7 +87,11 @@ internal static class VsirMutationEngine
 
             var kind = Scalar(root, "kind");
             var classification = Scalar(root, "classification");
-            return VsirAuthoringContract.Discover(kind, classification);
+            return VsirAuthoringContract.Discover(
+                kind,
+                classification,
+                HasKey(root, "state"),
+                HasKey(root, "representation"));
         }
         catch (Exception ex)
         {
@@ -100,6 +104,7 @@ internal static class VsirMutationEngine
         mutation.Path switch
         {
             "tags" => ApplySetMutation(root, "tags", mutation),
+            "traits" => ApplySetMutation(root, "traits", mutation),
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
@@ -189,6 +194,7 @@ internal static class VsirMutationEngine
     {
         var kind = Scalar(root, "kind");
         var classification = Scalar(root, "classification");
+        var traits = Sequence(root, "traits");
 
         if (!string.IsNullOrWhiteSpace(kind))
         {
@@ -203,6 +209,9 @@ internal static class VsirMutationEngine
             if (error is not null)
                 return error;
         }
+
+        if (traits.Count > 0 && !string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
+            return "UPDATE011: 'traits' requires kind 'domain-type'.";
 
         return null;
     }
@@ -237,7 +246,7 @@ internal static class VsirMutationEngine
             if (overlap is not null)
                 return $"UPDATE019: Value '{overlap}' is both added to and removed from semantic path '{group.Key}' in the same transaction.";
 
-            if (!group.Key.Equals("tags", StringComparison.Ordinal) && group.Count() > 1)
+            if (group.Key is not ("tags" or "traits") && group.Count() > 1)
                 return $"UPDATE018: Semantic path '{group.Key}' cannot be set more than once in the same transaction.";
         }
 
@@ -248,6 +257,9 @@ internal static class VsirMutationEngine
         root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
             ? scalar.Value
             : null;
+
+    private static bool HasKey(YamlMappingNode root, string key) =>
+        root.Children.ContainsKey(new YamlScalarNode(key));
 
     private static IReadOnlyList<string> Sequence(YamlMappingNode root, string key)
     {
