@@ -97,7 +97,18 @@ public sealed class VsirMetadataAuthoringTests
               Value: string
             """;
 
-        var tagged = semantic + "tags: [ticket, identity]\n";
+        var tagged = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            shape: product
+            classification: value-object
+            state:
+              Value: string
+            representation:
+              Value: string
+            tags: [ticket, identity]
+            """;
 
         var baseline = VsirParser.Parse(semantic);
         var withTags = VsirParser.Parse(tagged);
