@@ -33,9 +33,9 @@ internal static class VsirGrammarDiscovery
                 ]),
             new(
                 "map",
-                "{map: {source: <semantic-reference>, bind: <name>, value: <expression>}}",
+                "{map: {source: <expression>, bind: <name>, value: <expression>}}",
                 [
-                    new("source", "semantic-reference"),
+                    new("source", "expression"),
                     new("bind", "name"),
                     new("value", "expression")
                 ]),
