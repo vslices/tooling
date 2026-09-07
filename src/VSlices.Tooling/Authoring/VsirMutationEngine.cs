@@ -289,6 +289,7 @@ internal static class VsirMutationEngine
 
             var allowedSteps = new HashSet<string>(StringComparer.Ordinal)
             {
+                "normalize",
                 "ensure",
                 "resolve",
                 "apply",
@@ -794,8 +795,13 @@ internal static class VsirMutationEngine
         if (mutation.Kind != VsirMutationKind.Set)
             return "UPDATE012: Semantic path 'equality' supports only 'set'.";
 
-        if (!string.Equals(Scalar(root, "classification"), "identifier", StringComparison.Ordinal))
-            return "UPDATE031: 'equality' authoring is available only when classification 'identifier' is established.";
+        var classification = Scalar(root, "classification");
+        var traits = Sequence(root, "traits");
+        if (!string.Equals(classification, "identifier", StringComparison.Ordinal) &&
+            !traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            return "UPDATE031: 'equality' authoring requires identifier classification or explicit trait 'identifier'.";
+        }
 
         var parsed = ParseEqualityDeclaration(mutation.Value);
         if (parsed.Error is not null)
@@ -997,8 +1003,12 @@ internal static class VsirMutationEngine
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
 
-        if (HasKey(root, "equality") && !string.Equals(classification, "identifier", StringComparison.Ordinal))
-            return "UPDATE031: 'equality' authoring requires classification 'identifier'.";
+        if (HasKey(root, "equality") &&
+            !string.Equals(classification, "identifier", StringComparison.Ordinal) &&
+            !traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            return "UPDATE031: 'equality' authoring requires identifier classification or explicit trait 'identifier'.";
+        }
 
         if (HasKey(root, "refined-from") && !traits.Contains("refined", StringComparer.Ordinal))
             return "UPDATE048: 'refined-from' authoring requires explicit trait 'refined'.";
