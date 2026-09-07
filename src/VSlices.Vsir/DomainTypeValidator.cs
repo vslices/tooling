@@ -343,16 +343,6 @@ public static class DomainTypeValidator
             IReadOnlySet<string> bindings,
             out VsirType? type)
         {
-            if (!document.Construction.Input.IsScalar)
-            {
-                var matchingInput = document.Construction.Input.Fields.SingleOrDefault(x => x.Name == stateName);
-                if (matchingInput is not null)
-                {
-                    type = matchingInput.Type;
-                    return true;
-                }
-            }
-
             var refine = document.Construction.Steps
                 .OfType<RefineStep>()
                 .SingleOrDefault(x => x.As == "state." + stateName);
@@ -367,6 +357,16 @@ public static class DomainTypeValidator
                 if (bindings.Contains(refine.Value))
                 {
                     type = null;
+                    return true;
+                }
+            }
+
+            if (!document.Construction.Input.IsScalar)
+            {
+                var matchingInput = document.Construction.Input.Fields.SingleOrDefault(x => x.Name == stateName);
+                if (matchingInput is not null)
+                {
+                    type = matchingInput.Type;
                     return true;
                 }
             }
