@@ -101,7 +101,7 @@ aggregate-root
 
 Tags are different: they are organizational and associative metadata, so `--tags` does not require a kind or classification and does not imply either one.
 
-No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, values, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
+No other VSIR semantic declaration is currently implemented through `new vsir`. In particular, `shape`, `traits`, state, representation, values, equality, input and construction remain outside the current `new vsir` surface until their contracts are introduced deliberately.
 
 ## 4. Tags
 
@@ -236,7 +236,7 @@ traits
   values: transform
 ```
 
-A maintained Domain Type activates one additional required surface:
+A maintained Domain Type activates additional required surfaces:
 
 ```yaml
 vsir: 0.1
@@ -262,12 +262,28 @@ values
   value kind: map<member, state>
   operations: add, remove, set
 
+equality
+  status: required
+  meaning: Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.
+  value kind: strategy
+  operations: not implemented
+
 traits
   status: optional
   values: transform
 ```
 
-`classification: maintained` semantically implies the `maintained` trait, so `maintained` is not offered as an explicit value under `traits`. Its effective contract is reflected instead by the required `values` frontier.
+`classification: maintained` requires `state`, `representation`, and `equality`, and semantically implies the `maintained` trait. The implied trait is reflected by the required `values` frontier; `maintained` is not offered as an explicit value under `traits`.
+
+The current evidenced `IdentityType` equality contract is:
+
+```yaml
+equality:
+  intrinsic: ordinal-equals
+  by: state.Name
+```
+
+Discovery exposes `equality` as a required semantic obligation, but equality mutation is intentionally not implemented yet. The CLI therefore does not invent a generic equality-editing grammar before that authoring contract is specified.
 
 The `values` line on `traits` is authoritative for the explicit trait vocabulary currently supported by Tooling. At this stage the only explicitly authorable trait is:
 
@@ -298,7 +314,7 @@ construction
 
 These entries are obligations derived from the effective trait, not optional authoring suggestions. They disappear from the immediate frontier once the corresponding sections exist. Their mutation syntax remains intentionally unavailable until the input and construction authoring contracts are specified; discovery exposes the obligation without inventing an editing grammar.
 
-`state`, `representation`, and `values` where applicable remain visible after their first content is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
+`state`, `representation`, and `values` where applicable remain visible after their first content is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing. `equality` is likewise reported as a required maintained contract even though its authoring operations are not yet exposed.
 
 The current structured state/representation authoring subset operates on child properties rather than replacing a whole map:
 
@@ -433,6 +449,8 @@ representation.<property>.from
   -> mutually exclusive with representation mapping
 ```
 
+`equality` is currently a discovered required contract for `classification: maintained`, but it is not yet writable through `update vsir`.
+
 Examples:
 
 ```text
@@ -511,6 +529,7 @@ name
        -> maintained
             -> state / representation
             -> values
+            -> equality (required, authoring not implemented)
   -> optional explicit traits
        -> transform
             -> required input
@@ -536,7 +555,8 @@ discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
   -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
-  -> after maintained, exposes state, representation and values as required writable maps
+  -> after maintained, exposes state, representation, values and equality as required contracts
+  -> equality currently reports operations: not implemented
   -> explains the direct state-source relation available under both state and representation
   -> after classification, exposes traits as optional and transform as the currently available explicit value
   -> when transform is effective, exposes missing input and construction as required obligations
@@ -553,10 +573,10 @@ update vsir
   -> can establish/change/remove state.<property>.from
   -> can establish/change/remove representation.<property>.from
   -> rejects representation declarations that combine from and mapping
-  -> does not yet author representation mapping, input or construction
+  -> does not yet author equality, representation mapping, input or construction
 ```
 
-Input/construction authoring, representation mapping authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
+Equality authoring, input/construction authoring, representation mapping authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -566,7 +586,9 @@ Input/construction authoring, representation mapping authoring, deeper field dec
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
 - `maintained` is an accepted Domain Type classification;
 - `value-object`, `entity`, `maintained`, and `aggregate-root` expose `state` and `representation` as required writable maps;
+- `classification: maintained` requires `equality`;
 - `classification: maintained` implies the `maintained` trait and exposes `values` as a required writable map;
+- discovery reports `equality` as required for `maintained` while equality mutation remains unavailable;
 - `maintained` is not offered as an explicit trait because it is classification-implied;
 - maintained `values` supports add/remove/set at `values.<member>`;
 - add/set of a maintained member requires an explicit non-empty `state` mapping;
