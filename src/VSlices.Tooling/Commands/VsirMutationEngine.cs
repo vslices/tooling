@@ -128,6 +128,14 @@ internal static class VsirMutationEngine
             };
         }
 
+        if (TryChildPath(mutation.Path, "input", out var inputField, out var inputTail))
+        {
+            if (inputTail is not null)
+                return $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+
+            return ApplyInputFieldMutation(root, inputField, mutation);
+        }
+
         if (TryChildPath(mutation.Path, "variants", out var variantName, out var variantTail))
         {
             if (!string.Equals(Scalar(root, "shape"), "sum", StringComparison.Ordinal))
@@ -154,9 +162,158 @@ internal static class VsirMutationEngine
             "classification" => ApplyScalarMutation(root, "classification", mutation),
             "state" => ApplyEmptySharedSumMapMutation(root, "state", mutation),
             "representation" => ApplyEmptySharedSumMapMutation(root, "representation", mutation),
+            "input" => ApplyInputContractMutation(root, mutation),
+            "construction" => ApplyConstructionMutation(root, mutation),
             "equality" => ApplyEqualityMutation(root, mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
+    }
+
+    private static string? RequireTransform(YamlMappingNode root, string path)
+    {
+        var traits = Sequence(root, "traits");
+        return traits.Contains("transform", StringComparer.Ordinal)
+            ? null
+            : $"UPDATE039: Semantic path '{path}' is writable only when explicit trait 'transform' is established.";
+    }
+
+    private static string? ApplyInputFieldMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires an input property name.";
+
+        var inputKey = new YamlScalarNode("input");
+        if (root.Children.TryGetValue(inputKey, out var existingInput) && existingInput is not YamlMappingNode)
+            return "UPDATE040: Child input authoring requires structured product input; replace scalar input through '--set input=<type>' first if needed.";
+
+        return ApplyMapFieldMutation(root, "input", fieldName, mutation);
+    }
+
+    private static string? ApplyInputContractMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        var key = new YamlScalarNode("input");
+        var exists = root.Children.ContainsKey(key);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return "UPDATE021: Semantic property 'input' already exists; use 'set' to replace the complete input contract.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return "UPDATE023: Semantic property 'input' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            root.Children.Remove(key);
+            return null;
+        }
+
+        var parsed = ParseInputDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[key] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlNode? Declaration, string? Error) ParseInputDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'input' requires a scalar semantic type or product mapping declaration.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1)
+                return (null, "UPDATE040: Input must contain exactly one semantic declaration.");
+
+            var node = yaml.Documents[0].RootNode;
+            if (node is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
+                return (scalar, null);
+
+            if (node is YamlMappingNode mapping && mapping.Children.Count > 0)
+                return (mapping, null);
+
+            return (null, "UPDATE040: Input must be a non-empty scalar semantic type or non-empty product mapping.");
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE040: Could not parse input declaration: {ex.Message}");
+        }
+    }
+
+    private static string? ApplyConstructionMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'construction' supports only 'set'.";
+
+        var parsed = ParseConstructionDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[new YamlScalarNode("construction")] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlSequenceNode? Declaration, string? Error) ParseConstructionDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'construction' requires an ordered sequence of semantic steps.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlSequenceNode sequence)
+                return (null, "UPDATE041: Construction must be a YAML sequence of semantic steps.");
+
+            if (sequence.Children.Count == 0)
+                return (null, "UPDATE041: Construction must contain at least one semantic step.");
+
+            var allowedSteps = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "ensure",
+                "resolve",
+                "apply",
+                "refine"
+            };
+
+            foreach (var stepNode in sequence.Children)
+            {
+                if (stepNode is not YamlMappingNode step || step.Children.Count != 1)
+                    return (null, "UPDATE041: Every construction item must declare exactly one semantic step.");
+
+                var stepKey = step.Children.Keys.SingleOrDefault() as YamlScalarNode;
+                if (stepKey is null || string.IsNullOrWhiteSpace(stepKey.Value) || !allowedSteps.Contains(stepKey.Value))
+                    return (null, $"UPDATE041: Unsupported construction step. Supported steps: {string.Join(", ", allowedSteps)}.");
+
+                if (step.Children.Values.Single() is not YamlMappingNode)
+                    return (null, $"UPDATE041: Construction step '{stepKey.Value}' must use a mapping declaration.");
+            }
+
+            return (sequence, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE041: Could not parse construction declaration: {ex.Message}");
+        }
     }
 
     private static string? ApplyMapFieldMutation(
@@ -799,6 +956,26 @@ internal static class VsirMutationEngine
             return $"UPDATE026: Trait '{unsupportedTrait}' is not currently available for explicit authoring. " +
                    $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
         }
+
+        if ((HasKey(root, "input") || HasKey(root, "construction")) &&
+            !traits.Contains("transform", StringComparer.Ordinal))
+        {
+            return "UPDATE039: Root 'input' and 'construction' are valid only when explicit trait 'transform' is established.";
+        }
+
+        if (HasKey(root, "input"))
+        {
+            var inputNode = root.Children[new YamlScalarNode("input")];
+            if (inputNode is YamlScalarNode scalar && string.IsNullOrWhiteSpace(scalar.Value))
+                return "UPDATE040: Input scalar semantic type must not be empty.";
+            if (inputNode is YamlMappingNode mapping && mapping.Children.Count == 0)
+                return "UPDATE040: Structured transform input must contain at least one property.";
+            if (inputNode is not (YamlScalarNode or YamlMappingNode))
+                return "UPDATE040: Input must be a scalar semantic type or product mapping.";
+        }
+
+        if (HasKey(root, "construction") && root.Children[new YamlScalarNode("construction")] is not YamlSequenceNode)
+            return "UPDATE041: Construction must be a sequence of semantic steps.";
 
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
