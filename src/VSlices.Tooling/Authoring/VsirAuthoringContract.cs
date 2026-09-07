@@ -58,20 +58,7 @@ internal static class VsirAuthoringContract
         bool hasInput,
         bool hasConstruction)
     {
-        var result = new List<VsirPathContract>
-        {
-            new(
-                "tags",
-                "set<string>",
-                VsirFrontierStatus.Optional,
-                "Organizational labels used to associate and search artifacts. Tags do not imply semantic behavior.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Add,
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                })
-        };
+        var result = new List<VsirPathContract>();
 
         if (string.IsNullOrWhiteSpace(kind))
         {
