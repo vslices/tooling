@@ -23,6 +23,7 @@ public sealed class MaintainedAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: IdentityType
+            shape: product
             classification: maintained
             """;
 
