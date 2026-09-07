@@ -130,7 +130,17 @@ TicketCode
   traits: [transform, identifier]
 ```
 
-Both establish identifier capability. Therefore both require explicit equality and both lower to `Identifier<T, T.Repr>`.
+Both establish identifier capability. Therefore both require explicit equality, but target contracts are lowered from the primitive semantic facts independently:
+
+```text
+kind: domain-type
+  -> DomainType<T, T.Repr>
+
+identifier classification OR identifier trait
+  -> Identifier<T>
+```
+
+The Framework convenience composite `Identifier<T, T.Repr>` can still be used by human code, but canonical lowering does not select it because doing so would conflate domain-type membership with identifier capability.
 
 Current obligations include:
 
@@ -177,7 +187,7 @@ One semantic `apply` covers both direct and mapped/container shapes; target-spec
 
 ## 9. Identifier and refined semantics
 
-Identifier capability can be established through classification or trait. These declarations are structurally distinct but currently converge on the same discrete-space obligation and C# Framework contract.
+Identifier capability can be established through classification or trait. These declarations are structurally distinct but converge on the same discrete-space obligation and primitive `Identifier<T>` C# Framework contract. Domain-type membership is lowered independently as `DomainType<T, T.Repr>`.
 
 Examples:
 
@@ -250,7 +260,8 @@ TicketCode
 
 SrvIdentityId
   -> identifier classification + refined trait,
-     scalar input, refined-from, semantic equality, stringify, refine
+     scalar input, refined-from, semantic equality, stringify, refine,
+     DomainType + Identifier emitted as independent target contracts
 ```
 
 Unknown semantics remain unknown; Tooling does not infer target or domain authority from convenience conventions.
