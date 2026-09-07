@@ -56,7 +56,7 @@ internal static class UpdateCommands
     /// <param name="artifact">VSIR symbol or path.</param>
     /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state/representation/input properties, local from relations, sum variants and maintained values.</param>
     /// <param name="remove">Remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties, local from relations, input properties, variants and maintained members may use path alone.</param>
-    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include kind, shape, classification, state, representation, input, construction, equality, traits, variants and maintained values.</param>
+    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include kind, shape, classification, state, representation, representation.&lt;property&gt;.mapping, input, construction, equality, traits, variants and maintained values.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -82,7 +82,7 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
-        var result = VsirMutationEngine.Apply(source, mutations);
+        var result = VsirMutationPipeline.Apply(source, mutations);
         if (!result.IsSuccess)
         {
             TerminalOutput.Error(result.Error!);
