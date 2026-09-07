@@ -1,14 +1,12 @@
 # Semantic authoring affordances
 
-Status: experimental design principle for the VSlices CLI authoring protocol.
+Status: experimental interaction contract implemented by the current VSlices CLI authoring surface.
 
-This document defines the interaction model between `new vsir`, `discovery vsir`, and `update vsir`. It is a CLI interaction contract. VSIR language semantics remain owned by `vslices/intermediate-representation`.
+This document defines the interaction model between `new vsir`, `discovery vsir`, and `update vsir`. VSIR language semantics remain owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). Target realization knowledge remains owned by [`vslices/ruleset`](https://github.com/vslices/ruleset). The migration/reconstruction traversal that uses these capabilities is described by [`vslices/planifications`](https://github.com/vslices/planifications).
 
 ## 1. Principle
 
-Progressive VSIR authoring should be navigable from the current artifact state without requiring a human or AI client to know the complete authoring grammar in advance.
-
-The protocol is:
+Progressive VSIR authoring is navigable from the current artifact state without requiring a human or AI client to know the complete authoring grammar in advance.
 
 ```text
 new
@@ -16,11 +14,12 @@ new
 
 discovery
   -> expose the semantic decisions currently available
-  -> expose enough grammar to express the value of those decisions
+  -> expose command templates for those decisions
+  -> expose the admitted grammar for structured values
 
 update
   -> execute one or more advertised semantic transitions atomically
-  -> produce the next valid progressive state
+  -> produce the next progressive state
 
 discovery
   -> evaluate the new state again
@@ -37,192 +36,45 @@ ArtifactState
   -> ArtifactState'
 ```
 
-This is analogous to hypermedia-driven navigation: the current state advertises the transitions a client may follow next. The CLI applies the same idea to semantic authoring rather than HTTP resource navigation.
-
-The governing rule is:
+This is analogous to hypermedia-driven navigation: the current state advertises transitions the client may follow next, but the resource being navigated is a semantic state space rather than an HTTP resource graph.
 
 > An authoring client should not need to infer a valid next operation when the current state can advertise it.
 
-The same rule applies recursively to values:
+The same applies recursively to values:
 
 > An authoring client should not need an embedded copy of a value grammar when discovery can advertise the forms admitted for that value.
 
-This recursive property is called **grammar-driven discovery**.
+This recursive property is **grammar-driven discovery**.
 
 ## 2. Semantic affordance
 
-A discovery entry is not only documentation. It is an executable authoring affordance.
+A discovery entry is an executable authoring affordance, not merely documentation.
 
-An affordance provides:
+An affordance carries:
 
 ```text
 path
-  -> which semantic decision is being addressed
-
 status
-  -> whether the decision is required or optional
-
 meaning
-  -> what semantic knowledge the decision establishes
-
 value kind
-  -> what semantic category of value is accepted
-
-allowed values
-  -> closed vocabulary when one is currently established
-
+allowed values, when closed
 operations
-  -> which transition operations are valid from the current state
-
-command template
-  -> how to invoke the transition through the CLI
-
-value grammar
-  -> when the value is structured, which semantic forms may be composed to produce it
+command templates
+value grammar, when structured
 ```
 
-For example:
+Example:
 
 ```text
 state
   status: required
-  value kind: map<property, declaration>
+  value kind: semantic-field-declaration
   operations: set
   command:
     vslices update vsir Location --set "state.<property>=<semantic-field-declaration>"
 ```
 
-A concrete existing relation may advertise its own local transition:
-
-```text
-representation.Value.mapping
-  status: optional
-  value kind: expression
-  operations: set
-  command:
-    vslices update vsir StreetExtension --set "representation.Value.mapping=<expression>"
-```
-
-For a set-valued surface, multiple operations remain semantically meaningful:
-
-```text
-traits
-  status: optional
-  value kind: set<string>
-  operations: add, remove, set
-  command:
-    vslices update vsir Location --set "traits=<set<string>>"
-  command:
-    vslices update vsir Location --add "traits=<value>"
-  command:
-    vslices update vsir Location --remove "traits=<value>"
-```
-
-Command templates are emitted by the current CLI and are derived from the same discovered affordance rather than maintained as separate prose examples.
-
-## 3. Operation semantics
-
-Operations describe semantic intent rather than incidental YAML existence.
-
-### `set`
-
-`set` means:
-
-> Establish this semantic assertion with the supplied value.
-
-For an ordinary semantic property or named map member, `set` is valid whether that assertion is being established for the first time or replacing an existing value.
-
-```text
-state.Extensions absent
-  + set state.Extensions={sequence: StreetExtension}
-  -> establish the assertion
-
-state.Extensions present
-  + set state.Extensions={sequence: AnotherExtension}
-  -> replace the assertion
-```
-
-A client does not select `add` merely because a YAML mapping key does not yet exist.
-
-Internally, Tooling may still lower an establishment into an implementation-specific map insertion. That lowering is not part of the public authoring semantics.
-
-### `add`
-
-`add` is reserved for collection semantics where union is meaningfully different from replacement.
-
-Current examples:
-
-```text
-tags
-traits
-```
-
-Attempting `add` on an ordinary semantic assertion fails closed and instructs the caller to use `set`.
-
-### `remove`
-
-`remove` withdraws a semantic assertion or collection member only when the current contract permits doing so.
-
-Required facts may therefore expose `set` without `remove`.
-
-### Ordered structures
-
-Ordered structures without stable member identity expose whole-boundary `set`.
-
-Current example:
-
-```text
-construction
-  -> set complete ordered sequence
-```
-
-## 4. Discovery is state dependent
-
-Discovery is evaluated from the current artifact, not from a static list of all possible VSIR properties.
-
-Examples:
-
-```text
-classification: maintained
-  -> equality becomes required
-  -> values becomes required
-```
-
-```text
-traits contains transform
-  -> input becomes required while absent
-  -> construction becomes required while absent
-```
-
-```text
-representation.Value has from
-  -> mapping is not an available affordance
-```
-
-```text
-representation.Value has mapping
-  -> from is not an available affordance
-```
-
-After every successful update, a client can call discovery again and receive the next authorized frontier.
-
-## 5. Grammar-driven discovery
-
-Some semantic decisions accept scalar or closed values. For these, `value kind` and `allowed values` may be sufficient.
-
-Other decisions accept a structured semantic value. In those cases, discovery must be able to expose the admitted grammar of that value rather than reducing it to an opaque placeholder such as `<mapping>` or requiring the client to know the complete VSIR expression grammar in advance.
-
-The distinction is:
-
-```text
-artifact affordance
-  -> what semantic assertion can be established now
-
-value grammar affordance
-  -> which semantic forms can be composed to express the value of that assertion
-```
-
-For example:
+A local representation decision may advertise:
 
 ```text
 representation.Street.mapping
@@ -231,36 +83,129 @@ representation.Street.mapping
   operations: set
   command:
     vslices update vsir Location --set "representation.Street.mapping=<expression>"
-
-  expression forms:
-    stringify:
-      {stringify: <semantic-reference>}
-
-    represent:
-      {represent: <semantic-reference>}
-
-    select:
-      {select: {source: <expression>, field: <field>}}
-
-    map:
-      {map: {source: <expression>, bind: <name>, value: <expression>}}
 ```
 
-The grammar is compositional. A placeholder whose value kind is itself structured can recursively expose its admitted forms.
-
-For example:
+True set-valued surfaces retain collection operations:
 
 ```text
-select
-  source: expression
-  field: field
-
-expression
-  -> represent
-       value: semantic-reference
+traits
+  operations: set, add, remove
 ```
 
-allows a client to construct:
+## 3. Operation semantics
+
+Operations describe semantic intent rather than incidental YAML storage mechanics.
+
+### `set`
+
+`set` means **establish this semantic assertion with the supplied value**.
+
+For an ordinary semantic property or named map member, `set` creates the assertion when absent and replaces it when already present.
+
+```text
+state.Extensions absent
+  + set state.Extensions={sequence: StreetExtension}
+  -> establish
+
+state.Extensions present
+  + set state.Extensions={sequence: AnotherExtension}
+  -> replace
+```
+
+Internal mutation code may realize the first case as a mapping insertion. That is not part of the public CLI semantics.
+
+### `add`
+
+`add` is reserved for collection semantics where union is meaningful independently of replacement.
+
+Current examples:
+
+```text
+tags
+traits
+```
+
+`add` against an ordinary assertion fails closed and instructs the client to use `set`.
+
+### `remove`
+
+`remove` withdraws an assertion or collection member only when the current contract permits it. Required facts may therefore expose `set` without `remove`.
+
+### Ordered structures
+
+Ordered structures without stable member identity use whole-boundary `set`.
+
+Current example:
+
+```text
+construction
+  -> set complete ordered sequence
+```
+
+## 4. State-driven discovery
+
+Discovery is computed from the current artifact, not from a static list of all legal VSIR properties.
+
+Examples:
+
+```text
+classification: maintained
+  -> equality required
+  -> values required
+
+traits contains transform
+  -> input required while absent
+  -> construction required while absent
+
+representation.Value has from
+  -> mapping unavailable
+
+representation.Value has mapping
+  -> from unavailable
+```
+
+Discovery may also project a candidate without persistence:
+
+```text
+vslices discovery vsir StreetName --set kind=domain-type
+```
+
+Projection uses the same public mutation/candidate-validation path as `update`, then discards the candidate.
+
+## 5. Grammar-driven discovery
+
+Structured semantic values are not exposed as opaque YAML blobs. Discovery advertises the grammar admitted for those values.
+
+The distinction is:
+
+```text
+artifact affordance
+  -> what semantic assertion can be established now
+
+value grammar affordance
+  -> which semantic forms can be composed to express its value
+```
+
+For a representation mapping, discovery currently advertises expression forms including:
+
+```text
+stringify
+  {stringify: <semantic-reference>}
+
+represent
+  {represent: <semantic-reference>}
+
+select
+  {select: {source: <expression>, field: <field>}}
+
+map
+  {map: {source: <expression>, bind: <name>, value: <expression>}}
+
+intrinsic
+  {intrinsic: <ruleset-intrinsic>, ...}
+```
+
+The grammar is compositional. `select.source` is an `expression`, so it can itself be a `represent` expression:
 
 ```yaml
 select:
@@ -269,76 +214,28 @@ select:
   field: Value
 ```
 
-without having to infer that `represent` belongs inside `select.source`.
-
-This matters semantically. Under the current VSIR language contract:
+This distinction is semantic, not cosmetic:
 
 ```text
 Select(Represent(state.Street), Value)
-```
-
-is not equivalent by default to:
-
-```text
+  !=
 Select(state.Street, Value)
 ```
 
-Therefore discovery for `select.source` must describe it as an `expression`, not merely as a state reference. Tooling must not insert an implicit `represent` on behalf of the author.
+unless an explicit rule proves equivalence. Discovery therefore advertises valid composition but does not choose the domain decision on behalf of the author.
 
-Grammar-driven discovery advertises **valid forms**, not the correct domain decision. It may tell the client that `select`, `represent`, `stringify`, or `map` are admitted expression forms; it must not decide that `state.Street` should be represented and then have `Value` selected unless that knowledge is independently justified by the artifact being reconstructed.
+The current grammar-driven layer also advertises structured semantic field declarations and the construction forms exercised by the consumer corpus, including `ensure`, `resolve`, direct `apply`, mapped `apply`, and state `refine`.
 
-Conceptually:
+Grammar-driven discovery is constrained semantic authority, not generic YAML-schema introspection.
 
-```text
-artifact state
-  -> discovery
-       -> semantic affordance
-            -> value kind
-                 -> admitted grammar forms
-                      -> nested value kinds
-                           -> admitted grammar forms
-```
+## 6. Atomicity and fail-closed behavior
 
-This recursion stops when a value kind is scalar, a closed vocabulary, a semantic reference, or another terminal form known to the active authoring contract.
-
-Grammar-driven discovery must remain constrained by semantic authority. It is not generic YAML-schema introspection and it must not expose syntax merely because a parser happens to accept it.
-
-## 6. Projection
-
-`discovery` may project a candidate transition without persistence:
-
-```text
-vslices discovery vsir StreetName --set kind=domain-type
-```
-
-Projection uses the same public mutation pipeline and candidate-validation path as `update`, then discards the candidate.
-
-This lets a client ask:
-
-> If I make this decision, what semantic affordances become available next?
-
-without mutating the artifact.
-
-Grammar discovery and state projection are complementary:
-
-```text
-value grammar
-  -> explains how one currently advertised decision can be expressed
-
-projection
-  -> explains what frontier would follow if a concrete decision were applied
-```
-
-## 7. Atomicity and fail-closed behavior
-
-An advertised command is permission to attempt a transition, not permission to bypass validation.
-
-Every update remains:
+Every update remains one semantic transaction:
 
 ```text
 read current artifact
-  -> authorize requested transition
-  -> parse supplied value according to its value kind
+  -> authorize transition
+  -> parse value according to admitted value kind
   -> build candidate
   -> validate candidate
   -> serialize
@@ -347,11 +244,11 @@ read current artifact
 
 If any step fails, the original artifact remains unchanged.
 
-Discovery must not advertise transitions or grammar forms known to contradict the current state or active semantic contract.
+An advertised command is permission to attempt a transition, not permission to bypass validation.
 
-## 8. Agent-facing objective
+## 7. Agent-facing traversal
 
-A capable authoring agent should be able to begin with only this protocol knowledge:
+A capable authoring agent should be able to begin with only:
 
 ```text
 vslices new vsir <artifact>
@@ -359,53 +256,99 @@ vslices discovery vsir <artifact>
 vslices update vsir <artifact> ...
 ```
 
-It should not require an embedded copy of the complete VSIR authoring grammar.
-
-The intended loop is:
+and then traverse:
 
 ```text
 create
   -> discover
   -> choose an advertised affordance
-  -> inspect the advertised value grammar when needed
-  -> compose a value from admitted forms
-  -> execute its advertised command form
+  -> inspect advertised value grammar
+  -> compose one admitted value
+  -> execute advertised command
   -> discover again
 ```
 
-Tests claiming progressive CLI authorability should exercise this loop. A test should not rely on a public mutation or structured value form that the preceding discovery state could not advertise.
+Tests claiming progressive CLI authorability should follow the same rule: they should not use a public mutation or structured value form that the preceding discovery state could not advertise.
 
-## 9. Current implementation conformance
+## 8. Authoring parity
 
-The current CLI implements the core affordance model:
+The current experiment introduced a stronger completeness criterion for Tooling.
+
+A VSIR construction is fully supported when:
 
 ```text
-implemented
-  new establishes progressive artifacts
-  discovery is computed from current artifact state
-  update produces a new state atomically
-  discovery projection shares the public update mutation pipeline
-  classification/trait obligations alter the frontier
-  local from/mapping affordances depend on current field state
-  command templates are emitted for discovered operations
-  set establishes or replaces ordinary semantic assertions
-  add is rejected outside collection-valued surfaces
-  tags and traits retain add/remove/set collection semantics
-  construction uses whole-boundary set
-  unsupported transitions fail closed
-  tests traverse new -> discovery -> update -> discovery
+discovery can explain how to express it
+new/update can author it
+validation can check it
+lower can consume it
+Ruleset can materialize it when target knowledge is required
 ```
 
-The public model deliberately differs from some lower-level mutation-engine mechanics. Internal code may still use insertion-oriented operations to materialize a missing map member, but those mechanics are not advertised to CLI clients.
+This is **authoring parity**.
 
-The grammar-driven layer defined here is the next refinement of discovery. The current CLI can advertise that `representation.<field>.mapping` accepts a mapping-like value and can emit its update command template, but it does not yet recursively advertise the expression grammar (`represent`, `select`, `map`, `stringify`, intrinsic forms, and their nested value kinds). Until that layer is implemented, grammar-driven discovery is a design contract rather than a claim of current executable coverage.
+Conceptually:
 
-A second refinement area is the granularity of discovery for already-existing named map members. The important invariant is that discovery must not require clients to infer storage-level create-versus-update semantics; any newly advertised member-level affordances must preserve `set = establish or replace`.
+```text
+                 one VSIR language
+                        |
+             +----------+----------+
+             |                     |
+     new/discovery/update         lower
+             |                     |
+      can help express it      can consume it
+```
 
-## 10. Design constraint
+The two sides are not mathematical inverses. They traverse the same semantic language from opposite directions:
 
-The affordance model must not turn `discovery` into a generic YAML schema browser or `update` into a generic YAML editor.
+```text
+partial knowledge -> VSIR
+VSIR -> target witness
+```
 
-An affordance or grammar form exists only when VSlices Tooling has enough semantic authority to describe and validate it.
+`Location.vsir` is the current strongest witness for this parity because it exercises structured types, derived state, representation expressions, transform input, `resolve`, nested `apply`, mapped `apply`, and `refine`.
+
+## 9. Evidence precedence
+
+The Location lowering pass exposed one reusable semantic rule:
+
+> Explicit authored semantic evidence outranks a convenience convention.
+
+For example, when construction explicitly establishes `state.Street` through an `apply` binding followed by `refine`, that explicit relation takes precedence over a same-name `input.Street` convention.
+
+Conventions may reduce authoring burden. They must not override stronger authored evidence.
+
+## 10. Current implementation conformance
+
+Implemented in the current Tooling branch:
+
+```text
+progressive new
+state-driven discovery
+non-persistent discovery projection
+command templates emitted from discovered affordances
+set = establish-or-replace for ordinary assertions
+add restricted to collection-valued surfaces
+tags/traits add-remove-set semantics
+local from/mapping mutual exclusion
+grammar-driven discovery for structured field declarations
+expression grammar discovery for representation mappings
+construction grammar discovery
+atomic update
+fail-closed unsupported transitions
+progressive Location reconstruction through discovered surfaces
+normalized Location lowering
+explicit preservation of represent/select composition
+```
+
+Remaining work should be treated as corpus-driven coverage expansion rather than a need for a new authoring protocol.
+
+## 11. Cross-repository authority
+
+Use these repositories together when reconstructing the design:
+
+- [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation) — language semantics and conformance.
+- [`vslices/tooling`](https://github.com/vslices/tooling) — executable authoring, validation, discovery and lowering mechanisms.
+- [`vslices/ruleset`](https://github.com/vslices/ruleset) — target-owned deterministic realization knowledge.
+- [`vslices/planifications`](https://github.com/vslices/planifications) — progressive migration/reconstruction traversal and feedback loops.
 
 Unknown semantics remain unknown. Missing authority remains a closed frontier rather than an invitation to invent syntax.
