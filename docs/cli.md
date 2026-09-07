@@ -237,6 +237,24 @@ transform
 
 Classification-implied traits such as `identifier`, `entity`, or `aggregate-root` are not offered as explicit choices merely because they exist in the effective trait model. Additional explicit traits must be introduced deliberately as their contracts are specified.
 
+Once `transform` is present, discovery follows the trait contract and exposes any missing obligations:
+
+```text
+input
+  status: required
+  meaning: Declares what enters the transform before Domain Type validity has been established.
+  value kind: map<property, declaration>
+  operations: not implemented
+
+construction
+  status: required
+  meaning: Declares the semantic conditions and steps that establish a valid Domain Type from the transform input.
+  value kind: sequence<step>
+  operations: not implemented
+```
+
+These entries are obligations derived from the effective trait, not optional authoring suggestions. They disappear from the immediate frontier once the corresponding sections exist. Their mutation syntax remains intentionally unavailable until the input and construction authoring contracts are specified; discovery exposes the obligation without inventing an editing grammar.
+
 `state` and `representation` remain visible after their first property is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
 
 The current structured authoring subset operates on child properties rather than replacing a whole map:
@@ -283,6 +301,8 @@ vslices discovery vsir StreetName --add tags=addressing
 vslices discovery vsir StreetName --add traits=transform
 vslices discovery vsir StreetName --add state.Value=string
 ```
+
+Projecting `--add traits=transform` therefore also projects the newly activated `input` and `construction` obligations in the returned frontier.
 
 The projected candidate is validated in memory and discarded after discovery.
 
@@ -369,7 +389,7 @@ Unsupported semantic paths, operations, or enumerated semantic values fail close
 
 ## 8. Current authoring frontier
 
-The implemented semantic sequence now reaches the first classification obligations:
+The implemented semantic sequence now reaches trait-derived obligations:
 
 ```text
 name
@@ -378,6 +398,8 @@ name
   -> state / representation property authoring where implied
   -> optional explicit traits
        -> transform
+            -> required input
+            -> required construction
 ```
 
 Tags remain orthogonal to that sequence:
@@ -400,6 +422,7 @@ discovery vsir
   -> exposes kind, then classification
   -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
   -> after classification, exposes traits as optional and transform as the currently available explicit value
+  -> when transform is effective, exposes missing input and construction as required obligations
 
 search
   -> may filter current VSIR artifacts by an implemented root property filter
@@ -410,9 +433,10 @@ update vsir
   -> can set kind and classification atomically
   -> can add/remove/set direct state and representation properties
   -> can establish/change/remove the direct state `from` relation
+  -> does not yet author input or construction
 ```
 
-Deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
+Input/construction authoring, deeper field declaration forms and additional explicit traits remain unavailable until their contracts are specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -433,6 +457,9 @@ Deeper field declaration forms and additional explicit traits remain unavailable
 - discovery exposes the currently supported explicit trait vocabulary;
 - the currently supported explicit trait vocabulary contains only `transform`;
 - unknown explicit trait values fail closed;
+- an effective `transform` trait requires both `input` and `construction`;
+- discovery reports missing `input` and `construction` as required obligations while `transform` is effective;
+- reporting those obligations does not authorize input/construction mutation before their editing contracts exist;
 - `search` is read-only and explicit about its filter operator;
 - unsupported search operators fail closed;
 - `discovery` must not mutate filesystem or artifact state;
