@@ -4,8 +4,11 @@ namespace VSlices.Vsir;
 
 public static class DomainTypeValidator
 {
+    private static readonly HashSet<string> SupportedClassifications =
+        new(["value-object", "identifier"], StringComparer.Ordinal);
+
     private static readonly HashSet<string> SupportedTraits =
-        new(["transform", "identifier", "refined"], StringComparer.Ordinal);
+        new(["transform", "refined"], StringComparer.Ordinal);
 
     private static readonly HashSet<string> SupportedNormalizeIntrinsics =
         new(["trim"], StringComparer.Ordinal);
@@ -28,7 +31,7 @@ public static class DomainTypeValidator
 
         Require(document.Version == "0.1", "VSIR200", "Only VSIR 0.1 is supported.");
         Require(document.Kind == "domain-type", "VSIR201", "Only kind 'domain-type' is supported.");
-        Require(document.Classification == "value-object", "VSIR202", "Only classification 'value-object' is supported.");
+        Require(SupportedClassifications.Contains(document.Classification), "VSIR202", $"Unsupported classification '{document.Classification}'. Supported classifications: {string.Join(", ", SupportedClassifications)}.");
         Require(document.Shape == "product", "VSIR203", "Only shape 'product' is supported.");
 
         var duplicateTraits = document.Traits
@@ -119,9 +122,9 @@ public static class DomainTypeValidator
         if (document.Equality is not null)
             ValidateEquality(document.Equality);
 
-        if (document.Traits.Contains("identifier", StringComparer.Ordinal))
+        if (document.Classification == "identifier")
             Require(document.Equality is not null, "VSIR216",
-                "Trait 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
+                "Classification 'identifier' requires explicit equality semantics because the Framework Identifier contract is a discrete space.");
 
         if (isRefined && document.RefinedFrom is not null)
         {
