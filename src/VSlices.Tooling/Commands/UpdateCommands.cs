@@ -54,7 +54,7 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Adds members to collection-valued semantic surfaces. Currently reserved for collections such as tags and traits.</param>
+    /// <param name="add">Adds members to collection-valued semantic surfaces. Currently reserved for traits.</param>
     /// <param name="remove">Removes collection members or removable semantic assertions. Set-valued surfaces use path=value; assertion removal may use path alone.</param>
     /// <param name="set">Establishes or replaces semantic assertions as semicolon-separated path=value clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
     public static async Task<int> Vsir(
