@@ -233,10 +233,10 @@ public sealed class RepresentationMappingAuthoringTests
 
         current = Apply(
             current,
-            new(VsirMutationKind.Set, "state.Name", "string"),
-            new(VsirMutationKind.Set, "state.Value", "string"),
-            new(VsirMutationKind.Set, "representation.Value", "string"),
-            new(VsirMutationKind.Add, "traits", "transform"));
+            new VsirMutation(VsirMutationKind.Set, "state.Name", "string"),
+            new VsirMutation(VsirMutationKind.Set, "state.Value", "string"),
+            new VsirMutation(VsirMutationKind.Set, "representation.Value", "string"),
+            new VsirMutation(VsirMutationKind.Add, "traits", "transform"));
 
         var transformFrontier = VsirMutationPipeline.Discover(current, out var transformError);
         Assert.Null(transformError);
@@ -245,7 +245,7 @@ public sealed class RepresentationMappingAuthoringTests
         AssertCan(transformFrontier, "representation.Value.mapping", VsirMutationKind.Set);
         AssertCan(transformFrontier, "representation.Value.from", VsirMutationKind.Set);
 
-        current = Apply(current, new(VsirMutationKind.Set, "input.Value", "string"));
+        current = Apply(current, new VsirMutation(VsirMutationKind.Set, "input.Value", "string"));
 
         var inputFrontier = VsirMutationPipeline.Discover(current, out var inputError);
         Assert.Null(inputError);
@@ -255,7 +255,7 @@ public sealed class RepresentationMappingAuthoringTests
 
         current = Apply(
             current,
-            new(
+            new VsirMutation(
                 VsirMutationKind.Set,
                 "representation.Value.mapping",
                 "{intrinsic: concat-space, values: [state.Name, state.Value]}"));
@@ -267,7 +267,7 @@ public sealed class RepresentationMappingAuthoringTests
         AssertCan(mappedFrontier, "construction", VsirMutationKind.Set);
 
         var construction = "[{ensure: {condition: {intrinsic: not-whitespace, args: {value: input.Value}}, failure: {message: 'Debes especificar la extensión'}}}, {ensure: {condition: {intrinsic: length-between, args: {value: input.Value, min: 3, max: 16}}, failure: {message: 'Debe tener entre 3 y 16 caracteres'}}}, {refine: {intrinsic: split-first-rest, value: input.Value, as: {Name: name, Value: value}, failure: {message: 'Debes especificar un nombre y un valor, separados por espacio'}}}, {refine: {state: {Name: name, Value: value}}}]";
-        current = Apply(current, new(VsirMutationKind.Set, "construction", construction));
+        current = Apply(current, new VsirMutation(VsirMutationKind.Set, "construction", construction));
 
         var completeFrontier = VsirMutationPipeline.Discover(current, out var completeError);
         Assert.Null(completeError);
