@@ -87,6 +87,50 @@ public sealed class UpdateVsirCommandTests
     }
 
     [Fact]
+    public async Task TicketCode_can_author_identifier_trait_normalize_and_equality_through_real_cli()
+    {
+        using var project = new ToolingTestProject();
+        var path = Path.Combine(project.Root, "TicketCode2.vsir");
+
+        Assert.Equal(0, (await project.Run(project.Root, "new", "vsir", "TicketCode2")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "kind=domain-type")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "shape=product",
+            "--set", "classification=value-object")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "state.Value=string",
+            "--set", "representation.Value=string",
+            "--add", "traits=transform",
+            "--add", "traits=identifier")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "input.Value=string")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "construction=[{normalize: {target: input.Value, intrinsic: trim}}, {ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar el correlativo de la solicitud'}}}]")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "vsir", "TicketCode2",
+            "--set", "equality={intrinsic: ordinal-equals, by: state.Value}")).ExitCode);
+
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+        Assert.Contains("classification: value-object", source);
+        Assert.Contains("traits: [transform, identifier]", source);
+        Assert.Contains("construction:\n- normalize:\n    target: input.Value\n    intrinsic: trim", source);
+        Assert.Contains("- ensure:", source);
+        Assert.Contains("equality:\n  intrinsic: ordinal-equals\n  by: state.Value", source);
+    }
+
+    [Fact]
     public async Task Repeated_metadata_add_options_are_preserved()
     {
         using var project = new ToolingTestProject();
