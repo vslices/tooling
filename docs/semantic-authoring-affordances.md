@@ -184,20 +184,22 @@ construction
   -> set complete ordered sequence
 ```
 
+`construction` is not universally required. When product input already establishes direct state coordinates deterministically, zero explicit construction steps is a valid semantic form. `TicketId` is the concrete witness. If additional normalization, validation, resolution, application, or refinement is needed, `construction` carries those ordered steps.
+
 ## 4. State-driven discovery
 
 Semantic discovery is computed from the current artifact, not from a static list of every historical or hypothetical VSIR property.
 
-The current end-to-end Domain Type envelope is deliberately narrow:
+The current end-to-end Domain Type envelope is deliberately narrow and corpus-backed:
 
 ```text
 kind: domain-type
 shape: product
-classification: value-object
-traits: transform | identifier | refined
+classification: value-object | identifier
+traits: transform | refined
 ```
 
-`transform` is currently required by canonical Domain Type validation. `identifier` and `refined` are additional semantic capabilities expressed through `traits`, not alternate classifications.
+`transform` is currently required by canonical Domain Type validation. `identifier` is a semantic classification evidenced by `TicketId`; it is not a trait. `refined` is an additional semantic capability expressed through traits.
 
 Examples:
 
@@ -208,9 +210,9 @@ traits does not contain transform
 
 traits contains transform
   -> input required while absent
-  -> construction required while absent
+  -> construction available as an optional ordered boundary when direct input-to-state establishment is insufficient
 
-traits contains identifier
+classification is identifier
   -> equality required
 
 traits contains refined
@@ -315,7 +317,11 @@ An additional parity rule now applies to advertised semantics:
 
 > If the canonical parser/validator/lowering path cannot consume a semantic form, discovery must not advertise that form as an available public transition.
 
-That rule is why experimental `sum` and `maintained` authoring knowledge is gated instead of exposed prematurely.
+The inverse matters too:
+
+> If an admitted corpus artifact already carries a semantic form, an accidental restriction in one implementation layer must not be promoted into language authority. Repair the first stale layer instead of rewriting the corpus to match it.
+
+That second rule is the lesson from `TicketId`: `classification: identifier` was already concrete evidence even while the validator had drifted to `value-object` only.
 
 ## 7. Agent-facing traversal
 
@@ -391,7 +397,9 @@ Therefore a tagged artifact must be accepted by the same public parser used for 
 
 `Location.vsir` is the strongest structured-expression witness for semantic parity because it exercises structured types, derived state, representation expressions, transform input, `resolve`, nested `apply`, mapped `apply`, and `refine`.
 
-`SrvIdentityId.vsir` is now an additional parity witness for scalar transform input plus `identifier` and `refined` traits, `refined-from`, equality over a semantic type, `stringify`, and final refinement.
+`TicketId.vsir` is the direct witness for identifier classification, intrinsic equality, product transform input, and deterministic input-to-state construction without an explicit `construction` sequence.
+
+`SrvIdentityId.vsir` is an additional parity witness for identifier classification combined with the `refined` trait, scalar transform input, `refined-from`, equality over a semantic type, `stringify`, and final refinement.
 
 ## 9. Evidence precedence
 
@@ -403,7 +411,11 @@ For example, when construction explicitly establishes `state.Street` through an 
 
 Conventions may reduce authoring burden. They must not override stronger authored evidence.
 
-Search metadata is never evidence for this precedence relation.
+The TicketId correction adds another precedence rule:
+
+> Concrete admitted corpus evidence outranks an accidental implementation restriction.
+
+Search metadata is never evidence for either precedence relation.
 
 ## 10. Current implementation conformance
 
@@ -420,9 +432,11 @@ add restricted to collection-valued public surfaces
 tags add-remove-set metadata semantics
 traits add-remove-set semantic semantics
 one public VsirParser boundary for metadata-aware conformance and target materialization
-product + value-object public Domain Type envelope
-transform / identifier / refined trait authoring
-refined-from and equality obligations driven by traits
+product + value-object/identifier public Domain Type envelope
+transform / refined trait authoring
+identifier classification -> equality obligation
+refined trait -> refined-from obligation
+product transform input may establish same-name state directly without an explicit construction sequence
 a local from/mapping mutual exclusion
 grammar-driven discovery for structured field declarations
 expression grammar discovery for representation mappings
@@ -430,7 +444,8 @@ construction grammar discovery
 atomic update
 fail-closed unsupported transitions
 progressive Location reconstruction through discovered surfaces
-progressive SrvIdentityId refined/identifier reconstruction
+TicketId identifier/direct-construction parser + lowering regression
+progressive SrvIdentityId refined identifier reconstruction
 canonical C# lowering
 explicit preservation of represent/select composition
 sum / maintained / entity / aggregate-root authoring gated until end-to-end evidence exists
