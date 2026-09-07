@@ -136,7 +136,7 @@ public sealed class LocationAuthoringTests
         var transformFrontier = VsirMutationPipeline.Discover(current, out var transformError);
         Assert.Null(transformError);
         Assert.Contains(transformFrontier, item => item.Path == "input" && item.Status == VsirFrontierStatus.Required && item.Operations.Contains(VsirMutationKind.Set));
-        Assert.Contains(transformFrontier, item => item.Path == "construction" && item.Status == VsirFrontierStatus.Required);
+        Assert.Contains(transformFrontier, item => item.Path == "construction" && item.Status == VsirFrontierStatus.Optional);
         Assert.Contains(transformFrontier, item => item.Path == "state.Region.from" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "state.Province.from" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "representation.CommuneId.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
