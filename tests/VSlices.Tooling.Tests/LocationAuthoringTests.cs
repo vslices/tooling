@@ -100,8 +100,7 @@ public sealed class LocationAuthoringTests
             "Location",
             "domain-type",
             "product",
-            "value-object",
-            []);
+            "value-object");
 
         Assert.True(created.IsSuccess, created.Error);
         var current = created.Source!;
