@@ -10,20 +10,19 @@ public sealed class VsirSourceFormatterTests
             kind: domain-type
             name: IdentityType
             shape: product
-            classification: maintained
+            classification: value-object
+            traits: [transform, identifier]
             state:
               Name: string
             representation:
               Value:
                 type: string
                 from: state.Name
-            values:
-              Natural:
-                state:
-                  Name: Natural
-              Juridical:
-                state:
-                  Name: Juridica
+            input: string
+            construction:
+              - refine:
+                  value: input
+                  as: state.Name
             """;
 
         var mutated = VsirMutationEngine.Apply(
