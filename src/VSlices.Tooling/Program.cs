@@ -37,6 +37,7 @@ if (!Console.IsOutputRedirected && args.Length > 0)
 var app = ConsoleApp.Create();
 
 app.Add("init", RulesetCommands.Init);
+app.Add("new representation", NewCommands.Representation);
 app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);
