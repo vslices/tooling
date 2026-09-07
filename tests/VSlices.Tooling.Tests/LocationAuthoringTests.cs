@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class LocationAuthoringTests
 {
     [Fact]
-    public void Structured_semantic_fields_can_be_authored_in_state_representation_and_input()
+    public void Structured_semantic_fields_can_be_established_and_replaced_with_set()
     {
         var source = """
             vsir: 0.1
@@ -18,20 +18,49 @@ public sealed class LocationAuthoringTests
               CommuneId: string
             """;
 
-        var result = VsirMutationPipeline.Apply(
+        var established = VsirMutationPipeline.Apply(
             source,
             [
-                new(VsirMutationKind.Add, "state.Extensions", "{sequence: StreetExtension}"),
-                new(VsirMutationKind.Add, "representation.Ext", "{type: {sequence: string}}"),
-                new(VsirMutationKind.Add, "input.Ext", "{sequence: string}")
+                new(VsirMutationKind.Set, "state.Extensions", "{sequence: StreetExtension}"),
+                new(VsirMutationKind.Set, "representation.Ext", "{type: {sequence: string}}"),
+                new(VsirMutationKind.Set, "input.Ext", "{sequence: string}")
             ]);
 
-        Assert.True(result.IsSuccess, result.Error);
-        var normalized = VsirSourceFormatter.FormatAfterMutation(result.Source!).Replace("\r\n", "\n");
+        Assert.True(established.IsSuccess, established.Error);
 
-        Assert.Contains("Extensions:\n    sequence: StreetExtension", normalized);
+        var replaced = VsirMutationPipeline.Apply(
+            established.Source!,
+            [new(VsirMutationKind.Set, "state.Extensions", "{sequence: StreetName}")]);
+
+        Assert.True(replaced.IsSuccess, replaced.Error);
+        var normalized = VsirSourceFormatter.FormatAfterMutation(replaced.Source!).Replace("\r\n", "\n");
+
+        Assert.Contains("Extensions:\n    sequence: StreetName", normalized);
         Assert.Contains("Ext:\n    type:\n      sequence: string", normalized);
         Assert.Contains("input:\n  Ext:\n    sequence: string", normalized);
+    }
+
+    [Fact]
+    public void Add_is_reserved_for_collection_semantics()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Location
+            shape: product
+            classification: value-object
+            state:
+              Commune: Commune
+            representation:
+              CommuneId: string
+            """;
+
+        var result = VsirMutationPipeline.Apply(
+            source,
+            [new(VsirMutationKind.Add, "state.Extensions", "{sequence: StreetExtension}")]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("UPDATE044:", result.Error);
     }
 
     [Fact]
@@ -51,14 +80,14 @@ public sealed class LocationAuthoringTests
 
         var multipleConstructors = VsirMutationPipeline.Apply(
             source,
-            [new(VsirMutationKind.Add, "state.Extensions", "{sequence: StreetExtension, optional: StreetExtension}")]);
+            [new(VsirMutationKind.Set, "state.Extensions", "{sequence: StreetExtension, optional: StreetExtension}")]);
 
         Assert.False(multipleConstructors.IsSuccess);
         Assert.StartsWith("UPDATE043:", multipleConstructors.Error);
 
         var expandedWithUnauthorizedSource = VsirMutationPipeline.Apply(
             source,
-            [new(VsirMutationKind.Add, "representation.Ext", "{type: {sequence: string}, mapping: {invent: state.Commune}}")]);
+            [new(VsirMutationKind.Set, "representation.Ext", "{type: {sequence: string}, mapping: {invent: state.Commune}}")]);
 
         Assert.False(expandedWithUnauthorizedSource.IsSuccess);
         Assert.StartsWith("UPDATE043:", expandedWithUnauthorizedSource.Error);
@@ -79,21 +108,26 @@ public sealed class LocationAuthoringTests
 
         var initialFrontier = VsirMutationPipeline.Discover(current, out var initialError);
         Assert.Null(initialError);
-        Assert.Contains(initialFrontier, item => item.Path == "state" && item.Operations.Contains(VsirMutationKind.Add));
-        Assert.Contains(initialFrontier, item => item.Path == "representation" && item.Operations.Contains(VsirMutationKind.Add));
+        Assert.Contains(initialFrontier, item => item.Path == "state" && item.Operations.Contains(VsirMutationKind.Set));
+        Assert.Contains(initialFrontier, item => item.Path == "representation" && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(initialFrontier, item => item.Path == "traits" && item.Operations.Contains(VsirMutationKind.Add));
+
+        var stateAffordance = Assert.Single(initialFrontier, item => item.Path == "state");
+        Assert.Contains(
+            "vslices update vsir Location --set \"state.<property>=<semantic-field-declaration>\"",
+            VsirCommandTemplates.For("Location", stateAffordance));
 
         var core = VsirMutationPipeline.Apply(
             current,
             [
-                new(VsirMutationKind.Add, "state.Commune", "Commune"),
-                new(VsirMutationKind.Add, "state.Street", "StreetName"),
-                new(VsirMutationKind.Add, "state.Extensions", "{sequence: StreetExtension}"),
-                new(VsirMutationKind.Add, "state.Region", "Region"),
-                new(VsirMutationKind.Add, "state.Province", "Province"),
-                new(VsirMutationKind.Add, "representation.CommuneId", "string"),
-                new(VsirMutationKind.Add, "representation.Street", "string"),
-                new(VsirMutationKind.Add, "representation.Ext", "{type: {sequence: string}}"),
+                new(VsirMutationKind.Set, "state.Commune", "Commune"),
+                new(VsirMutationKind.Set, "state.Street", "StreetName"),
+                new(VsirMutationKind.Set, "state.Extensions", "{sequence: StreetExtension}"),
+                new(VsirMutationKind.Set, "state.Region", "Region"),
+                new(VsirMutationKind.Set, "state.Province", "Province"),
+                new(VsirMutationKind.Set, "representation.CommuneId", "string"),
+                new(VsirMutationKind.Set, "representation.Street", "string"),
+                new(VsirMutationKind.Set, "representation.Ext", "{type: {sequence: string}}"),
                 new(VsirMutationKind.Add, "traits", "transform")
             ]);
 
@@ -102,22 +136,27 @@ public sealed class LocationAuthoringTests
 
         var transformFrontier = VsirMutationPipeline.Discover(current, out var transformError);
         Assert.Null(transformError);
-        Assert.Contains(transformFrontier, item => item.Path == "input" && item.Status == VsirFrontierStatus.Required);
+        Assert.Contains(transformFrontier, item => item.Path == "input" && item.Status == VsirFrontierStatus.Required && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "construction" && item.Status == VsirFrontierStatus.Required);
-        Assert.Contains(transformFrontier, item => item.Path == "state.Region.from" && item.Operations.Contains(VsirMutationKind.Set));
-        Assert.Contains(transformFrontier, item => item.Path == "state.Province.from" && item.Operations.Contains(VsirMutationKind.Set));
+        Assert.Contains(transformFrontier, item => item.Path == "state.Region.from" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
+        Assert.Contains(transformFrontier, item => item.Path == "state.Province.from" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "representation.CommuneId.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "representation.Street.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
         Assert.Contains(transformFrontier, item => item.Path == "representation.Ext.mapping" && item.Operations.Count == 1 && item.Operations.Contains(VsirMutationKind.Set));
+
+        var inputAffordance = Assert.Single(transformFrontier, item => item.Path == "input");
+        var inputCommands = VsirCommandTemplates.For("Location", inputAffordance);
+        Assert.Contains("vslices update vsir Location --set \"input.<property>=<semantic-field-declaration>\"", inputCommands);
+        Assert.Contains("vslices update vsir Location --set \"input=<scalar-semantic-type>\"", inputCommands);
 
         var semanticRelations = VsirMutationPipeline.Apply(
             current,
             [
                 new(VsirMutationKind.Set, "state.Region.from", "state.Commune.InProvince.InRegion"),
                 new(VsirMutationKind.Set, "state.Province.from", "state.Commune.InProvince"),
-                new(VsirMutationKind.Add, "input.CommuneId", "CommuneId"),
-                new(VsirMutationKind.Add, "input.Street", "string"),
-                new(VsirMutationKind.Add, "input.Ext", "{sequence: string}"),
+                new(VsirMutationKind.Set, "input.CommuneId", "CommuneId"),
+                new(VsirMutationKind.Set, "input.Street", "string"),
+                new(VsirMutationKind.Set, "input.Ext", "{sequence: string}"),
                 new(VsirMutationKind.Set, "representation.CommuneId.mapping", "{select: {source: {represent: state.Commune}, field: Id}}"),
                 new(VsirMutationKind.Set, "representation.Street.mapping", "{select: {source: {represent: state.Street}, field: Value}}"),
                 new(VsirMutationKind.Set, "representation.Ext.mapping", "{map: {source: state.Extensions, bind: extension, value: {select: {source: {represent: extension}, field: Value}}}}")
