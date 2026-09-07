@@ -15,21 +15,6 @@ public sealed class VsirTemplateTests
     }
 
     [Fact]
-    public void Create_with_tags_does_not_require_kind()
-    {
-        var result = VsirTemplate.Create(
-            name: "StreetName",
-            tags: ["identity", "addressing"]);
-
-        Assert.True(result.IsSuccess);
-        Assert.Equal(
-            "vsir: 0.1\n" +
-            "name: StreetName\n" +
-            "tags: ['identity', 'addressing']\n",
-            result.Source!.Replace("\r\n", "\n"));
-    }
-
-    [Fact]
     public void Create_with_kind_emits_kind_bound_artifact()
     {
         var result = VsirTemplate.Create(
@@ -45,30 +30,24 @@ public sealed class VsirTemplateTests
     }
 
     [Fact]
-    public void Create_emits_known_domain_type_context()
+    public void Create_with_classification_emits_only_currently_implemented_semantics()
     {
         var result = VsirTemplate.Create(
-            name: "SrvIdentityId",
+            name: "StreetName",
             kind: "domain-type",
-            classification: "identifier",
-            shape: "product",
-            traits: ["refined", "transform"],
-            tags: ["identity", "accounts"]);
+            classification: "value-object");
 
         Assert.True(result.IsSuccess);
         Assert.Equal(
             "vsir: 0.1\n" +
             "kind: domain-type\n" +
-            "name: SrvIdentityId\n" +
-            "tags: ['identity', 'accounts']\n" +
-            "classification: identifier\n" +
-            "shape: product\n" +
-            "traits: [refined, transform]\n",
+            "name: StreetName\n" +
+            "classification: value-object\n",
             result.Source!.Replace("\r\n", "\n"));
     }
 
     [Fact]
-    public void Create_rejects_kind_specific_choices_before_kind_is_known()
+    public void Create_rejects_classification_before_kind_is_known()
     {
         var result = VsirTemplate.Create(
             name: "StreetName",
@@ -91,32 +70,14 @@ public sealed class VsirTemplateTests
     }
 
     [Fact]
-    public void Create_rejects_duplicate_tags()
+    public void Entity_is_available_as_a_domain_type_classification()
     {
         var result = VsirTemplate.Create(
-            name: "StreetName",
-            tags: ["identity", "identity"]);
-
-        Assert.False(result.IsSuccess);
-        Assert.StartsWith("NEW008:", result.Error);
-    }
-
-    [Theory]
-    [InlineData("identifier", "identifier")]
-    [InlineData("maintained", "maintained")]
-    [InlineData("aggregate-root", "aggregate-root")]
-    [InlineData("aggregate-root", "entity")]
-    public void Create_rejects_traits_inferred_from_classification(
-        string classification,
-        string trait)
-    {
-        var result = VsirTemplate.Create(
-            name: "Example",
+            name: "Customer",
             kind: "domain-type",
-            classification: classification,
-            traits: [trait]);
+            classification: "entity");
 
-        Assert.False(result.IsSuccess);
-        Assert.StartsWith("NEW007:", result.Error);
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("classification: entity", result.Source);
     }
 }
