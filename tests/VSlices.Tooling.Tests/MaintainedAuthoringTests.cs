@@ -26,7 +26,7 @@ public sealed class MaintainedAuthoringTests
             classification: maintained
             """;
 
-        var frontier = VsirMutationEngine.Discover(source, out var error);
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
 
         Assert.Null(error);
 
@@ -39,8 +39,7 @@ public sealed class MaintainedAuthoringTests
         var values = Assert.Single(frontier, item => item.Path == "values");
         Assert.Equal(VsirFrontierStatus.Required, values.Status);
         Assert.Equal("map<member, state>", values.ValueKind);
-        Assert.Contains(VsirMutationKind.Add, values.Operations);
-        Assert.Contains(VsirMutationKind.Remove, values.Operations);
+        Assert.Single(values.Operations);
         Assert.Contains(VsirMutationKind.Set, values.Operations);
 
         var equality = Assert.Single(frontier, item => item.Path == "equality");
@@ -135,7 +134,7 @@ public sealed class MaintainedAuthoringTests
     }
 
     [Fact]
-    public void Maintained_values_support_add_and_set_as_member_mutations()
+    public void Maintained_values_support_low_level_add_and_set_as_member_mutations()
     {
         var source = """
             vsir: 0.1
