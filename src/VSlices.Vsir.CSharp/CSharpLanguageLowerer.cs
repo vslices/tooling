@@ -104,7 +104,7 @@ public static class CSharpLanguageLowerer
         {
             source.AppendLine();
             source.AppendLine($"    public {RenderType(field.Type, context.Rules)} {field.Name} =>");
-            source.AppendLine($"        {RenderSemanticReference(field.From!, new Dictionary<string, string>(StringComparer.Ordinal))};");
+            source.AppendLine($"        {RenderSemanticReference(field.From!, EmptyBindings)};");
         }
 
         source.AppendLine();
@@ -151,10 +151,13 @@ public static class CSharpLanguageLowerer
         return new(source.ToString(), []);
     }
 
+    private static IReadOnlyDictionary<string, string> EmptyBindings { get; } =
+        new Dictionary<string, string>(StringComparer.Ordinal);
+
     private static void LowerNormalize(
         NormalizeStep normalize,
         CSharpLoweringRuleSet rules,
-        IDictionary<string, string> references,
+        Dictionary<string, string> references,
         ICollection<VsirDiagnostic> diagnostics)
     {
         var node = $"intrinsic.{normalize.Intrinsic}";
@@ -194,7 +197,7 @@ public static class CSharpLanguageLowerer
         string inputType,
         ResolveStep resolve,
         CSharpLoweringRuleSet rules,
-        IDictionary<string, string> references,
+        Dictionary<string, string> references,
         ICollection<string> pipeline,
         ICollection<VsirDiagnostic> diagnostics)
     {
@@ -226,7 +229,7 @@ public static class CSharpLanguageLowerer
         string inputType,
         ApplyStep apply,
         CSharpLoweringRuleSet rules,
-        IDictionary<string, string> references,
+        Dictionary<string, string> references,
         ICollection<string> pipeline,
         ICollection<VsirDiagnostic> diagnostics)
     {
@@ -259,7 +262,7 @@ public static class CSharpLanguageLowerer
             case MappedApplyInput mapped:
             {
                 var source = ResolveReference(mapped.Source, references);
-                var bind = "item";
+                const string bind = "item";
                 var arguments = string.Join(", ", mapped.Map.Values.Select(value => value == "item" ? bind : ResolveReference(value, references)));
                 var sequenceBindings = new Dictionary<string, string>
                 {
@@ -312,17 +315,13 @@ public static class CSharpLanguageLowerer
         out string? expression,
         out string? error)
     {
-        error = null;
         if (document.RepresentationMapping?.Fields.TryGetValue(field.Name, out var projection) == true)
-            return TryRenderProjection(projection, rules, new Dictionary<string, string>(StringComparer.Ordinal), out expression, out error);
+            return TryRenderProjection(projection, rules, EmptyBindings, out expression, out error);
 
-        if (field.From is not null)
-        {
-            expression = RenderSemanticReference(field.From, new Dictionary<string, string>(StringComparer.Ordinal));
-            return true;
-        }
-
-        expression = RenderSemanticReference("state." + field.Name, new Dictionary<string, string>(StringComparer.Ordinal));
+        error = null;
+        expression = field.From is not null
+            ? RenderSemanticReference(field.From, EmptyBindings)
+            : RenderSemanticReference("state." + field.Name, EmptyBindings);
         return true;
     }
 
@@ -345,25 +344,26 @@ public static class CSharpLanguageLowerer
             case StringifyProjection stringify:
             {
                 var value = RenderSemanticReference(stringify.Value, bindings);
-                return TryRule("projection.stringify", new Dictionary<string, string> { ["value"] = value });
+                return TryRenderRule(rules, "projection.stringify", new Dictionary<string, string> { ["value"] = value }, out expression, out error);
             }
 
             case RepresentProjection represent:
             {
                 if (!TryRenderProjection(represent.Value, rules, bindings, out var value, out error))
                     return false;
-                return TryRule("projection.represent", new Dictionary<string, string> { ["value"] = value! });
+                return TryRenderRule(rules, "projection.represent", new Dictionary<string, string> { ["value"] = value! }, out expression, out error);
             }
 
             case SelectProjection select:
             {
                 if (!TryRenderProjection(select.Source, rules, bindings, out var source, out error))
                     return false;
-                return TryRule("projection.select", new Dictionary<string, string>
-                {
-                    ["source"] = source!,
-                    ["field"] = select.Field
-                });
+                return TryRenderRule(
+                    rules,
+                    "projection.select",
+                    new Dictionary<string, string> { ["source"] = source!, ["field"] = select.Field },
+                    out expression,
+                    out error);
             }
 
             case MapProjection map:
@@ -373,12 +373,17 @@ public static class CSharpLanguageLowerer
                 var nested = new Dictionary<string, string>(bindings, StringComparer.Ordinal) { [map.Bind] = map.Bind };
                 if (!TryRenderProjection(map.Value, rules, nested, out var value, out error))
                     return false;
-                return TryRule("projection.map", new Dictionary<string, string>
-                {
-                    ["source"] = source!,
-                    ["bind"] = map.Bind,
-                    ["value"] = value!
-                });
+                return TryRenderRule(
+                    rules,
+                    "projection.map",
+                    new Dictionary<string, string>
+                    {
+                        ["source"] = source!,
+                        ["bind"] = map.Bind,
+                        ["value"] = value!
+                    },
+                    out expression,
+                    out error);
             }
 
             case IntrinsicProjection intrinsic:
@@ -390,27 +395,37 @@ public static class CSharpLanguageLowerer
                         return false;
                     values.Add(value!);
                 }
-                return TryRule($"intrinsic.{intrinsic.Intrinsic}", new Dictionary<string, string>
-                {
-                    ["values"] = string.Join(", ", values)
-                });
+                return TryRenderRule(
+                    rules,
+                    $"intrinsic.{intrinsic.Intrinsic}",
+                    new Dictionary<string, string> { ["values"] = string.Join(", ", values) },
+                    out expression,
+                    out error);
             }
 
             default:
                 error = $"Unsupported representation expression '{projection.GetType().Name}'.";
                 return false;
         }
+    }
 
-        bool TryRule(string node, IReadOnlyDictionary<string, string> ruleBindings)
+    private static bool TryRenderRule(
+        CSharpLoweringRuleSet rules,
+        string node,
+        IReadOnlyDictionary<string, string> bindings,
+        out string? expression,
+        out string? error)
+    {
+        if (rules.TryRenderDeterministicExpression(node, bindings, out var rendered))
         {
-            if (rules.TryRenderDeterministicExpression(node, ruleBindings, out var rendered))
-            {
-                expression = rendered;
-                return true;
-            }
-            error = $"No deterministic C# representation rule is available for '{node}'.";
-            return false;
+            expression = rendered;
+            error = null;
+            return true;
         }
+
+        expression = null;
+        error = $"No deterministic C# representation rule is available for '{node}'.";
+        return false;
     }
 
     private static string RenderSemanticReference(
