@@ -87,9 +87,7 @@ internal static class VsirMutationEngine
 
             var kind = Scalar(root, "kind");
             var classification = Scalar(root, "classification");
-            var tags = Sequence(root, "tags");
-            var traits = Sequence(root, "traits");
-            return VsirAuthoringContract.Discover(kind, classification, tags, traits);
+            return VsirAuthoringContract.Discover(kind, classification);
         }
         catch (Exception ex)
         {
@@ -100,7 +98,7 @@ internal static class VsirMutationEngine
 
     private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation)
     {
-        if (mutation.Path.Contains('.', StringComparison.Ordinal))
+        if (mutation.Path.Contains('.'))
         {
             return $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract. " +
                    "Deep paths require an explicit contract before they can be mutated.";
