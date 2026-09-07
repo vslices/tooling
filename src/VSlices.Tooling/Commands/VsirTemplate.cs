@@ -17,6 +17,13 @@ internal static class VsirTemplate
 {
     public static VsirTemplateResult Create(
         string name,
+        string? kind,
+        string? classification,
+        IReadOnlyList<string>? tags) =>
+        Create(name, kind, null, classification, tags);
+
+    public static VsirTemplateResult Create(
+        string name,
         string? kind = null,
         string? shape = null,
         string? classification = null,
