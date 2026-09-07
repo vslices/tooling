@@ -24,7 +24,7 @@ public sealed class TransformAuthoringTests
 
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
-        Assert.Equal("map<property, declaration> | scalar semantic type", input.ValueKind);
+        Assert.Equal("map<property, declaration>", input.ValueKind);
         Assert.Equal(
             new HashSet<VsirMutationKind>
             {
@@ -131,7 +131,7 @@ public sealed class TransformAuthoringTests
             """;
 
         var construction = """
-            [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: Debes especificar una calle}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: Debe tener 30 caracteres o menos (Enviados {length})}}}, {refine: {state: {Value: input.Value}}}]
+            [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar una calle'}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: 'Debe tener 30 caracteres o menos (Enviados {length})'}}}, {refine: {state: {Value: input.Value}}}]
             """;
 
         var result = VsirMutationEngine.Apply(
@@ -176,7 +176,7 @@ public sealed class TransformAuthoringTests
         Assert.True(input.IsSuccess, input.Error);
 
         var construction = """
-            [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: Debes especificar una calle}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: Debe tener 30 caracteres o menos (Enviados {length})}}}, {refine: {state: {Value: input.Value}}}]
+            [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar una calle'}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: 'Debe tener 30 caracteres o menos (Enviados {length})'}}}, {refine: {state: {Value: input.Value}}}]
             """;
 
         var complete = VsirMutationEngine.Apply(
