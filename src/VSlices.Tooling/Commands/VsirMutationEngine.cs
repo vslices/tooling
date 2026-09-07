@@ -87,11 +87,15 @@ internal static class VsirMutationEngine
 
             var kind = Scalar(root, "kind");
             var classification = Scalar(root, "classification");
+            var traits = Sequence(root, "traits");
             return VsirAuthoringContract.Discover(
                 kind,
                 classification,
+                traits,
                 HasKey(root, "state"),
-                HasKey(root, "representation"));
+                HasKey(root, "representation"),
+                HasKey(root, "input"),
+                HasKey(root, "construction"));
         }
         catch (Exception ex)
         {
