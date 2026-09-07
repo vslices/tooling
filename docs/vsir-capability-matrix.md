@@ -47,8 +47,21 @@ traits: transform | identifier | refined
 
 Classification and traits are independent semantic axes. `TicketId` directly witnesses identifier classification. `TicketCode` witnesses value-object classification plus an explicit `identifier` capability trait. Either form establishes identifier semantics and therefore requires equality. Conversely, equality is rejected when neither form establishes identifier capability. `refined` is another semantic capability expressed through traits. `transform` is currently required for a conforming Domain Type by the canonical validator.
 
+Canonical C# contract lowering keeps these facts independent too:
+
+```text
+kind: domain-type
+  -> DomainType<T, T.Repr>
+
+identifier capability
+  -> Identifier<T>
+```
+
+The Framework `Identifier<T, T.Repr>` composite remains available as convenience API but is not semantic authority for deterministic lowering.
+
 | Semantic form | discover | author | parse | conform | lower | ruleset | Current witness / note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| domain-type target contract | yes | yes | yes | yes | yes | n/a | every `kind: domain-type` lowers to `DomainType<T,T.Repr>` |
 | product field, named type | yes | yes | yes | yes | yes | n/a | StreetName / Location |
 | unary semantic type (`sequence`) | yes | yes | yes | yes | yes | yes | Location `Extensions` / `Ext` |
 | derived state `.from` | yes | yes | yes | yes | yes | n/a | Location `Region`, `Province` |
@@ -67,8 +80,8 @@ Classification and traits are independent semantic axes. `TicketId` directly wit
 | construction `apply`, direct | yes | yes | yes | yes | yes | yes | Location `StreetName` |
 | construction `apply`, mapped/container | yes | yes | yes | yes | yes | yes | Location `StreetExtension` |
 | construction `refine` | yes | yes | yes | yes | yes | n/a | Location / StreetName / SrvIdentityId |
-| identifier classification + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketId |
-| identifier trait on value-object + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketCode |
+| identifier classification + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketId; lowers identifier capability to `Identifier<T>` |
+| identifier trait on value-object + equality intrinsic | yes | yes | yes | yes | yes | yes | TicketCode; lowers identifier capability to `Identifier<T>` |
 | identifier classification + equality over semantic type | yes | yes | yes | yes | yes | yes | SrvIdentityId |
 | equality without identifier capability | n/a | rejected | parse | rejected | n/a | n/a | fail-closed: equality is meaningful only under identifier capability |
 | refined trait + `refined-from` | yes | yes | yes | yes | yes | n/a | SrvIdentityId authoring/parsing + lowering witness |
@@ -116,6 +129,8 @@ historical authoring knows a form that parser/lower cannot consume
 A successful parity experiment should move a row from left to right using the same semantic artifact. It should not make the row look complete by translating that artifact into a different grammar between authoring and lowering.
 
 The TicketId/TicketCode corrections add an important evidence rule: an implementation restriction in the current validator or authoring surface is not stronger authority than admitted corpus evidence. When the two conflict, locate and repair the first stale layer instead of rewriting the corpus to match the accidental restriction.
+
+The SrvIdentityId bulk-lowering observation adds a target-side version of the same rule: a convenience Framework composite must not collapse independent VSIR facts. Canonical lowering emits the primitive contracts justified by each fact and leaves convenience composition to human code or a later target optimization layer.
 
 ## Canonical-surface rule
 
