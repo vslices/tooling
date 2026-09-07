@@ -2,6 +2,8 @@ namespace VSlices.Tooling;
 
 internal enum VsirMutationKind
 {
+    Add,
+    Remove,
     Set
 }
 
@@ -31,34 +33,42 @@ internal static class VsirAuthoringContract
         string? kind,
         string? classification)
     {
+        var result = new List<VsirPathContract>
+        {
+            new(
+                "tags",
+                "set<string>",
+                new HashSet<VsirMutationKind>
+                {
+                    VsirMutationKind.Add,
+                    VsirMutationKind.Remove,
+                    VsirMutationKind.Set
+                })
+        };
+
         if (string.IsNullOrWhiteSpace(kind))
         {
-            return
-            [
-                new(
-                    "kind",
-                    "enum",
-                    new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-                    Kinds)
-            ];
+            result.Add(new(
+                "kind",
+                "enum",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+                Kinds));
+            return result;
         }
 
         if (!kind.Equals(DomainTypeKind, StringComparison.Ordinal))
-            return [];
+            return result;
 
         if (string.IsNullOrWhiteSpace(classification))
         {
-            return
-            [
-                new(
-                    "classification",
-                    "enum",
-                    new HashSet<VsirMutationKind> { VsirMutationKind.Set },
-                    DomainTypeClassifications)
-            ];
+            result.Add(new(
+                "classification",
+                "enum",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set },
+                DomainTypeClassifications));
         }
 
-        return [];
+        return result;
     }
 
     public static string? ValidateScalar(string path, string value, string? currentKind)
