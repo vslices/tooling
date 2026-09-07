@@ -83,7 +83,7 @@ internal static class TranspilationOperation
             return TranspilationResult.Failure([targetContext.Diagnostic]);
 
         var text = await File.ReadAllTextAsync(vsirPath, cancellationToken);
-        var parsed = VsirLanguageParser.Parse(text, environment.Extensions.ValidationContext);
+        var parsed = VsirParser.Parse(text, environment.Extensions.ValidationContext);
         if (!parsed.IsSuccess)
             return TranspilationResult.Failure(parsed.Diagnostics);
 
