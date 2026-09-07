@@ -7,9 +7,17 @@ internal enum VsirMutationKind
     Set
 }
 
+internal enum VsirFrontierStatus
+{
+    Required,
+    Optional
+}
+
 internal sealed record VsirPathContract(
     string Path,
     string ValueKind,
+    VsirFrontierStatus Status,
+    string Meaning,
     IReadOnlySet<VsirMutationKind> Operations,
     IReadOnlyList<string>? AllowedValues = null);
 
@@ -31,13 +39,17 @@ internal static class VsirAuthoringContract
 
     public static IReadOnlyList<VsirPathContract> Discover(
         string? kind,
-        string? classification)
+        string? classification,
+        bool hasState,
+        bool hasRepresentation)
     {
         var result = new List<VsirPathContract>
         {
             new(
                 "tags",
                 "set<string>",
+                VsirFrontierStatus.Optional,
+                "Organizational labels used to associate and search artifacts. Tags do not imply semantic behavior.",
                 new HashSet<VsirMutationKind>
                 {
                     VsirMutationKind.Add,
@@ -51,6 +63,8 @@ internal static class VsirAuthoringContract
             result.Add(new(
                 "kind",
                 "enum",
+                VsirFrontierStatus.Required,
+                "Selects the VSIR artifact family and determines which declarations are meaningful for the artifact.",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set },
                 Kinds));
             return result;
@@ -64,9 +78,47 @@ internal static class VsirAuthoringContract
             result.Add(new(
                 "classification",
                 "enum",
+                VsirFrontierStatus.Required,
+                "Declares the base semantic class of the Domain Type and activates classification-specific obligations.",
                 new HashSet<VsirMutationKind> { VsirMutationKind.Set },
                 DomainTypeClassifications));
+            return result;
         }
+
+        if (classification is "value-object" or "entity" or "aggregate-root")
+        {
+            if (!hasState)
+            {
+                result.Add(new(
+                    "state",
+                    "mapping",
+                    VsirFrontierStatus.Required,
+                    "Declares the observable semantic properties that constitute a valid instance of the Domain Type.",
+                    new HashSet<VsirMutationKind>()));
+            }
+
+            if (!hasRepresentation)
+            {
+                result.Add(new(
+                    "representation",
+                    "mapping",
+                    VsirFrontierStatus.Required,
+                    "Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity.",
+                    new HashSet<VsirMutationKind>()));
+            }
+        }
+
+        result.Add(new(
+            "traits",
+            "set<string>",
+            VsirFrontierStatus.Optional,
+            "Declares additional semantic capabilities that are not already implied by the Domain Type classification.",
+            new HashSet<VsirMutationKind>
+            {
+                VsirMutationKind.Add,
+                VsirMutationKind.Remove,
+                VsirMutationKind.Set
+            }));
 
         return result;
     }
