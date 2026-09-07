@@ -195,21 +195,25 @@ public sealed class TicketCodeLoweringExperimentTests
                   - node: intrinsic.trim
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "{value}.Trim()"
 
                   - node: intrinsic.non-empty
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "!string.IsNullOrEmpty({value})"
 
                   - node: equality.ordinal-equals.equals
                     mode: deterministic
                     renderer: expression
+                    bindings: [left, right]
                     template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
 
                   - node: equality.ordinal-equals.hash
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "StringComparer.Ordinal.GetHashCode({value})"
                 """);
 
