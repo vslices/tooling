@@ -140,7 +140,7 @@ jobs:
           $VSLICES init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
           test -f .vslices/ruleset/csharp/intrinsics.yaml
           rm .vslices/ruleset/csharp/intrinsics.yaml
-          $VSLICES update --ruleset
+          $VSLICES update ruleset
           test -f .vslices/ruleset/csharp/intrinsics.yaml
           test -z "$(find .vslices -maxdepth 1 \( -name '.ruleset-update-*' -o -name '.ruleset-backup-*' \) -print -quit)"
 
@@ -354,5 +354,5 @@ jobs:
 
             echo
             echo "Artifacts now contain the Native AOT CLI plus its managed Roslyn refactoring companion under \`refactor/\`."
-            echo "After bootstrapping one helper-aware PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
+            echo "After bootstrapping one helper-aware PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update self\` can follow later successful builds automatically."
           } >> "$GITHUB_STEP_SUMMARY"
