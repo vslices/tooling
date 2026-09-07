@@ -4,35 +4,6 @@ namespace VSlices.Tooling;
 
 internal static class UpdateCommands
 {
-    /// <summary>Updates VSlices tooling components using the legacy flag-oriented surface.</summary>
-    public static Task<int> Update(
-        bool self = false,
-        bool ruleset = false,
-        string? channel = null,
-        string? source = null,
-        int? pullRequest = null,
-        bool check = false,
-        CancellationToken cancellationToken = default)
-    {
-        if (!self && !ruleset)
-        {
-            TerminalOutput.Error(
-                "UPD000: Specify what to update. Prefer the subject-oriented surfaces 'vslices update self' or 'vslices update ruleset'.");
-            return Task.FromResult(2);
-        }
-
-        if (self && ruleset)
-        {
-            TerminalOutput.Error(
-                "UPD001: Updating self and ruleset together is not defined. Run the explicit update subjects separately.");
-            return Task.FromResult(2);
-        }
-
-        return self
-            ? Self(channel, source, pullRequest, check, cancellationToken)
-            : Ruleset(cancellationToken);
-    }
-
     /// <summary>Updates the standalone VSlices CLI executable.</summary>
     public static Task<int> Self(
         string? channel = null,
@@ -83,17 +54,11 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="addTags">Comma-separated tags to add.</param>
-    /// <param name="removeTags">Comma-separated tags to remove.</param>
-    /// <param name="setTags">Comma-separated replacement tag set.</param>
     /// <param name="add">Generic add mutations as semicolon-separated path=value clauses.</param>
     /// <param name="remove">Generic remove mutations as semicolon-separated path=value clauses.</param>
     /// <param name="set">Generic set mutations as semicolon-separated path=value clauses.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
-        string? addTags = null,
-        string? removeTags = null,
-        string? setTags = null,
         string? add = null,
         string? remove = null,
         string? set = null,
@@ -107,13 +72,6 @@ internal static class UpdateCommands
         }
 
         var mutations = new List<VsirMutation>();
-        if (addTags is not null)
-            mutations.Add(new(VsirMutationKind.Add, "tags", addTags));
-        if (removeTags is not null)
-            mutations.Add(new(VsirMutationKind.Remove, "tags", removeTags));
-        if (setTags is not null)
-            mutations.Add(new(VsirMutationKind.Set, "tags", setTags));
-
         var parseError = AddGenericMutations(mutations, VsirMutationKind.Add, add)
             ?? AddGenericMutations(mutations, VsirMutationKind.Remove, remove)
             ?? AddGenericMutations(mutations, VsirMutationKind.Set, set);
