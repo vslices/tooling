@@ -48,6 +48,9 @@ public static class CSharpLanguageLowerer
                 case ApplyStep apply:
                     LowerApply(document.Name, inputType, apply, context.Rules, references, pipeline, diagnostics);
                     break;
+                case IntrinsicRefineStep refine:
+                    LowerIntrinsicRefine(document.Name, inputType, refine, context.Rules, references, pipeline, diagnostics);
+                    break;
             }
         }
 
@@ -279,6 +282,45 @@ public static class CSharpLanguageLowerer
                 break;
             }
         }
+    }
+
+    private static void LowerIntrinsicRefine(
+        string domain,
+        string inputType,
+        IntrinsicRefineStep refine,
+        CSharpLoweringRuleSet rules,
+        Dictionary<string, string> references,
+        ICollection<string> pipeline,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var value = ResolveReference(refine.Value, references);
+        var bindings = new Dictionary<string, string> { ["value"] = value };
+        var conditionNode = $"refine.{refine.Intrinsic}.condition";
+        if (!rules.TryRenderDeterministicExpression(conditionNode, bindings, out var condition))
+        {
+            diagnostics.Add(new("CSL080", $"No deterministic C# refinement condition rule is available for '{conditionNode}'."));
+            return;
+        }
+
+        var outputs = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var output in refine.As)
+        {
+            var node = $"refine.{refine.Intrinsic}.output.{output.Key}";
+            if (!rules.TryRenderDeterministicExpression(node, bindings, out var expression))
+            {
+                diagnostics.Add(new("CSL081", $"No deterministic C# refinement output rule is available for '{node}'."));
+                continue;
+            }
+            outputs[output.Value] = expression;
+        }
+
+        if (outputs.Count != refine.As.Count)
+            return;
+
+        pipeline.Add(
+            $"VSlices.Arrows.Req<{inputType}, {domain}>.Ensure(({inputType} input) => {condition}, Fail: {Quote(refine.FailureMessage)})");
+        foreach (var output in outputs)
+            references[output.Key] = output.Value;
     }
 
     private static IReadOnlyDictionary<string, string> ResolveStateExpressions(
