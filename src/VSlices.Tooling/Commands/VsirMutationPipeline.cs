@@ -148,7 +148,7 @@ internal static class VsirMutationPipeline
             return false;
 
         var candidate = path[prefix.Length..^suffix.Length];
-        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains('.', StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains(".", StringComparison.Ordinal))
             return false;
 
         fieldName = candidate;
