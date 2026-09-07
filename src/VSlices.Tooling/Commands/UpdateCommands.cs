@@ -89,7 +89,8 @@ internal static class UpdateCommands
             return 2;
         }
 
-        await CommandInfrastructure.AtomicWrite(resolution.Path!, result.Source!, cancellationToken);
+        var formatted = VsirSourceFormatter.FormatAfterMutation(result.Source!);
+        await CommandInfrastructure.AtomicWrite(resolution.Path!, formatted, cancellationToken);
         Console.WriteLine($"Updated '{resolution.Path}'.");
         return 0;
     }
