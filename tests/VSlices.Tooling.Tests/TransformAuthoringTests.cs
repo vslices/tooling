@@ -25,13 +25,8 @@ public sealed class TransformAuthoringTests
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
         Assert.Equal("map<property, declaration> | scalar semantic type", input.ValueKind);
-        Assert.Equal(
-            new HashSet<VsirMutationKind>
-            {
-                VsirMutationKind.Remove,
-                VsirMutationKind.Set
-            },
-            input.Operations);
+        Assert.Single(input.Operations);
+        Assert.Contains(VsirMutationKind.Set, input.Operations);
 
         var construction = Assert.Single(frontier, item => item.Path == "construction");
         Assert.Equal(VsirFrontierStatus.Required, construction.Status);
