@@ -6,6 +6,14 @@ public sealed class MaintainedAuthoringTests
     public void Maintained_is_a_valid_domain_type_classification()
     {
         Assert.Contains("maintained", VsirAuthoringContract.DomainTypeClassifications);
+
+        var result = VsirTemplate.Create(
+            "IdentityType",
+            kind: "domain-type",
+            classification: "maintained");
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("classification: maintained", result.Source);
     }
 
     [Fact]
