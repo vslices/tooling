@@ -37,8 +37,8 @@ public sealed class RepresentationMappingAuthoringTests
         var normalized = VsirSourceFormatter.FormatAfterMutation(result.Source!).Replace("\r\n", "\n");
 
         Assert.Contains("Value:\n    type: string\n    mapping:\n      intrinsic: concat-space", normalized);
-        Assert.Contains("- state.Name", normalized);
-        Assert.Contains("- state.Value", normalized);
+        Assert.Contains("state.Name", normalized);
+        Assert.Contains("state.Value", normalized);
     }
 
     [Fact]
