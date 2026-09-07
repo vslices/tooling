@@ -22,7 +22,7 @@ public sealed class VsirParserSemanticConservationTests
         Assert.Equal(new EqualitySemantics("ordinal-equals", null, "state.Value"), parsed.Document!.Equality);
         var rules = CSharpLoweringRuleSet.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset"));
         Assert.True(rules.IsSuccess, string.Join(Environment.NewLine, rules.Diagnostics));
-        var lowered = CSharpLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
+        var lowered = CSharpLanguageLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
         Assert.Contains("Identifier<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("string.Equals(_value, other._value, StringComparison.Ordinal)", lowered.Source, StringComparison.Ordinal);
@@ -52,7 +52,7 @@ public sealed class VsirParserSemanticConservationTests
                 """);
             var rules = CSharpLoweringRuleSet.Load(temporary);
             Assert.True(rules.IsSuccess);
-            var lowered = CSharpLowerer.Lower(parsed.Document!, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
+            var lowered = CSharpLanguageLowerer.Lower(parsed.Document!, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
             Assert.False(lowered.IsSuccess);
             Assert.Contains(lowered.Diagnostics, d => d.Code == "CSL021");
             Assert.Contains(lowered.Diagnostics, d => d.Code == "CSL022");
@@ -108,9 +108,12 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
+              - refine:
+                  state:
+                    Value: input.Value
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -133,23 +136,23 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                - hey-I-am-semantics
+                  failure:
+                    message: required
+              - hey-I-am-semantics
             """;
 
         var parsed = VsirParser.Parse(source);
 
         Assert.False(parsed.IsSuccess);
-        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR108");
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR100");
     }
 
     [Fact]
@@ -183,17 +186,17 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                      retry: true
-                    failure:
-                      message: required
+                    retry: true
+                  failure:
+                    message: required
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -201,7 +204,7 @@ public sealed class VsirParserSemanticConservationTests
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d =>
             d.Code == "VSIR104" &&
-            d.Message.Contains("construction.steps[].ensure.condition.retry", StringComparison.Ordinal));
+            d.Message.Contains("construction[].ensure.condition.retry", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -218,17 +221,17 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                      retry: true
+                  failure:
+                    message: required
+                    retry: true
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -236,7 +239,7 @@ public sealed class VsirParserSemanticConservationTests
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d =>
             d.Code == "VSIR104" &&
-            d.Message.Contains("construction.steps[].ensure.failure.retry", StringComparison.Ordinal));
+            d.Message.Contains("construction[].ensure.failure.retry", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -245,6 +248,31 @@ public sealed class VsirParserSemanticConservationTests
         var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR215");
+    }
+
+    [Fact]
+    public void Pre_normalized_surface_is_rejected_instead_of_compatibility_parsed()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: OldShape
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR090");
     }
 
     private static string TicketIdLike(string traits) => $$"""
@@ -258,9 +286,12 @@ public sealed class VsirParserSemanticConservationTests
           Value: string
         representation:
           Value: string
+        input:
+          Value: string
         construction:
-          input:
-            Value: string
+          - refine:
+              state:
+                Value: input.Value
         equality:
           intrinsic: ordinal-equals
           by: state.Value
