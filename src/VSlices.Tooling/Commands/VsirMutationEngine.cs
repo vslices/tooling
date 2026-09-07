@@ -110,16 +110,6 @@ internal static class VsirMutationEngine
     {
         if (TryChildPath(mutation.Path, "state", out var stateField, out var stateTail))
         {
-            var shape = Scalar(root, "shape");
-            if (string.Equals(shape, "sum", StringComparison.Ordinal))
-            {
-                return stateTail switch
-                {
-                    null => ApplySumVariantMutation(root, stateField, mutation),
-                    _ => $"UPDATE035: Semantic path '{mutation.Path}' is not valid for shape 'sum'; sum state is authored at the variant boundary."
-                };
-            }
-
             return stateTail switch
             {
                 null => ApplyMapFieldMutation(root, "state", stateField, mutation),
@@ -138,6 +128,16 @@ internal static class VsirMutationEngine
             };
         }
 
+        if (TryChildPath(mutation.Path, "variants", out var variantName, out var variantTail))
+        {
+            if (!string.Equals(Scalar(root, "shape"), "sum", StringComparison.Ordinal))
+                return "UPDATE036: 'variants' is writable only for shape 'sum'.";
+
+            return variantTail is null
+                ? ApplySumVariantDeclarationMutation(root, variantName, mutation)
+                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract; author the complete variant at 'variants.<variant>'.";
+        }
+
         if (TryChildPath(mutation.Path, "values", out var maintainedMember, out var maintainedTail))
         {
             return maintainedTail is null
@@ -152,6 +152,8 @@ internal static class VsirMutationEngine
             "kind" => ApplyScalarMutation(root, "kind", mutation),
             "shape" => ApplyScalarMutation(root, "shape", mutation),
             "classification" => ApplyScalarMutation(root, "classification", mutation),
+            "state" => ApplyEmptySharedSumMapMutation(root, "state", mutation),
+            "representation" => ApplyEmptySharedSumMapMutation(root, "representation", mutation),
             "equality" => ApplyEqualityMutation(root, mutation),
             _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
         };
@@ -199,11 +201,11 @@ internal static class VsirMutationEngine
 
         if (mutation.Kind == VsirMutationKind.Remove)
         {
-            if (map.Children.Count == 1 && IsRequiredMap(root, mapPath))
+            if (map.Children.Count == 1 && RequiredMapMustRemainNonEmpty(root, mapPath))
                 return $"UPDATE024: Cannot remove the last property from required semantic map '{mapPath}'.";
 
             map.Children.Remove(fieldKey);
-            if (map.Children.Count == 0)
+            if (map.Children.Count == 0 && !RequiredMapMayBeEmpty(root, mapPath))
                 root.Children.Remove(mapKey);
             return null;
         }
@@ -216,7 +218,25 @@ internal static class VsirMutationEngine
         return null;
     }
 
-    private static string? ApplySumVariantMutation(
+    private static string? ApplyEmptySharedSumMapMutation(
+        YamlMappingNode root,
+        string mapPath,
+        VsirMutation mutation)
+    {
+        if (!string.Equals(Scalar(root, "shape"), "sum", StringComparison.Ordinal))
+            return $"UPDATE037: Top-level '{mapPath}' authoring is available only to establish an empty shared map for shape 'sum'; use '{mapPath}.<property>' for product-shaped state or representation.";
+
+        if (mutation.Kind != VsirMutationKind.Set)
+            return $"UPDATE012: Semantic path '{mapPath}' supports only 'set' when establishing an empty shared sum map.";
+
+        if (!IsEmptyMappingDeclaration(mutation.Value))
+            return $"UPDATE037: Semantic path '{mapPath}' accepts only '{{}}' at the top level for shape 'sum'; shared fields are authored through '{mapPath}.<property>'.";
+
+        root.Children[new YamlScalarNode(mapPath)] = new YamlMappingNode();
+        return null;
+    }
+
+    private static string? ApplySumVariantDeclarationMutation(
         YamlMappingNode root,
         string variantName,
         VsirMutation mutation)
@@ -224,63 +244,142 @@ internal static class VsirMutationEngine
         if (string.IsNullOrWhiteSpace(variantName))
             return $"UPDATE020: Semantic path '{mutation.Path}' requires a sum variant name.";
 
-        var stateKey = new YamlScalarNode("state");
-        YamlMappingNode state;
-        if (root.Children.TryGetValue(stateKey, out var existingStateNode))
+        var variantsKey = new YamlScalarNode("variants");
+        YamlMappingNode variants;
+        if (root.Children.TryGetValue(variantsKey, out var existingVariantsNode))
         {
-            if (existingStateNode is not YamlMappingNode existingState)
-                return "UPDATE025: Semantic path 'state' must be a mapping before sum variants can be mutated.";
-            state = existingState;
+            if (existingVariantsNode is not YamlMappingNode existingVariants)
+                return "UPDATE025: Semantic path 'variants' must be a mapping before sum variants can be mutated.";
+            variants = existingVariants;
         }
         else
         {
             if (mutation.Kind != VsirMutationKind.Add)
-                return $"UPDATE022: Sum variant 'state.{variantName}' does not exist; use 'add' to establish it.";
-            state = new YamlMappingNode();
-            root.Children[stateKey] = state;
+                return $"UPDATE022: Sum variant 'variants.{variantName}' does not exist; use 'add' to establish it.";
+            variants = new YamlMappingNode();
+            root.Children[variantsKey] = variants;
         }
 
         var variantKey = new YamlScalarNode(variantName);
-        var exists = state.Children.ContainsKey(variantKey);
+        var exists = variants.Children.ContainsKey(variantKey);
 
         switch (mutation.Kind)
         {
             case VsirMutationKind.Add when exists:
-                return $"UPDATE021: Sum variant 'state.{variantName}' already exists; use 'set' to change it.";
+                return $"UPDATE021: Sum variant 'variants.{variantName}' already exists; use 'set' to change it.";
             case VsirMutationKind.Set when !exists:
-                return $"UPDATE022: Sum variant 'state.{variantName}' does not exist; use 'add' to establish it.";
+                return $"UPDATE022: Sum variant 'variants.{variantName}' does not exist; use 'add' to establish it.";
             case VsirMutationKind.Remove when !exists:
-                return $"UPDATE023: Sum variant 'state.{variantName}' does not exist and cannot be removed.";
+                return $"UPDATE023: Sum variant 'variants.{variantName}' does not exist and cannot be removed.";
         }
 
         if (mutation.Kind == VsirMutationKind.Remove)
         {
-            if (state.Children.Count == 1)
-                return "UPDATE024: Cannot remove the last variant from required semantic map 'state'.";
+            if (variants.Children.Count == 1)
+                return "UPDATE024: Cannot remove the last variant from required semantic map 'variants'.";
 
-            state.Children.Remove(variantKey);
+            variants.Children.Remove(variantKey);
             return null;
         }
 
-        if (string.IsNullOrWhiteSpace(mutation.Value))
-            return $"UPDATE013: Sum variant '{mutation.Path}' requires a product payload declaration such as {{}} or {{Value: string}}.";
+        var parsed = ParseSumVariantDeclaration(mutation.Value, mutation.Path);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        variants.Children[variantKey] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseSumVariantDeclaration(
+        string? value,
+        string path)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, $"UPDATE013: Sum variant '{path}' requires a mapping declaration such as {{state: {{Value: string}}}} or {{}}.");
 
         try
         {
             var yaml = new YamlStream();
-            yaml.Load(new StringReader(mutation.Value));
-            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode payload)
-            {
-                return $"UPDATE035: Sum variant '{mutation.Path}' must use a product payload mapping such as {{}} or {{Value: string}}.";
-            }
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+                return (null, $"UPDATE038: Sum variant '{path}' must use a mapping declaration.");
 
-            state.Children[variantKey] = payload;
-            return null;
+            var error = ValidateVariantDeclaration(path, declaration);
+            return error is null ? (declaration, null) : (null, error);
         }
         catch (Exception ex)
         {
-            return $"UPDATE035: Could not parse sum variant '{mutation.Path}': {ex.Message}";
+            return (null, $"UPDATE038: Could not parse sum variant '{path}': {ex.Message}");
         }
+    }
+
+    private static string? ValidateVariantDeclaration(string path, YamlMappingNode declaration)
+    {
+        var allowedKeys = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "state",
+            "representation",
+            "traits",
+            "input",
+            "construction"
+        };
+
+        foreach (var keyNode in declaration.Children.Keys)
+        {
+            if (keyNode is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
+                return $"UPDATE038: Sum variant '{path}' contains an invalid declaration key.";
+            if (!allowedKeys.Contains(key.Value))
+                return $"UPDATE038: Sum variant '{path}' does not admit '{key.Value}'. Supported fields: {string.Join(", ", allowedKeys)}.";
+        }
+
+        if (declaration.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) &&
+            stateNode is not YamlMappingNode)
+            return $"UPDATE038: Sum variant '{path}.state' must be a product mapping.";
+
+        if (declaration.Children.TryGetValue(new YamlScalarNode("representation"), out var representationNode) &&
+            representationNode is not YamlMappingNode)
+            return $"UPDATE038: Sum variant '{path}.representation' must be a mapping.";
+
+        var traits = VariantTraits(declaration);
+        if (declaration.Children.TryGetValue(new YamlScalarNode("traits"), out var traitsNode) &&
+            traitsNode is not YamlSequenceNode)
+            return $"UPDATE038: Sum variant '{path}.traits' must be a sequence.";
+
+        var unsupportedTrait = traits.FirstOrDefault(
+            trait => !VsirAuthoringContract.ExplicitDomainTypeTraits.Contains(trait, StringComparer.Ordinal));
+        if (unsupportedTrait is not null)
+        {
+            return $"UPDATE038: Trait '{unsupportedTrait}' is not currently available for explicit sum-variant authoring. " +
+                   $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
+        }
+
+        var hasInput = declaration.Children.TryGetValue(new YamlScalarNode("input"), out var inputNode);
+        if (hasInput && inputNode is not (YamlMappingNode or YamlScalarNode))
+            return $"UPDATE038: Sum variant '{path}.input' must be a product mapping or scalar semantic type.";
+
+        var hasConstruction = declaration.Children.TryGetValue(new YamlScalarNode("construction"), out var constructionNode);
+        if (hasConstruction && constructionNode is not YamlSequenceNode)
+            return $"UPDATE038: Sum variant '{path}.construction' must be a sequence of semantic steps.";
+
+        if (traits.Contains("transform", StringComparer.Ordinal) && (!hasInput || !hasConstruction))
+            return $"UPDATE038: Sum variant '{path}' with trait 'transform' requires both 'input' and 'construction'.";
+
+        if (!traits.Contains("transform", StringComparer.Ordinal) && (hasInput || hasConstruction))
+            return $"UPDATE038: Sum variant '{path}' may declare 'input' or 'construction' only when trait 'transform' is effective for that variant.";
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> VariantTraits(YamlMappingNode declaration)
+    {
+        if (!declaration.Children.TryGetValue(new YamlScalarNode("traits"), out var node) || node is not YamlSequenceNode sequence)
+            return [];
+
+        return sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(child => child.Value ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
     }
 
     private static string? ApplyMaintainedValueMutation(
@@ -680,11 +779,14 @@ internal static class VsirMutationEngine
                 return error;
         }
 
-        if (string.Equals(shape, "sum", StringComparison.Ordinal))
+        if (HasKey(root, "variants"))
         {
-            var sumStateError = ValidateSumState(root);
-            if (sumStateError is not null)
-                return sumStateError;
+            if (!string.Equals(shape, "sum", StringComparison.Ordinal))
+                return "UPDATE036: 'variants' is valid only for shape 'sum'.";
+
+            var variantsError = ValidateSumVariants(root);
+            if (variantsError is not null)
+                return variantsError;
         }
 
         if (traits.Count > 0 && !string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
@@ -711,21 +813,28 @@ internal static class VsirMutationEngine
         return null;
     }
 
-    private static string? ValidateSumState(YamlMappingNode root)
+    private static string? ValidateSumVariants(YamlMappingNode root)
     {
-        if (!root.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode))
+        if (!root.Children.TryGetValue(new YamlScalarNode("variants"), out var variantsNode))
             return null;
 
-        if (stateNode is not YamlMappingNode state)
-            return "UPDATE035: Sum-shaped Domain Type state must be a mapping of variants to product payloads.";
+        if (variantsNode is not YamlMappingNode variants)
+            return "UPDATE038: Sum-shaped Domain Type 'variants' must be a mapping of variant names to declarations.";
 
-        foreach (var (variantNode, payloadNode) in state.Children)
+        if (variants.Children.Count == 0)
+            return "UPDATE038: Sum-shaped Domain Type 'variants' must contain at least one variant when declared.";
+
+        foreach (var (variantNode, declarationNode) in variants.Children)
         {
             if (variantNode is not YamlScalarNode variant || string.IsNullOrWhiteSpace(variant.Value))
-                return "UPDATE035: Sum-shaped Domain Type variants require non-empty scalar names.";
+                return "UPDATE038: Sum-shaped Domain Type variants require non-empty scalar names.";
 
-            if (payloadNode is not YamlMappingNode)
-                return $"UPDATE035: Sum variant 'state.{variant.Value}' must declare a product payload mapping such as {{}} or {{Value: string}}.";
+            if (declarationNode is not YamlMappingNode declaration)
+                return $"UPDATE038: Sum variant 'variants.{variant.Value}' must use a mapping declaration.";
+
+            var error = ValidateVariantDeclaration($"variants.{variant.Value}", declaration);
+            if (error is not null)
+                return error;
         }
 
         return null;
@@ -815,11 +924,41 @@ internal static class VsirMutationEngine
         return true;
     }
 
-    private static bool IsRequiredMap(YamlMappingNode root, string mapPath)
+    private static bool RequiredMapMustRemainNonEmpty(YamlMappingNode root, string mapPath)
     {
         var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
         return mapPath is "state" or "representation" &&
-               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal);
+               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal) &&
+               !string.Equals(shape, "sum", StringComparison.Ordinal);
+    }
+
+    private static bool RequiredMapMayBeEmpty(YamlMappingNode root, string mapPath)
+    {
+        var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
+        return mapPath is "state" or "representation" &&
+               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal) &&
+               string.Equals(shape, "sum", StringComparison.Ordinal);
+    }
+
+    private static bool IsEmptyMappingDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            return yaml.Documents.Count == 1 &&
+                   yaml.Documents[0].RootNode is YamlMappingNode mapping &&
+                   mapping.Children.Count == 0;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? Scalar(YamlMappingNode root, string key) =>
