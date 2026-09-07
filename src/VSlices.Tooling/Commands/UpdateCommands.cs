@@ -56,7 +56,7 @@ internal static class UpdateCommands
     /// <param name="artifact">VSIR symbol or path.</param>
     /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state properties, representation properties, state/representation from relations and maintained values.</param>
     /// <param name="remove">Remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties, local from relations and maintained members may use path alone.</param>
-    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties, representation properties, state/representation from relations and maintained values.</param>
+    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties, representation properties, state/representation from relations, maintained values and maintained equality.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
