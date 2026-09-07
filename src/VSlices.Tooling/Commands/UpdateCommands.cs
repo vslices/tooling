@@ -72,9 +72,9 @@ internal static class UpdateCommands
         }
 
         var mutations = new List<VsirMutation>();
-        var parseError = AddGenericMutations(mutations, VsirMutationKind.Add, add)
-            ?? AddGenericMutations(mutations, VsirMutationKind.Remove, remove)
-            ?? AddGenericMutations(mutations, VsirMutationKind.Set, set);
+        var parseError = VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Add, add, "UPDATE020")
+            ?? VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Remove, remove, "UPDATE020")
+            ?? VsirMutationArgumentParser.AddMutations(mutations, VsirMutationKind.Set, set, "UPDATE020");
         if (parseError is not null)
         {
             TerminalOutput.Error(parseError);
@@ -93,39 +93,5 @@ internal static class UpdateCommands
         await CommandInfrastructure.AtomicWrite(resolution.Path!, formatted, cancellationToken);
         Console.WriteLine($"Updated '{resolution.Path}'.");
         return 0;
-    }
-
-    internal static string? AddGenericMutations(
-        ICollection<VsirMutation> target,
-        VsirMutationKind kind,
-        string? clauses)
-    {
-        if (string.IsNullOrWhiteSpace(clauses))
-            return null;
-
-        foreach (var clause in clauses.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
-        {
-            var separator = clause.IndexOf('=');
-            if (separator < 0)
-            {
-                if (kind != VsirMutationKind.Remove || string.IsNullOrWhiteSpace(clause))
-                    return $"UPDATE020: Mutation '{clause}' must use path=value syntax.";
-
-                target.Add(new(kind, clause.Trim(), null));
-                continue;
-            }
-
-            if (separator == 0 || separator == clause.Length - 1)
-                return $"UPDATE020: Mutation '{clause}' must use non-empty path=value syntax.";
-
-            var path = clause[..separator].Trim();
-            var value = clause[(separator + 1)..].Trim();
-            if (path.Length == 0 || value.Length == 0)
-                return $"UPDATE020: Mutation '{clause}' must use non-empty path=value syntax.";
-
-            target.Add(new(kind, path, value));
-        }
-
-        return null;
     }
 }
