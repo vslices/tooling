@@ -118,9 +118,12 @@ internal static class VsirMutationEngine
 
         if (TryChildPath(mutation.Path, "representation", out var representationField, out var representationTail))
         {
-            return representationTail is null
-                ? ApplyMapFieldMutation(root, "representation", representationField, mutation)
-                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+            return representationTail switch
+            {
+                null => ApplyMapFieldMutation(root, "representation", representationField, mutation),
+                "from" => ApplyRepresentationFromMutation(root, representationField, mutation),
+                _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
+            };
         }
 
         if (TryChildPath(mutation.Path, "values", out var maintainedMember, out var maintainedTail))
@@ -351,11 +354,81 @@ internal static class VsirMutationEngine
         }
 
         var value = mutation.Value ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
-            return $"UPDATE013: Semantic property 'state.{fieldName}.from' requires a non-empty single-line state reference.";
+        if (!IsStateReference(value))
+            return $"UPDATE029: Semantic property 'state.{fieldName}.from' requires a direct state reference such as 'state.Commune.InProvince'.";
 
         declaration.Children[fromKey] = new YamlScalarNode(value);
         state.Children[fieldKey] = declaration;
+        return null;
+    }
+
+    private static string? ApplyRepresentationFromMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (!TryMapping(root, "representation", out var representation))
+            return $"UPDATE022: Semantic property 'representation.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        if (!representation.Children.TryGetValue(fieldKey, out var fieldNode))
+            return $"UPDATE022: Semantic property 'representation.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        YamlMappingNode declaration;
+        if (fieldNode is YamlScalarNode scalar)
+        {
+            if (string.IsNullOrWhiteSpace(scalar.Value))
+                return $"UPDATE025: Semantic property 'representation.{fieldName}' has no type declaration.";
+
+            declaration = new YamlMappingNode
+            {
+                { "type", scalar.Value }
+            };
+        }
+        else if (fieldNode is YamlMappingNode mapping)
+        {
+            declaration = mapping;
+        }
+        else
+        {
+            return $"UPDATE025: Semantic property 'representation.{fieldName}' has an unsupported declaration shape.";
+        }
+
+        var fromKey = new YamlScalarNode("from");
+        var exists = declaration.Children.ContainsKey(fromKey);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return $"UPDATE023: Semantic property 'representation.{fieldName}.from' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            declaration.Children.Remove(fromKey);
+            if (declaration.Children.Count == 1 &&
+                declaration.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode) &&
+                typeNode is YamlScalarNode typeScalar)
+            {
+                representation.Children[fieldKey] = new YamlScalarNode(typeScalar.Value);
+            }
+            else
+            {
+                representation.Children[fieldKey] = declaration;
+            }
+            return null;
+        }
+
+        if (declaration.Children.ContainsKey(new YamlScalarNode("mapping")))
+        {
+            return $"UPDATE030: Semantic property 'representation.{fieldName}' already has a 'mapping' source; 'from' and 'mapping' are mutually exclusive.";
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (!IsStateReference(value))
+            return $"UPDATE029: Semantic property 'representation.{fieldName}.from' requires a direct state reference such as 'state.Name'.";
+
+        declaration.Children[fromKey] = new YamlScalarNode(value);
+        representation.Children[fieldKey] = declaration;
         return null;
     }
 
@@ -473,6 +546,31 @@ internal static class VsirMutationEngine
         if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
             return "UPDATE027: 'values' is writable only for classification 'maintained'.";
 
+        var representationSourceError = ValidateRepresentationSources(root);
+        if (representationSourceError is not null)
+            return representationSourceError;
+
+        return null;
+    }
+
+    private static string? ValidateRepresentationSources(YamlMappingNode root)
+    {
+        if (!TryMapping(root, "representation", out var representation))
+            return null;
+
+        foreach (var (fieldNode, declarationNode) in representation.Children)
+        {
+            if (fieldNode is not YamlScalarNode field || declarationNode is not YamlMappingNode declaration)
+                continue;
+
+            var hasFrom = declaration.Children.ContainsKey(new YamlScalarNode("from"));
+            var hasMapping = declaration.Children.ContainsKey(new YamlScalarNode("mapping"));
+            if (hasFrom && hasMapping)
+            {
+                return $"UPDATE030: Semantic property 'representation.{field.Value}' declares both 'from' and 'mapping'; representation fields require exactly one semantic source.";
+            }
+        }
+
         return null;
     }
 
@@ -580,6 +678,11 @@ internal static class VsirMutationEngine
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .ToArray();
     }
+
+    private static bool IsStateReference(string value) =>
+        !ContainsLineBreak(value) &&
+        value.StartsWith("state.", StringComparison.Ordinal) &&
+        value.Length > "state.".Length;
 
     private static bool ContainsLineBreak(string value) =>
         value.Contains('\r') || value.Contains('\n');
