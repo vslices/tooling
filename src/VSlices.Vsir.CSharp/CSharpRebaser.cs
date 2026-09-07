@@ -98,14 +98,16 @@ public static class CSharpRebaser
                 TryLocateReplacementSlot(
                     previousDeterministicSource,
                     humanSource,
+                    nextDeterministicSource,
                     prefixLength,
                     previousChanged.Length,
                     out var humanChangedStart,
-                    out var humanChangedLength))
+                    out var humanChangedLength,
+                    out var deterministicReplacement))
             {
                 var resolved = humanSource
                     .Remove(humanChangedStart, humanChangedLength)
-                    .Insert(humanChangedStart, nextChanged);
+                    .Insert(humanChangedStart, deterministicReplacement);
                 return new(resolved, []);
             }
 
@@ -272,72 +274,138 @@ public static class CSharpRebaser
     private static bool TryLocateReplacementSlot(
         string previousDeterministicSource,
         string humanSource,
+        string nextDeterministicSource,
         int changedStart,
         int changedLength,
         out int humanChangedStart,
-        out int humanChangedLength)
+        out int humanChangedLength,
+        out string deterministicReplacement)
     {
         humanChangedStart = -1;
         humanChangedLength = 0;
+        deterministicReplacement = string.Empty;
 
         var changedEnd = changedStart + changedLength;
-        var leftAvailable = changedStart;
-        var rightAvailable = previousDeterministicSource.Length - changedEnd;
-        var maxContext = Math.Max(leftAvailable, rightAvailable);
 
-        for (var context = 1; context <= maxContext; context = NextContextSize(context, maxContext))
+        if (!TryLocateNearestLeftAnchor(
+                previousDeterministicSource,
+                humanSource,
+                changedStart,
+                out var previousLeftEnd,
+                out var humanLeftEnd))
         {
-            var leftLength = Math.Min(context, leftAvailable);
-            var rightLength = Math.Min(context, rightAvailable);
+            return false;
+        }
 
-            var leftAnchor = leftLength == 0
-                ? string.Empty
-                : previousDeterministicSource.Substring(changedStart - leftLength, leftLength);
-            var rightAnchor = rightLength == 0
-                ? string.Empty
-                : previousDeterministicSource.Substring(changedEnd, rightLength);
+        if (!TryLocateNearestRightAnchor(
+                previousDeterministicSource,
+                humanSource,
+                changedEnd,
+                out var previousRightStart,
+                out var humanRightStart))
+        {
+            return false;
+        }
 
-            if (!TryLocateExpectedUniqueAnchor(
-                    previousDeterministicSource,
-                    humanSource,
-                    leftAnchor,
-                    changedStart - leftLength,
-                    out var humanLeftStart))
-            {
-                if (context == maxContext)
-                    break;
-                continue;
-            }
+        if (humanRightStart < humanLeftEnd)
+            return false;
 
-            if (!TryLocateExpectedUniqueAnchor(
-                    previousDeterministicSource,
-                    humanSource,
-                    rightAnchor,
-                    changedEnd,
-                    out var humanRightStart))
-            {
-                if (context == maxContext)
-                    break;
-                continue;
-            }
+        var suffixLengthFromRightAnchor = previousDeterministicSource.Length - previousRightStart;
+        var nextRightStart = nextDeterministicSource.Length - suffixLengthFromRightAnchor;
 
-            var leftEnd = leftAnchor.Length == 0
-                ? 0
-                : humanLeftStart + leftAnchor.Length;
-            var rightStart = rightAnchor.Length == 0
-                ? humanSource.Length
-                : humanRightStart;
+        if (nextRightStart < previousLeftEnd || nextRightStart > nextDeterministicSource.Length)
+            return false;
 
-            if (rightStart < leftEnd)
-            {
-                if (context == maxContext)
-                    break;
-                continue;
-            }
+        humanChangedStart = humanLeftEnd;
+        humanChangedLength = humanRightStart - humanLeftEnd;
+        deterministicReplacement = nextDeterministicSource.Substring(
+            previousLeftEnd,
+            nextRightStart - previousLeftEnd);
+        return true;
+    }
 
-            humanChangedStart = leftEnd;
-            humanChangedLength = rightStart - leftEnd;
+    private static bool TryLocateNearestLeftAnchor(
+        string deterministicSource,
+        string humanSource,
+        int boundary,
+        out int deterministicAnchorEnd,
+        out int humanAnchorEnd)
+    {
+        deterministicAnchorEnd = -1;
+        humanAnchorEnd = -1;
+
+        if (boundary == 0)
+        {
+            deterministicAnchorEnd = 0;
+            humanAnchorEnd = 0;
             return true;
+        }
+
+        const int maximumAnchorLength = 96;
+        for (var end = boundary; end > 0; end--)
+        {
+            var maximum = Math.Min(maximumAnchorLength, end);
+            for (var length = maximum; length >= 1; length--)
+            {
+                var start = end - length;
+                var anchor = deterministicSource.Substring(start, length);
+                if (!TryLocateExpectedUniqueAnchor(
+                        deterministicSource,
+                        humanSource,
+                        anchor,
+                        start,
+                        out var humanStart))
+                {
+                    continue;
+                }
+
+                deterministicAnchorEnd = end;
+                humanAnchorEnd = humanStart + length;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateNearestRightAnchor(
+        string deterministicSource,
+        string humanSource,
+        int boundary,
+        out int deterministicAnchorStart,
+        out int humanAnchorStart)
+    {
+        deterministicAnchorStart = -1;
+        humanAnchorStart = -1;
+
+        if (boundary == deterministicSource.Length)
+        {
+            deterministicAnchorStart = deterministicSource.Length;
+            humanAnchorStart = humanSource.Length;
+            return true;
+        }
+
+        const int maximumAnchorLength = 96;
+        for (var start = boundary; start < deterministicSource.Length; start++)
+        {
+            var maximum = Math.Min(maximumAnchorLength, deterministicSource.Length - start);
+            for (var length = maximum; length >= 1; length--)
+            {
+                var anchor = deterministicSource.Substring(start, length);
+                if (!TryLocateExpectedUniqueAnchor(
+                        deterministicSource,
+                        humanSource,
+                        anchor,
+                        start,
+                        out var humanStart))
+                {
+                    continue;
+                }
+
+                deterministicAnchorStart = start;
+                humanAnchorStart = humanStart;
+                return true;
+            }
         }
 
         return false;
