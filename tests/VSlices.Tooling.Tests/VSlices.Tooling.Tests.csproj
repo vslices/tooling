@@ -17,6 +17,7 @@
     <Compile Include="../../src/VSlices.Tooling/Commands/VsirTemplate.cs" Link="Linked/VsirTemplate.cs" />
     <Compile Include="../../src/VSlices.Tooling/Commands/VsirAuthoringContract.cs" Link="Linked/VsirAuthoringContract.cs" />
     <Compile Include="../../src/VSlices.Tooling/Commands/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Commands/VsirMutationPipeline.cs" Link="Linked/VsirMutationPipeline.cs" />
     <Compile Include="../../src/VSlices.Tooling/Commands/VsirSourceFormatter.cs" Link="Linked/VsirSourceFormatter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Commands/SearchFilter.cs" Link="Linked/SearchFilter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
