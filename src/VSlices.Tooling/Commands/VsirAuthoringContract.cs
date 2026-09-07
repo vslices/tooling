@@ -103,26 +103,18 @@ internal static class VsirAuthoringContract
             "map<property, declaration>",
             VsirFrontierStatus.Required,
             sumShape
-                ? "Declares state shared by every variant of the sum-shaped Domain Type. The map may be empty when the sum has no shared state; establish named shared coordinates with set over state.<property>."
-                : "Declares the observable semantic properties that constitute a valid instance of the Domain Type. Establish or replace child coordinates with set over state.<property>; derived state may declare a direct source through state.<property>.from.",
-            new HashSet<VsirMutationKind>
-            {
-                VsirMutationKind.Remove,
-                VsirMutationKind.Set
-            }));
+                ? "Declares state shared by every variant of the sum-shaped Domain Type. The map may be empty; establish a named shared coordinate with set over state.<property>."
+                : "Declares the observable semantic properties that constitute a valid instance. Establish a named coordinate with set over state.<property>; discovery exposes existing coordinates separately when they can be replaced or removed.",
+            new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
 
         result.Add(new(
             "representation",
             "map<property, declaration>",
             VsirFrontierStatus.Required,
             sumShape
-                ? "Declares representation shared by every variant of the sum-shaped Domain Type. The map may be empty; establish named shared coordinates with set over representation.<property>."
-                : "Declares the observable form through which a valid Domain Type can be represented. Establish or replace child coordinates with set over representation.<property>; local from or mapping relations are authored through their own semantic paths.",
-            new HashSet<VsirMutationKind>
-            {
-                VsirMutationKind.Remove,
-                VsirMutationKind.Set
-            }));
+                ? "Declares representation shared by every variant. Establish a named shared coordinate with set over representation.<property>."
+                : "Declares the observable representation. Establish a named coordinate with set over representation.<property>; local from or mapping relations are separate affordances.",
+            new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
 
         if (sumShape)
         {
@@ -130,12 +122,8 @@ internal static class VsirAuthoringContract
                 "variants",
                 "map<variant, declaration>",
                 VsirFrontierStatus.Required,
-                "Declares the mutually exclusive alternatives of a sum-shaped Domain Type. Establish or replace a named alternative with set over variants.<variant>; exactly one variant is active in a valid instance.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                }));
+                "Declares mutually exclusive alternatives. Establish a named alternative with set over variants.<variant>; existing variants are exposed separately when removable or replaceable.",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
         if (string.IsNullOrWhiteSpace(classification))
@@ -156,12 +144,8 @@ internal static class VsirAuthoringContract
                 "values",
                 "map<member, state>",
                 VsirFrontierStatus.Required,
-                "Declares maintained members and their semantic state. Establish or replace a named member with set over values.<member>; remove retires an existing member when allowed.",
-                new HashSet<VsirMutationKind>
-                {
-                    VsirMutationKind.Remove,
-                    VsirMutationKind.Set
-                }));
+                "Declares maintained members and their semantic state. Establish a named member with set over values.<member>; existing members are exposed separately when replaceable or removable.",
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
         if (classification is "identifier" or "maintained")
@@ -197,12 +181,8 @@ internal static class VsirAuthoringContract
                     "input",
                     "map<property, declaration> | scalar semantic type",
                     VsirFrontierStatus.Required,
-                    "Declares what enters the transform before Domain Type validity has been established. Establish complete scalar input with set input=<type>, or establish named product fields with set over input.<property>.",
-                    new HashSet<VsirMutationKind>
-                    {
-                        VsirMutationKind.Remove,
-                        VsirMutationKind.Set
-                    }));
+                    "Declares what enters the transform before validity has been established. Establish scalar input with set input=<type>, or establish a named product field with set over input.<property>.",
+                    new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
             }
 
             if (!hasConstruction)
