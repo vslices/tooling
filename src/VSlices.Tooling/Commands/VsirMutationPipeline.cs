@@ -8,6 +8,13 @@ internal static class VsirMutationPipeline
         string source,
         IReadOnlyList<VsirMutation> mutations)
     {
+        if (mutations.Count == 0)
+            return VsirMutationResult.Failure("UPDATE001: At least one semantic mutation is required.");
+
+        var operationError = ValidatePublicOperationSemantics(mutations);
+        if (operationError is not null)
+            return VsirMutationResult.Failure(operationError);
+
         var structuredFieldMutations = mutations
             .Where(IsStructuredFieldMutation)
             .ToArray();
@@ -23,15 +30,15 @@ internal static class VsirMutationPipeline
         var current = source;
         if (remainingMutations.Length > 0)
         {
-            var baseResult = VsirMutationEngine.Apply(current, remainingMutations);
+            var normalized = NormalizeAssertionEstablishment(source, remainingMutations);
+            if (normalized.Error is not null)
+                return VsirMutationResult.Failure(normalized.Error);
+
+            var baseResult = VsirMutationEngine.Apply(current, normalized.Mutations!);
             if (!baseResult.IsSuccess)
                 return baseResult;
 
             current = baseResult.Source!;
-        }
-        else if (structuredFieldMutations.Length == 0 && mappingMutations.Length == 0)
-        {
-            return VsirMutationResult.Failure("UPDATE001: At least one semantic mutation is required.");
         }
 
         foreach (var mutation in structuredFieldMutations)
@@ -79,6 +86,88 @@ internal static class VsirMutationPipeline
         }
     }
 
+    private static string? ValidatePublicOperationSemantics(IReadOnlyList<VsirMutation> mutations)
+    {
+        foreach (var mutation in mutations)
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                continue;
+
+            if (mutation.Path is "tags" or "traits")
+                continue;
+
+            return $"UPDATE044: Semantic path '{mutation.Path}' does not use collection-add semantics. Use 'set' to establish or replace the semantic assertion.";
+        }
+
+        return null;
+    }
+
+    private static (IReadOnlyList<VsirMutation>? Mutations, string? Error) NormalizeAssertionEstablishment(
+        string source,
+        IReadOnlyList<VsirMutation> mutations)
+    {
+        YamlMappingNode root;
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
+                return (null, "UPDATE002: Expected one YAML mapping VSIR document.");
+            root = mapping;
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE003: Could not parse VSIR artifact: {ex.Message}");
+        }
+
+        var normalized = new List<VsirMutation>(mutations.Count);
+        foreach (var mutation in mutations)
+        {
+            if (mutation.Kind == VsirMutationKind.Set &&
+                TryEstablishableMapMemberPath(mutation.Path, out var mapPath, out var memberName) &&
+                !MapMemberExists(root, mapPath, memberName))
+            {
+                normalized.Add(mutation with { Kind = VsirMutationKind.Add });
+                continue;
+            }
+
+            normalized.Add(mutation);
+        }
+
+        return (normalized, null);
+    }
+
+    private static bool TryEstablishableMapMemberPath(
+        string path,
+        out string mapPath,
+        out string memberName)
+    {
+        mapPath = string.Empty;
+        memberName = string.Empty;
+
+        foreach (var candidate in new[] { "state", "representation", "input", "variants", "values" })
+        {
+            var prefix = candidate + ".";
+            if (!path.StartsWith(prefix, StringComparison.Ordinal))
+                continue;
+
+            var remainder = path[prefix.Length..];
+            if (string.IsNullOrWhiteSpace(remainder) || remainder.Contains('.', StringComparison.Ordinal))
+                return false;
+
+            mapPath = candidate;
+            memberName = remainder;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool MapMemberExists(YamlMappingNode root, string mapPath, string memberName) =>
+        root.Children.TryGetValue(new YamlScalarNode(mapPath), out var mapNode) &&
+        mapNode is YamlMappingNode map &&
+        map.Children.ContainsKey(new YamlScalarNode(memberName));
+
     private static void AddStateSourceContracts(
         YamlMappingNode root,
         ICollection<VsirPathContract> frontier)
@@ -108,7 +197,6 @@ internal static class VsirMutationPipeline
                     }
                     : new HashSet<VsirMutationKind>
                     {
-                        VsirMutationKind.Add,
                         VsirMutationKind.Set
                     }));
         }
@@ -146,7 +234,6 @@ internal static class VsirMutationPipeline
                         }
                         : new HashSet<VsirMutationKind>
                         {
-                            VsirMutationKind.Add,
                             VsirMutationKind.Set
                         }));
             }
@@ -190,8 +277,8 @@ internal static class VsirMutationPipeline
         if (!TrySemanticFieldPath(mutation.Path, out var mapPath, out var fieldName))
             return VsirMutationResult.Failure($"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.");
 
-        if (mutation.Kind is not (VsirMutationKind.Add or VsirMutationKind.Set))
-            return VsirMutationResult.Failure($"UPDATE012: Structured semantic field '{mutation.Path}' supports only 'add' or 'set'.");
+        if (mutation.Kind != VsirMutationKind.Set)
+            return VsirMutationResult.Failure($"UPDATE012: Structured semantic field '{mutation.Path}' supports only 'set' for establishment or replacement.");
 
         if (string.IsNullOrWhiteSpace(mutation.Value))
             return VsirMutationResult.Failure($"UPDATE013: Semantic property '{mutation.Path}' requires a semantic field declaration.");
@@ -251,20 +338,11 @@ internal static class VsirMutationPipeline
         }
         else
         {
-            if (mutation.Kind != VsirMutationKind.Add)
-                return VsirMutationResult.Failure($"UPDATE022: Semantic property '{mutation.Path}' does not exist; use 'add' to establish it.");
             map = new YamlMappingNode();
             root.Children[mapKey] = map;
         }
 
-        var fieldKey = new YamlScalarNode(fieldName);
-        var exists = map.Children.ContainsKey(fieldKey);
-        if (mutation.Kind == VsirMutationKind.Add && exists)
-            return VsirMutationResult.Failure($"UPDATE021: Semantic property '{mutation.Path}' already exists; use 'set' to change it.");
-        if (mutation.Kind == VsirMutationKind.Set && !exists)
-            return VsirMutationResult.Failure($"UPDATE022: Semantic property '{mutation.Path}' does not exist; use 'add' to establish it.");
-
-        map.Children[fieldKey] = declaration;
+        map.Children[new YamlScalarNode(fieldName)] = declaration;
 
         using var writer = new StringWriter();
         yaml.Save(writer, assignAnchors: false);
