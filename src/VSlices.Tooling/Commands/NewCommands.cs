@@ -4,24 +4,31 @@ namespace VSlices.Tooling;
 
 internal static class NewCommands
 {
-    /// <summary>Creates a VSIR representation template from currently known semantic choices.</summary>
-    /// <param name="name">Semantic name of the represented artifact.</param>
-    /// <param name="kind">VSIR artifact kind. Current supported value: domain-type.</param>
+    /// <summary>Creates a progressive VSIR artifact from the semantic facts currently known.</summary>
+    /// <param name="name">Semantic name of the concept being introduced.</param>
+    /// <param name="kind">Optional VSIR artifact kind. Current supported value: domain-type.</param>
     /// <param name="classification">Optional classification valid for the selected kind.</param>
     /// <param name="shape">Optional structural shape valid for the selected kind.</param>
     /// <param name="traits">Optional comma-separated additional traits. Inferred traits must not be repeated.</param>
-    public static int Representation(
+    /// <param name="output">-o, Optional output path. By default &lt;name&gt;.vsir is created in the current directory.</param>
+    /// <param name="stdout">Write the result to standard output instead of creating a file. Equivalent to -o -.</param>
+    /// <param name="force">Replace an existing output explicitly.</param>
+    public static async Task<int> Vsir(
         [Argument] string name,
-        string kind,
+        string? kind = null,
         string? classification = null,
         string? shape = null,
-        string? traits = null)
+        string? traits = null,
+        string? output = null,
+        bool stdout = false,
+        bool force = false,
+        CancellationToken cancellationToken = default)
     {
         var explicitTraits = string.IsNullOrWhiteSpace(traits)
             ? Array.Empty<string>()
             : traits.Split(',', StringSplitOptions.TrimEntries);
 
-        var result = RepresentationTemplate.Create(
+        var result = VsirTemplate.Create(
             name,
             kind,
             classification,
@@ -34,7 +41,18 @@ internal static class NewCommands
             return 2;
         }
 
-        Console.Write(result.Source);
-        return 0;
+        var defaultPath = Path.GetFullPath(
+            name.EndsWith(".vsir", StringComparison.OrdinalIgnoreCase)
+                ? name
+                : name + ".vsir",
+            Environment.CurrentDirectory);
+
+        return await CommandInfrastructure.WriteResult(
+            result.Source!,
+            defaultPath,
+            output,
+            stdout,
+            overwrite: force,
+            cancellationToken);
     }
 }
