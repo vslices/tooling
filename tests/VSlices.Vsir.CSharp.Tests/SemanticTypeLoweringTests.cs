@@ -35,7 +35,7 @@ public sealed class SemanticTypeLoweringTests
                 "Seq<{value}>")]);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new("Identities.Domain.Entities", loaded.RuleSet!));
 
@@ -60,7 +60,7 @@ public sealed class SemanticTypeLoweringTests
                 "VendorSequence<{value}>")]);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new("Identities.Domain.Entities", loaded.RuleSet!));
 
@@ -77,7 +77,7 @@ public sealed class SemanticTypeLoweringTests
         var loaded = CSharpLoweringRuleSet.Load(RulesetPath);
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new("Identities.Domain.Entities", loaded.RuleSet!));
 
@@ -101,9 +101,13 @@ public sealed class SemanticTypeLoweringTests
           Extensions:
             {{constructor}}: StreetExtension
 
+        input:
+          Extensions:
+            {{constructor}}: StreetExtension
+
         construction:
-          input:
-            Extensions:
-              {{constructor}}: StreetExtension
+          - refine:
+              state:
+                Extensions: input.Extensions
         """;
 }
