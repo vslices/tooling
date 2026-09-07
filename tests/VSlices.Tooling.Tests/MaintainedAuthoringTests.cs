@@ -17,7 +17,7 @@ public sealed class MaintainedAuthoringTests
     }
 
     [Fact]
-    public void Maintained_discovery_requires_state_representation_and_values()
+    public void Maintained_discovery_requires_state_representation_values_and_equality()
     {
         var source = """
             vsir: 0.1
@@ -42,6 +42,13 @@ public sealed class MaintainedAuthoringTests
         Assert.Contains(VsirMutationKind.Add, values.Operations);
         Assert.Contains(VsirMutationKind.Remove, values.Operations);
         Assert.Contains(VsirMutationKind.Set, values.Operations);
+
+        var equality = Assert.Single(frontier, item => item.Path == "equality");
+        Assert.Equal(VsirFrontierStatus.Required, equality.Status);
+        Assert.Equal("strategy", equality.ValueKind);
+        Assert.Empty(equality.Operations);
+        Assert.Contains("ordinal-equals", equality.Meaning, StringComparison.Ordinal);
+        Assert.Contains("state.Name", equality.Meaning, StringComparison.Ordinal);
 
         var traits = Assert.Single(frontier, item => item.Path == "traits");
         Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
