@@ -6,7 +6,7 @@ internal static class DiscoveryCommands
 {
     /// <summary>Shows the immediate semantic mutation frontier for a VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Projected collection additions as semicolon-separated path=value clauses. Add is reserved for collection-valued surfaces such as tags and traits.</param>
+    /// <param name="add">Projected collection additions as semicolon-separated path=value clauses. Add is reserved for genuinely collection-valued semantic surfaces such as traits.</param>
     /// <param name="remove">Projected removals as semicolon-separated clauses. Set-valued surfaces use path=value; removable assertions use path alone.</param>
     /// <param name="set">Projected semantic assertions as semicolon-separated path=value clauses. Set establishes a missing assertion or replaces an existing one when the advertised path permits it.</param>
     public static async Task<int> Vsir(
