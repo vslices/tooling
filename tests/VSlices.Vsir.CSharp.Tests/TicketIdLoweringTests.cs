@@ -62,7 +62,7 @@ public sealed class TicketIdLoweringTests
         Assert.Contains("record struct Input(string Value)", lowered.Source);
         Assert.Contains("Transform((TicketId.Input input) => Instance(input))", lowered.Source);
         Assert.Contains("new(input.Value)", lowered.Source);
-        Assert.Contains("StringComparer.Ordinal.Equals(_value, other._value)", lowered.Source);
+        Assert.Contains("string.Equals(_value, other._value, StringComparison.Ordinal)", lowered.Source);
         Assert.Contains("StringComparer.Ordinal.GetHashCode(_value)", lowered.Source);
     }
 }
