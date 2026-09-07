@@ -70,14 +70,15 @@ public sealed class VsirTemplateTests
     }
 
     [Fact]
-    public void Entity_is_available_as_a_domain_type_classification()
+    public void Entity_is_not_advertised_before_end_to_end_support_exists()
     {
         var result = VsirTemplate.Create(
             name: "Customer",
             kind: "domain-type",
             classification: "entity");
 
-        Assert.True(result.IsSuccess, result.Error);
-        Assert.Contains("classification: entity", result.Source);
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("NEW004:", result.Error);
+        Assert.Contains("value-object", result.Error);
     }
 }
