@@ -18,17 +18,16 @@ public sealed class TransformAuthoringTests
               Value: string
             """;
 
-        var frontier = VsirMutationEngine.Discover(source, out var error);
+        var frontier = VsirMutationPipeline.Discover(source, out var error);
 
         Assert.Null(error);
 
         var input = Assert.Single(frontier, item => item.Path == "input");
         Assert.Equal(VsirFrontierStatus.Required, input.Status);
-        Assert.Equal("map<property, declaration>", input.ValueKind);
+        Assert.Equal("map<property, declaration> | scalar semantic type", input.ValueKind);
         Assert.Equal(
             new HashSet<VsirMutationKind>
             {
-                VsirMutationKind.Add,
                 VsirMutationKind.Remove,
                 VsirMutationKind.Set
             },
@@ -42,7 +41,7 @@ public sealed class TransformAuthoringTests
     }
 
     [Fact]
-    public void Structured_input_supports_add_set_and_remove_at_property_boundary()
+    public void Structured_input_supports_low_level_add_set_and_remove_at_property_boundary()
     {
         var source = """
             vsir: 0.1
@@ -96,14 +95,14 @@ public sealed class TransformAuthoringTests
               Value: string
             """;
 
-        var scalar = VsirMutationEngine.Apply(
+        var scalar = VsirMutationPipeline.Apply(
             source,
             [new(VsirMutationKind.Set, "input", "Rut")]);
 
         Assert.True(scalar.IsSuccess, scalar.Error);
         Assert.Contains("input: Rut", scalar.Source);
 
-        var product = VsirMutationEngine.Apply(
+        var product = VsirMutationPipeline.Apply(
             scalar.Source!,
             [new(VsirMutationKind.Set, "input", "{Value: string}")]);
 
@@ -134,7 +133,7 @@ public sealed class TransformAuthoringTests
             [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar una calle'}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: 'Debe tener 30 caracteres o menos (Enviados {length})'}}}, {refine: {state: {Value: input.Value}}}]
             """;
 
-        var result = VsirMutationEngine.Apply(
+        var result = VsirMutationPipeline.Apply(
             source,
             [new(VsirMutationKind.Set, "construction", construction)]);
 
@@ -148,7 +147,7 @@ public sealed class TransformAuthoringTests
     }
 
     [Fact]
-    public void StreetName_can_be_authored_from_the_progressive_template_using_only_supported_mutations()
+    public void StreetName_can_be_authored_from_the_progressive_template_using_only_advertised_cli_semantics()
     {
         var created = VsirTemplate.Create(
             "StreetName",
@@ -159,19 +158,19 @@ public sealed class TransformAuthoringTests
 
         Assert.True(created.IsSuccess, created.Error);
 
-        var core = VsirMutationEngine.Apply(
+        var core = VsirMutationPipeline.Apply(
             created.Source!,
             [
-                new(VsirMutationKind.Add, "state.Value", "string"),
-                new(VsirMutationKind.Add, "representation.Value", "string"),
+                new(VsirMutationKind.Set, "state.Value", "string"),
+                new(VsirMutationKind.Set, "representation.Value", "string"),
                 new(VsirMutationKind.Add, "traits", "transform")
             ]);
 
         Assert.True(core.IsSuccess, core.Error);
 
-        var input = VsirMutationEngine.Apply(
+        var input = VsirMutationPipeline.Apply(
             core.Source!,
-            [new(VsirMutationKind.Add, "input.Value", "string")]);
+            [new(VsirMutationKind.Set, "input.Value", "string")]);
 
         Assert.True(input.IsSuccess, input.Error);
 
@@ -179,7 +178,7 @@ public sealed class TransformAuthoringTests
             [{ensure: {condition: {intrinsic: non-empty, args: {value: input.Value}}, failure: {message: 'Debes especificar una calle'}}}, {ensure: {condition: {intrinsic: length-at-most, args: {value: input.Value, max: 30}}, failure: {message: 'Debe tener 30 caracteres o menos (Enviados {length})'}}}, {refine: {state: {Value: input.Value}}}]
             """;
 
-        var complete = VsirMutationEngine.Apply(
+        var complete = VsirMutationPipeline.Apply(
             input.Source!,
             [new(VsirMutationKind.Set, "construction", construction)]);
 
@@ -209,14 +208,14 @@ public sealed class TransformAuthoringTests
               Value: string
             """;
 
-        var input = VsirMutationEngine.Apply(
+        var input = VsirMutationPipeline.Apply(
             source,
-            [new(VsirMutationKind.Add, "input.Value", "string")]);
+            [new(VsirMutationKind.Set, "input.Value", "string")]);
 
         Assert.False(input.IsSuccess);
         Assert.StartsWith("UPDATE039:", input.Error);
 
-        var construction = VsirMutationEngine.Apply(
+        var construction = VsirMutationPipeline.Apply(
             source,
             [new(VsirMutationKind.Set, "construction", "[{refine: {state: {Value: input.Value}}}]")]);
 
@@ -242,7 +241,7 @@ public sealed class TransformAuthoringTests
               Value: string
             """;
 
-        var result = VsirMutationEngine.Apply(
+        var result = VsirMutationPipeline.Apply(
             source,
             [new(VsirMutationKind.Set, "construction", "[{invent: {value: input.Value}}]")]);
 
