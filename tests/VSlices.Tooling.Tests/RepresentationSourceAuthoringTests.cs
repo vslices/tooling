@@ -9,6 +9,7 @@ public sealed class RepresentationSourceAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: Location
+            shape: product
             classification: value-object
             state:
               Province: Province
@@ -30,18 +31,14 @@ public sealed class RepresentationSourceAuthoringTests
         var source = """
             vsir: 0.1
             kind: domain-type
-            name: IdentityType
-            classification: maintained
+            name: Example
+            shape: product
+            classification: value-object
             state:
               Name: string
               Code: string
             representation:
               Value: string
-            values:
-              Natural:
-                state:
-                  Name: Natural
-                  Code: N
             """;
 
         var established = VsirMutationEngine.Apply(
@@ -75,6 +72,7 @@ public sealed class RepresentationSourceAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: StreetName
+            shape: product
             classification: value-object
             state:
               Value: string
@@ -97,6 +95,7 @@ public sealed class RepresentationSourceAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: WrappedRut
+            shape: product
             classification: value-object
             state:
               Value: Rut
