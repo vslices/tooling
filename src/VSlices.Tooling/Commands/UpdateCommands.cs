@@ -54,9 +54,9 @@ internal static class UpdateCommands
 
     /// <summary>Applies one atomic semantic transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
-    /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable paths: tags, traits.</param>
-    /// <param name="remove">Remove mutations as semicolon-separated path=value clauses. Current remove-capable paths: tags, traits.</param>
-    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable paths: tags, traits, kind, classification.</param>
+    /// <param name="add">Add mutations as semicolon-separated path=value clauses. Current add-capable surfaces include tags, traits, state properties and representation properties.</param>
+    /// <param name="remove">Remove mutations as semicolon-separated clauses. Set-valued surfaces use path=value; map properties may use path alone.</param>
+    /// <param name="set">Set mutations as semicolon-separated path=value clauses. Current writable surfaces include tags, traits, kind, classification, state properties and representation properties.</param>
     public static async Task<int> Vsir(
         [Argument] string artifact,
         string? add = null,
@@ -105,8 +105,17 @@ internal static class UpdateCommands
         foreach (var clause in clauses.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
         {
             var separator = clause.IndexOf('=');
-            if (separator <= 0 || separator == clause.Length - 1)
-                return $"UPDATE020: Mutation '{clause}' must use path=value syntax.";
+            if (separator < 0)
+            {
+                if (kind != VsirMutationKind.Remove || string.IsNullOrWhiteSpace(clause))
+                    return $"UPDATE020: Mutation '{clause}' must use path=value syntax.";
+
+                target.Add(new(kind, clause.Trim(), null));
+                continue;
+            }
+
+            if (separator == 0 || separator == clause.Length - 1)
+                return $"UPDATE020: Mutation '{clause}' must use non-empty path=value syntax.";
 
             var path = clause[..separator].Trim();
             var value = clause[(separator + 1)..].Trim();
