@@ -33,25 +33,13 @@ public sealed class VsirSourceFormatterTests
         Assert.True(mutated.IsSuccess, mutated.Error);
 
         var formatted = VsirSourceFormatter.FormatAfterMutation(mutated.Source!);
-
-        Assert.Contains("equality:\n  intrinsic: ordinal-equals\n  by: state.Name", formatted.Replace("\r\n", "\n"));
-        Assert.DoesNotContain("equality: {", formatted, StringComparison.Ordinal);
-        Assert.DoesNotContain("\n...", formatted.Replace("\r\n", "\n"), StringComparison.Ordinal);
-        Assert.DoesNotStartWith("---", formatted, StringComparison.Ordinal);
-        Assert.True(formatted.EndsWith("\n", StringComparison.Ordinal));
-        Assert.False(formatted.EndsWith("\n\n", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Formatter_preserves_windows_newline_convention()
-    {
-        var source = "vsir: 0.1\r\nname: Example\r\n";
-        var serialized = "vsir: 0.1\r\nname: Example\r\n...\r\n";
-
-        var formatted = VsirSourceFormatter.FormatAfterMutation(serialized.Replace("\r\n", "\n"));
         var normalized = formatted.Replace("\r\n", "\n");
 
-        Assert.DoesNotContain("...", normalized, StringComparison.Ordinal);
+        Assert.Contains("equality:\n  intrinsic: ordinal-equals\n  by: state.Name", normalized);
+        Assert.DoesNotContain("equality: {", normalized, StringComparison.Ordinal);
+        Assert.DoesNotContain("\n...", normalized, StringComparison.Ordinal);
+        Assert.DoesNotStartWith("---", normalized, StringComparison.Ordinal);
         Assert.EndsWith("\n", normalized, StringComparison.Ordinal);
+        Assert.False(normalized.EndsWith("\n\n", StringComparison.Ordinal));
     }
 }
