@@ -5,10 +5,10 @@ namespace VSlices.Tooling.Tests;
 public sealed class IdentifierAuthoringTests
 {
     [Fact]
-    public void Identifier_is_an_evidenced_classification_not_a_trait()
+    public void Identifier_is_evidenced_as_both_classification_and_explicit_capability()
     {
         Assert.Contains("identifier", VsirAuthoringContract.DomainTypeClassifications);
-        Assert.DoesNotContain("identifier", VsirAuthoringContract.ExplicitDomainTypeTraits);
+        Assert.Contains("identifier", VsirAuthoringContract.ExplicitDomainTypeTraits);
 
         var source = """
             vsir: 0.1
@@ -48,6 +48,25 @@ public sealed class IdentifierAuthoringTests
     }
 
     [Fact]
+    public void Identifier_trait_requires_equality_for_value_object_classification()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketCode
+            shape: product
+            classification: value-object
+            traits: [transform, identifier]
+            """;
+
+        var frontier = VsirMutationEngine.Discover(source, out var error);
+
+        Assert.Null(error);
+        var equality = Assert.Single(frontier, item => item.Path == "equality");
+        Assert.Equal(VsirFrontierStatus.Required, equality.Status);
+    }
+
+    [Fact]
     public void TicketId_classification_supports_equality_and_direct_construction()
     {
         var source = """
@@ -83,7 +102,37 @@ public sealed class IdentifierAuthoringTests
     }
 
     [Fact]
-    public void Equality_without_identifier_classification_fails_closed()
+    public void TicketCode_identifier_trait_supports_equality_without_identifier_classification()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketCode
+            classification: value-object
+            shape: product
+            traits: [transform, identifier]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "equality", "{intrinsic: ordinal-equals, by: state.Value}")]);
+
+        Assert.True(result.IsSuccess, result.Error);
+        var parsed = VsirParser.Parse(result.Source!);
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics.Select(x => $"{x.Code}: {x.Message}")));
+        Assert.Equal("value-object", parsed.Document!.Classification);
+        Assert.Contains("identifier", parsed.Document.Traits);
+        Assert.NotNull(parsed.Document.Equality);
+    }
+
+    [Fact]
+    public void Equality_without_identifier_semantics_fails_closed()
     {
         var source = """
             vsir: 0.1
