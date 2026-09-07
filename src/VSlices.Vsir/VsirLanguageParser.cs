@@ -129,10 +129,12 @@ public static class VsirLanguageParser
         YamlMappingNode root,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        if (!root.Children.TryGetValue(new YamlScalarNode("construction"), out var node) ||
-            node is not YamlSequenceNode sequence)
+        if (!root.Children.TryGetValue(new YamlScalarNode("construction"), out var node))
+            return [];
+
+        if (node is not YamlSequenceNode sequence)
         {
-            diagnostics.Add(new("VSIR002", "Canonical construction must be an ordered sequence."));
+            diagnostics.Add(new("VSIR002", "Canonical construction, when declared, must be an ordered sequence."));
             return [];
         }
 
