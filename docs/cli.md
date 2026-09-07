@@ -207,15 +207,15 @@ classification obligations become visible:
 ```text
 state
   status: required
-  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type.
-  value kind: mapping
-  operations: not implemented
+  meaning: Declares the observable semantic properties that constitute a valid instance of the Domain Type. Add, remove and set operate on child property paths such as state.Value.
+  value kind: map<property, declaration>
+  operations: add, remove, set
 
 representation
   status: required
-  meaning: Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity.
-  value kind: mapping
-  operations: not implemented
+  meaning: Declares the observable form through which a valid Domain Type can be represented without changing its semantic validity. Add, remove and set operate on child property paths such as representation.Value.
+  value kind: map<property, declaration>
+  operations: add, remove, set
 
 traits
   status: optional
@@ -224,7 +224,35 @@ traits
   operations: add, remove, set
 ```
 
-`state` and `representation` are reported as required for `value-object`, `entity`, and `aggregate-root` because those obligations are established by the VSIR specification. Their structured mutation syntax is not yet implemented, so discovery makes the requirement visible without inventing an editing mechanism.
+`state` and `representation` remain visible after their first property is established because discovery describes both obligations and currently available authoring surfaces. `required` describes the contract of the section; it does not mean the section is necessarily missing.
+
+The current structured authoring subset operates on child properties rather than replacing a whole map:
+
+```text
+vslices update vsir StreetName --add state.Value=string
+vslices update vsir StreetName --add representation.Value=string
+vslices update vsir StreetName --set state.Value=Rut
+vslices update vsir StreetName --remove state.Value
+```
+
+For direct property declarations, `add` requires that the property is absent, `set` requires that it already exists, and `remove` requires that it already exists. Attempting to remove the final property of a required `state` or `representation` map fails closed.
+
+The first local state relation is also writable:
+
+```text
+vslices update vsir Location --set state.Region.from=state.Commune.InProvince.InRegion
+```
+
+If `state.Region` was declared in scalar shorthand, Tooling preserves its type while expanding the declaration:
+
+```yaml
+state:
+  Region:
+    type: Region
+    from: state.Commune.InProvince.InRegion
+```
+
+Removing `state.Region.from` collapses the declaration back to scalar shorthand when only `type` remains. No deeper representation mapping syntax is authorized yet.
 
 `traits` is currently writable after a Domain Type classification is known:
 
@@ -238,6 +266,7 @@ Discovery may project supported mutations without mutating the artifact:
 vslices discovery vsir StreetName --set kind=domain-type
 vslices discovery vsir StreetName --add tags=addressing
 vslices discovery vsir StreetName --add traits=transform
+vslices discovery vsir StreetName --add state.Value=string
 ```
 
 The projected candidate is validated in memory and discarded after discovery.
@@ -257,6 +286,15 @@ tags
   -> add, remove, set
 
 traits
+  -> add, remove, set
+
+state.<property>
+  -> add, remove, set
+
+representation.<property>
+  -> add, remove, set
+
+state.<property>.from
   -> add, remove, set
 ```
 
@@ -281,6 +319,24 @@ vslices update vsir StreetName --set tags=identity,addressing
 vslices update vsir StreetName --add traits=transform
 ```
 
+```text
+vslices update vsir StreetName \
+  --add "state.Value=string;representation.Value=string"
+```
+
+For map-property removal the value is unnecessary, so the concise form is valid:
+
+```text
+vslices update vsir Location --remove state.Number
+vslices update vsir Location --remove state.Region.from
+```
+
+Set-valued removal still names the values being removed:
+
+```text
+vslices update vsir StreetName --remove tags=street
+```
+
 A complete invocation is one semantic/organizational transaction:
 
 ```text
@@ -303,7 +359,7 @@ The implemented semantic sequence now reaches the first classification obligatio
 name
   -> kind
   -> classification
-  -> required state / representation where implied
+  -> state / representation property authoring where implied
   -> optional traits
 ```
 
@@ -325,7 +381,7 @@ new vsir
 discovery vsir
   -> always exposes tags
   -> exposes kind, then classification
-  -> after value-object/entity/aggregate-root, exposes missing state and representation as required
+  -> after value-object/entity/aggregate-root, exposes state and representation as required writable maps
   -> after classification, exposes traits as optional
 
 search
@@ -334,10 +390,11 @@ search
 update vsir
   -> can add/remove/set tags and traits
   -> can set kind and classification atomically
-  -> does not yet author structured state or representation mappings
+  -> can add/remove/set direct state and representation properties
+  -> can establish/change/remove the direct state `from` relation
 ```
 
-The next structured authoring capability must be added only after its mutation contract has been specified from evidence.
+Deeper field declaration forms remain unavailable until their contracts are specified from evidence.
 
 ## 9. Agent-facing invariants
 
@@ -345,10 +402,15 @@ The next structured authoring capability must be added only after its mutation c
 - tags remain organizational metadata and must not imply semantic declarations;
 - tags are non-empty, single-line and unique;
 - `classification` is not writable before a compatible `kind` is established in the resulting candidate;
-- `value-object`, `entity`, and `aggregate-root` discovery exposes missing `state` and `representation` as required obligations;
+- `value-object`, `entity`, and `aggregate-root` expose `state` and `representation` as required writable maps;
 - discovery distinguishes required obligations from optional authoring surfaces;
 - every discovered attribute carries a concise explanation of what it means;
-- reporting a required attribute does not authorize mutation when its editing contract is not yet implemented;
+- map-level operations apply to explicitly authorized child paths, not arbitrary YAML structure;
+- adding an existing state/representation property fails rather than silently replacing it;
+- setting a missing state/representation property fails rather than silently creating it;
+- removing the final property of a required state/representation map fails closed;
+- the currently authorized local state relation is `from: <state-reference>`;
+- unsupported deeper state/representation paths remain fail-closed;
 - `traits` is an optional Domain Type capability surface and supports add/remove/set after a Domain Type kind is established;
 - `search` is read-only and explicit about its filter operator;
 - unsupported search operators fail closed;
