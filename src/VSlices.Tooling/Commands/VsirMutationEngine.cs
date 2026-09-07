@@ -123,6 +123,13 @@ internal static class VsirMutationEngine
                 : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
         }
 
+        if (TryChildPath(mutation.Path, "values", out var maintainedMember, out var maintainedTail))
+        {
+            return maintainedTail is null
+                ? ApplyMaintainedValueMutation(root, maintainedMember, mutation)
+                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+        }
+
         return mutation.Path switch
         {
             "tags" => ApplySetMutation(root, "tags", mutation),
@@ -190,6 +197,101 @@ internal static class VsirMutationEngine
 
         map.Children[fieldKey] = new YamlScalarNode(value);
         return null;
+    }
+
+    private static string? ApplyMaintainedValueMutation(
+        YamlMappingNode root,
+        string memberName,
+        VsirMutation mutation)
+    {
+        if (string.IsNullOrWhiteSpace(memberName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires a maintained member name.";
+
+        var valuesKey = new YamlScalarNode("values");
+        YamlMappingNode values;
+        if (root.Children.TryGetValue(valuesKey, out var existingValuesNode))
+        {
+            if (existingValuesNode is not YamlMappingNode existingValues)
+                return "UPDATE025: Semantic path 'values' must be a mapping before its members can be mutated.";
+            values = existingValues;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return $"UPDATE022: Maintained member 'values.{memberName}' does not exist; use 'add' to establish it.";
+            values = new YamlMappingNode();
+            root.Children[valuesKey] = values;
+        }
+
+        var memberKey = new YamlScalarNode(memberName);
+        var exists = values.Children.ContainsKey(memberKey);
+
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add when exists:
+                return $"UPDATE021: Maintained member 'values.{memberName}' already exists; use 'set' to change it.";
+
+            case VsirMutationKind.Set when !exists:
+                return $"UPDATE022: Maintained member 'values.{memberName}' does not exist; use 'add' to establish it.";
+
+            case VsirMutationKind.Remove when !exists:
+                return $"UPDATE023: Maintained member 'values.{memberName}' does not exist and cannot be removed.";
+        }
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            if (values.Children.Count == 1 &&
+                string.Equals(Scalar(root, "classification"), "maintained", StringComparison.Ordinal))
+            {
+                return "UPDATE024: Cannot remove the last member from required semantic map 'values'.";
+            }
+
+            values.Children.Remove(memberKey);
+            if (values.Children.Count == 0)
+                root.Children.Remove(valuesKey);
+            return null;
+        }
+
+        var parsed = ParseMaintainedValueDeclaration(mutation.Value, mutation.Path);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        values.Children[memberKey] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseMaintainedValueDeclaration(
+        string? value,
+        string path)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, $"UPDATE013: Maintained member '{path}' requires a declaration value.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+            {
+                return (null,
+                    $"UPDATE028: Maintained member '{path}' must use an inline mapping declaration such as {{state: {{Name: Natural}}}}.");
+            }
+
+            if (declaration.Children.Count != 1 ||
+                !declaration.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) ||
+                stateNode is not YamlMappingNode state ||
+                state.Children.Count == 0)
+            {
+                return (null,
+                    $"UPDATE028: Maintained member '{path}' must declare exactly one non-empty 'state' mapping.");
+            }
+
+            return (declaration, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE028: Could not parse maintained member '{path}': {ex.Message}");
+        }
     }
 
     private static string? ApplyStateFromMutation(
@@ -368,6 +470,9 @@ internal static class VsirMutationEngine
                    $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
         }
 
+        if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
+            return "UPDATE027: 'values' is writable only for classification 'maintained'.";
+
         return null;
     }
 
@@ -438,7 +543,7 @@ internal static class VsirMutationEngine
     {
         var classification = Scalar(root, "classification");
         return mapPath is "state" or "representation" &&
-               classification is "value-object" or "entity" or "aggregate-root";
+               classification is "value-object" or "entity" or "maintained" or "aggregate-root";
     }
 
     private static string? Scalar(YamlMappingNode root, string key) =>
