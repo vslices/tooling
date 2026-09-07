@@ -115,10 +115,12 @@ public sealed class SrvIdentityIdLoweringTests
                   - node: equality.over.equals
                     mode: deterministic
                     renderer: expression
+                    bindings: [left, right]
                     template: "{left}.Equals({right})"
                   - node: equality.over.hash
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "{value}.GetHashCode()"
                 """);
 
