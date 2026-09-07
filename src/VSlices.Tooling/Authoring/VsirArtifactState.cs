@@ -78,7 +78,7 @@ internal sealed record VsirArtifactState(
                 []);
         }
 
-        var parsed = VsirLanguageParser.Parse(source);
+        var parsed = VsirParser.Parse(source);
         return parsed.IsSuccess
             ? new(
                 VsirProgressiveValidity.Valid,
