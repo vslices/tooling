@@ -85,7 +85,9 @@ public sealed class SrvIdentityIdLoweringTests
             new("Identities.Domain.Aggregates", loaded.RuleSet!));
 
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
-        Assert.Contains("Identifier<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
+        Assert.Contains("DomainType<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
+        Assert.Contains("Identifier<SrvIdentityId>", lowered.Source);
+        Assert.DoesNotContain("Identifier<SrvIdentityId, SrvIdentityId.Repr>", lowered.Source);
         Assert.Contains("Refined<SrvIdentityId, Rut, SrvIdentityId.Repr>", lowered.Source);
         Assert.Contains("Transform<SrvIdentityId, Rut>", lowered.Source);
         Assert.DoesNotContain("record struct Input", lowered.Source);
