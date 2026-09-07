@@ -9,6 +9,7 @@ public sealed class IdentifierAuthoringTests
             vsir: 0.1
             kind: domain-type
             name: SrvIdentityId
+            shape: product
             classification: identifier
             """;
 
