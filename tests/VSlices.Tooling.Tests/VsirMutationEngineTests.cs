@@ -119,7 +119,7 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Value_object_discovery_exposes_required_state_and_representation_plus_optional_traits()
+    public void Value_object_discovery_exposes_state_and_representation_operations_plus_optional_traits()
     {
         var source = """
             vsir: 0.1
@@ -135,13 +135,17 @@ public sealed class VsirMutationEngineTests
 
         var state = Assert.Single(frontier, item => item.Path == "state");
         Assert.Equal(VsirFrontierStatus.Required, state.Status);
-        Assert.Empty(state.Operations);
-        Assert.Contains("constitute a valid instance", state.Meaning, StringComparison.Ordinal);
+        Assert.Contains(VsirMutationKind.Add, state.Operations);
+        Assert.Contains(VsirMutationKind.Remove, state.Operations);
+        Assert.Contains(VsirMutationKind.Set, state.Operations);
+        Assert.Contains("state.Value", state.Meaning, StringComparison.Ordinal);
 
         var representation = Assert.Single(frontier, item => item.Path == "representation");
         Assert.Equal(VsirFrontierStatus.Required, representation.Status);
-        Assert.Empty(representation.Operations);
-        Assert.Contains("represented", representation.Meaning, StringComparison.Ordinal);
+        Assert.Contains(VsirMutationKind.Add, representation.Operations);
+        Assert.Contains(VsirMutationKind.Remove, representation.Operations);
+        Assert.Contains(VsirMutationKind.Set, representation.Operations);
+        Assert.Contains("representation.Value", representation.Meaning, StringComparison.Ordinal);
 
         var traits = Assert.Single(frontier, item => item.Path == "traits");
         Assert.Equal(VsirFrontierStatus.Optional, traits.Status);
@@ -152,7 +156,7 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Discovery_stops_reporting_classification_obligations_once_present()
+    public void Discovery_keeps_state_and_representation_authoring_surfaces_after_they_are_present()
     {
         var source = """
             vsir: 0.1
@@ -168,8 +172,8 @@ public sealed class VsirMutationEngineTests
         var frontier = VsirMutationEngine.Discover(source, out var error);
 
         Assert.Null(error);
-        Assert.DoesNotContain(frontier, item => item.Path == "state");
-        Assert.DoesNotContain(frontier, item => item.Path == "representation");
+        Assert.Contains(frontier, item => item.Path == "state");
+        Assert.Contains(frontier, item => item.Path == "representation");
         Assert.Contains(frontier, item => item.Path == "traits");
         Assert.Contains(frontier, item => item.Path == "tags");
     }
@@ -193,7 +197,7 @@ public sealed class VsirMutationEngineTests
     }
 
     [Fact]
-    public void Unsupported_path_is_rejected_until_contract_authorizes_it()
+    public void State_and_representation_properties_can_be_added_atomically()
     {
         var source = """
             vsir: 0.1
@@ -204,7 +208,141 @@ public sealed class VsirMutationEngineTests
 
         var result = VsirMutationEngine.Apply(
             source,
-            [new(VsirMutationKind.Set, "state.Value", "string")]);
+            [
+                new(VsirMutationKind.Add, "state.Value", "string"),
+                new(VsirMutationKind.Add, "representation.Value", "string")
+            ]);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("state:", result.Source);
+        Assert.Contains("Value: string", result.Source);
+        Assert.Contains("representation:", result.Source);
+    }
+
+    [Fact]
+    public void Add_rejects_existing_map_property_and_set_requires_existing_map_property()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            state:
+              Value: string
+            """;
+
+        var duplicate = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Add, "state.Value", "Rut")]);
+        Assert.False(duplicate.IsSuccess);
+        Assert.StartsWith("UPDATE021:", duplicate.Error);
+
+        var missing = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "state.Other", "string")]);
+        Assert.False(missing.IsSuccess);
+        Assert.StartsWith("UPDATE022:", missing.Error);
+    }
+
+    [Fact]
+    public void Set_replaces_an_existing_property_type()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: WrappedRut
+            classification: value-object
+            state:
+              Value: string
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "state.Value", "Rut")]);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains("Value: Rut", result.Source);
+    }
+
+    [Fact]
+    public void Remove_can_delete_a_map_property_but_not_the_last_required_property()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Location
+            classification: value-object
+            state:
+              Street: string
+              Number: string
+            """;
+
+        var first = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Remove, "state.Number", "ignored")]);
+
+        Assert.True(first.IsSuccess, first.Error);
+        Assert.DoesNotContain("Number:", first.Source);
+
+        var last = VsirMutationEngine.Apply(
+            first.Source!,
+            [new(VsirMutationKind.Remove, "state.Street", "ignored")]);
+
+        Assert.False(last.IsSuccess);
+        Assert.StartsWith("UPDATE024:", last.Error);
+    }
+
+    [Fact]
+    public void State_from_can_be_established_changed_and_removed_without_losing_the_field_type()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Location
+            classification: value-object
+            state:
+              Region: Region
+            """;
+
+        var established = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.InProvince.InRegion")]);
+
+        Assert.True(established.IsSuccess, established.Error);
+        Assert.Contains("type: Region", established.Source);
+        Assert.Contains("from: state.Commune.InProvince.InRegion", established.Source);
+
+        var changed = VsirMutationEngine.Apply(
+            established.Source!,
+            [new(VsirMutationKind.Set, "state.Region.from", "state.Commune.Region")]);
+
+        Assert.True(changed.IsSuccess, changed.Error);
+        Assert.Contains("from: state.Commune.Region", changed.Source);
+
+        var removed = VsirMutationEngine.Apply(
+            changed.Source!,
+            [new(VsirMutationKind.Remove, "state.Region.from", "ignored")]);
+
+        Assert.True(removed.IsSuccess, removed.Error);
+        Assert.Contains("Region: Region", removed.Source);
+        Assert.DoesNotContain("from:", removed.Source);
+    }
+
+    [Fact]
+    public void Unsupported_deep_representation_path_remains_fail_closed()
+    {
+        var source = """
+            vsir: 0.1
+            kind: domain-type
+            name: StreetName
+            classification: value-object
+            representation:
+              Value: string
+            """;
+
+        var result = VsirMutationEngine.Apply(
+            source,
+            [new(VsirMutationKind.Set, "representation.Value.mapping.stringify", "state.Value")]);
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("UPDATE004:", result.Error);
