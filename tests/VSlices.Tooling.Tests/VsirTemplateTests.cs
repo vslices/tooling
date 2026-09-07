@@ -15,6 +15,21 @@ public sealed class VsirTemplateTests
     }
 
     [Fact]
+    public void Create_with_tags_does_not_require_kind()
+    {
+        var result = VsirTemplate.Create(
+            name: "StreetName",
+            tags: ["identity", "addressing"]);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            "vsir: 0.1\n" +
+            "name: StreetName\n" +
+            "tags: ['identity', 'addressing']\n",
+            result.Source!.Replace("\r\n", "\n"));
+    }
+
+    [Fact]
     public void Create_with_kind_emits_kind_bound_artifact()
     {
         var result = VsirTemplate.Create(
@@ -37,13 +52,15 @@ public sealed class VsirTemplateTests
             kind: "domain-type",
             classification: "identifier",
             shape: "product",
-            traits: ["refined", "transform"]);
+            traits: ["refined", "transform"],
+            tags: ["identity", "accounts"]);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(
             "vsir: 0.1\n" +
             "kind: domain-type\n" +
             "name: SrvIdentityId\n" +
+            "tags: ['identity', 'accounts']\n" +
             "classification: identifier\n" +
             "shape: product\n" +
             "traits: [refined, transform]\n",
@@ -71,6 +88,17 @@ public sealed class VsirTemplateTests
 
         Assert.False(result.IsSuccess);
         Assert.StartsWith("NEW004:", result.Error);
+    }
+
+    [Fact]
+    public void Create_rejects_duplicate_tags()
+    {
+        var result = VsirTemplate.Create(
+            name: "StreetName",
+            tags: ["identity", "identity"]);
+
+        Assert.False(result.IsSuccess);
+        Assert.StartsWith("NEW008:", result.Error);
     }
 
     [Theory]
