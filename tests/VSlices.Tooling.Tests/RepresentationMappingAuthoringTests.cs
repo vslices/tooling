@@ -42,7 +42,7 @@ public sealed class RepresentationMappingAuthoringTests
     }
 
     [Fact]
-    public void Discovery_exposes_mapping_set_for_representation_field_without_direct_source()
+    public void Discovery_exposes_only_set_for_new_representation_sources()
     {
         var source = """
             vsir: 0.1
@@ -68,9 +68,8 @@ public sealed class RepresentationMappingAuthoringTests
         Assert.Contains(VsirMutationKind.Set, mapping.Operations);
 
         var from = Assert.Single(frontier, item => item.Path == "representation.Value.from");
-        Assert.Contains(VsirMutationKind.Add, from.Operations);
+        Assert.Single(from.Operations);
         Assert.Contains(VsirMutationKind.Set, from.Operations);
-        Assert.DoesNotContain(VsirMutationKind.Remove, from.Operations);
     }
 
     [Fact]
@@ -188,7 +187,7 @@ public sealed class RepresentationMappingAuthoringTests
     }
 
     [Fact]
-    public void Representation_mapping_supports_only_set()
+    public void Representation_mapping_add_is_rejected_as_non_collection_semantics()
     {
         var source = """
             vsir: 0.1
@@ -210,7 +209,7 @@ public sealed class RepresentationMappingAuthoringTests
                 "{stringify: state.Name}")]);
 
         Assert.False(result.IsSuccess);
-        Assert.StartsWith("UPDATE012:", result.Error);
+        Assert.StartsWith("UPDATE044:", result.Error);
     }
 
     [Fact]
@@ -228,25 +227,25 @@ public sealed class RepresentationMappingAuthoringTests
 
         var initialFrontier = VsirMutationPipeline.Discover(current, out var initialError);
         Assert.Null(initialError);
-        AssertCan(initialFrontier, "state", VsirMutationKind.Add);
-        AssertCan(initialFrontier, "representation", VsirMutationKind.Add);
+        AssertCan(initialFrontier, "state", VsirMutationKind.Set);
+        AssertCan(initialFrontier, "representation", VsirMutationKind.Set);
         AssertCan(initialFrontier, "traits", VsirMutationKind.Add);
 
         current = Apply(
             current,
-            new(VsirMutationKind.Add, "state.Name", "string"),
-            new(VsirMutationKind.Add, "state.Value", "string"),
-            new(VsirMutationKind.Add, "representation.Value", "string"),
+            new(VsirMutationKind.Set, "state.Name", "string"),
+            new(VsirMutationKind.Set, "state.Value", "string"),
+            new(VsirMutationKind.Set, "representation.Value", "string"),
             new(VsirMutationKind.Add, "traits", "transform"));
 
         var transformFrontier = VsirMutationPipeline.Discover(current, out var transformError);
         Assert.Null(transformError);
-        AssertCan(transformFrontier, "input", VsirMutationKind.Add);
+        AssertCan(transformFrontier, "input", VsirMutationKind.Set);
         AssertCan(transformFrontier, "construction", VsirMutationKind.Set);
         AssertCan(transformFrontier, "representation.Value.mapping", VsirMutationKind.Set);
-        AssertCan(transformFrontier, "representation.Value.from", VsirMutationKind.Add);
+        AssertCan(transformFrontier, "representation.Value.from", VsirMutationKind.Set);
 
-        current = Apply(current, new(VsirMutationKind.Add, "input.Value", "string"));
+        current = Apply(current, new(VsirMutationKind.Set, "input.Value", "string"));
 
         var inputFrontier = VsirMutationPipeline.Discover(current, out var inputError);
         Assert.Null(inputError);
