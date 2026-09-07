@@ -139,7 +139,7 @@ internal static class VsirAuthoringContract
                 "strategy",
                 VsirFrontierStatus.Required,
                 "Declares the authoritative equality strategy for maintained members. IdentityType evidences intrinsic ordinal-equals over state.Name.",
-                new HashSet<VsirMutationKind>()));
+                new HashSet<VsirMutationKind> { VsirMutationKind.Set }));
         }
 
         result.Add(new(
