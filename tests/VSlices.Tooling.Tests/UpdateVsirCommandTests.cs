@@ -57,6 +57,36 @@ public sealed class UpdateVsirCommandTests
     }
 
     [Fact]
+    public async Task TicketId_equality_is_authored_as_one_structured_boundary()
+    {
+        using var project = new ToolingTestProject();
+        var path = Path.Combine(project.Root, "TicketId.vsir");
+        File.WriteAllText(path, """
+            vsir: 0.1
+            name: TicketId
+            kind: domain-type
+            shape: product
+            classification: identifier
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "update", "vsir", "TicketId",
+            "--set", "equality={intrinsic: ordinal-equals, by: state.Value}");
+
+        Assert.Equal(0, result.ExitCode);
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+        Assert.Contains("equality:\n  intrinsic: ordinal-equals\n  by: state.Value", source);
+    }
+
+    [Fact]
     public async Task Repeated_metadata_add_options_are_preserved()
     {
         using var project = new ToolingTestProject();
