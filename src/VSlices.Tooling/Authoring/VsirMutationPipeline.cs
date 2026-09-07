@@ -93,7 +93,7 @@ internal static class VsirMutationPipeline
             if (mutation.Kind != VsirMutationKind.Add)
                 continue;
 
-            if (mutation.Path is "tags" or "traits")
+            if (mutation.Path == "traits")
                 continue;
 
             return $"UPDATE044: Semantic path '{mutation.Path}' does not use collection-add semantics. Use 'set' to establish or replace the semantic assertion.";
