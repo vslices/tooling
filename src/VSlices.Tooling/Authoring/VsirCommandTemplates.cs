@@ -110,6 +110,15 @@ internal static class VsirGrammarDiscovery
                     new("as", "binding")
                 ]),
             new(
+                "refine-intrinsic",
+                "{refine: {intrinsic: <ruleset-intrinsic>, value: <expression>, as: <output-binding-map>, failure: {message: <text>}}}",
+                [
+                    new("intrinsic", "ruleset-intrinsic"),
+                    new("value", "expression"),
+                    new("as", "output-binding-map"),
+                    new("message", "text")
+                ]),
+            new(
                 "refine-state",
                 "{refine: {state: <state-binding-map>}}",
                 [new("state", "state-binding-map")])
