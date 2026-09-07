@@ -13,6 +13,26 @@ internal sealed record VsirValueGrammar(
 
 internal static class VsirGrammarDiscovery
 {
+    private static readonly VsirValueGrammar SemanticFieldDeclaration = new(
+        "semantic-field-declaration",
+        [
+            new(
+                "named-type",
+                "<semantic-type>",
+                [new("type", "semantic-type")]),
+            new(
+                "structural-type",
+                "{<type-constructor>: <semantic-type>}",
+                [
+                    new("type-constructor", "name"),
+                    new("value", "semantic-type")
+                ]),
+            new(
+                "expanded-type",
+                "{type: <semantic-type>}",
+                [new("type", "semantic-type")])
+        ]);
+
     private static readonly VsirValueGrammar RepresentationExpression = new(
         "expression",
         [
@@ -45,15 +65,65 @@ internal static class VsirGrammarDiscovery
                 [new("intrinsic", "ruleset-intrinsic")])
         ]);
 
-    public static string ValueKind(VsirPathContract contract) =>
-        IsRepresentationMapping(contract.Path)
-            ? RepresentationExpression.RootKind
-            : contract.ValueKind;
+    private static readonly VsirValueGrammar Construction = new(
+        "sequence<step>",
+        [
+            new(
+                "ensure",
+                "{ensure: {condition: {intrinsic: <ruleset-intrinsic>, args: <argument-map>}, failure: {message: <text>}}}",
+                [
+                    new("intrinsic", "ruleset-intrinsic"),
+                    new("args", "argument-map"),
+                    new("message", "text")
+                ]),
+            new(
+                "resolve",
+                "{resolve: {source: <semantic-source>, id: <expression>, as: <binding>, failure: {message: <text>}}}",
+                [
+                    new("source", "semantic-source"),
+                    new("id", "expression"),
+                    new("as", "binding"),
+                    new("message", "text")
+                ]),
+            new(
+                "apply",
+                "{apply: {over: <domain-type>, input: <input-mapping>, as: <binding>}}",
+                [
+                    new("over", "domain-type"),
+                    new("input", "input-mapping"),
+                    new("as", "binding")
+                ]),
+            new(
+                "apply-mapped",
+                "{apply: {over: <domain-type>, input: {source: <expression>, map: <input-mapping>}, as: <binding>}}",
+                [
+                    new("over", "domain-type"),
+                    new("source", "expression"),
+                    new("map", "input-mapping"),
+                    new("as", "binding")
+                ]),
+            new(
+                "refine-state",
+                "{refine: {state: <state-binding-map>}}",
+                [new("state", "state-binding-map")])
+        ]);
 
-    public static VsirValueGrammar? For(VsirPathContract contract) =>
-        IsRepresentationMapping(contract.Path)
-            ? RepresentationExpression
-            : null;
+    public static string ValueKind(VsirPathContract contract) =>
+        For(contract)?.RootKind ?? contract.ValueKind;
+
+    public static VsirValueGrammar? For(VsirPathContract contract)
+    {
+        if (IsRepresentationMapping(contract.Path))
+            return RepresentationExpression;
+
+        if (contract.Path is "state" or "representation" or "input")
+            return SemanticFieldDeclaration;
+
+        if (contract.Path == "construction")
+            return Construction;
+
+        return null;
+    }
 
     private static bool IsRepresentationMapping(string path) =>
         path.StartsWith("representation.", StringComparison.Ordinal) &&
