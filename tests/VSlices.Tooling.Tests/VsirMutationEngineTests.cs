@@ -109,12 +109,12 @@ public sealed class VsirMutationEngineTests
         Assert.Contains(VsirMutationKind.Add, traits.Operations);
         Assert.Contains(VsirMutationKind.Remove, traits.Operations);
         Assert.Contains(VsirMutationKind.Set, traits.Operations);
-        Assert.Equal(["transform", "identifier", "refined"], traits.AllowedValues);
+        Assert.Equal(["transform", "refined"], traits.AllowedValues);
         Assert.Contains("requires transform", traits.Meaning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void Transform_trait_exposes_required_input_and_construction_obligations()
+    public void Transform_trait_exposes_required_input_and_optional_construction_affordance()
     {
         var source = """
             vsir: 0.1
@@ -140,11 +140,11 @@ public sealed class VsirMutationEngineTests
         Assert.Contains("before Domain Type validity", input.Meaning, StringComparison.Ordinal);
 
         var construction = Assert.Single(frontier, item => item.Path == "construction");
-        Assert.Equal(VsirFrontierStatus.Required, construction.Status);
+        Assert.Equal(VsirFrontierStatus.Optional, construction.Status);
         Assert.Equal("sequence<step>", construction.ValueKind);
         Assert.Single(construction.Operations);
         Assert.Contains(VsirMutationKind.Set, construction.Operations);
-        Assert.Contains("establish a valid Domain Type", construction.Meaning, StringComparison.Ordinal);
+        Assert.Contains("additional ordered semantic work", construction.Meaning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
