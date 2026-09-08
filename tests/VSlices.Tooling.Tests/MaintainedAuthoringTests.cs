@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class MaintainedAuthoringTests
 {
     [Fact]
-    public void Maintained_is_not_advertised_until_canonical_parser_validator_and_lowering_support_it()
+    public void Maintained_is_not_advertised_until_public_authoring_parity_is_supported()
     {
         Assert.DoesNotContain("maintained", VsirAuthoringContract.DomainTypeClassifications);
 
@@ -23,7 +23,7 @@ public sealed class MaintainedAuthoringTests
     }
 
     [Fact]
-    public void Maintained_classification_mutation_fails_closed()
+    public void Maintained_classification_mutation_fails_closed_while_public_authoring_is_gated()
     {
         var source = """
             vsir: 0.1
@@ -42,7 +42,7 @@ public sealed class MaintainedAuthoringTests
     }
 
     [Fact]
-    public void Values_are_not_a_public_affordance_on_the_current_end_to_end_surface()
+    public void Values_are_not_a_public_affordance_until_maintained_authoring_parity_is_supported()
     {
         var source = """
             vsir: 0.1
