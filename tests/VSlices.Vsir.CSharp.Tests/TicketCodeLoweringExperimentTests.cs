@@ -57,7 +57,8 @@ public sealed class TicketCodeLoweringExperimentTests
             {
                 var ensure = Assert.IsType<EnsureStep>(step);
                 var condition = Assert.IsType<NonEmptyCondition>(ensure.Condition);
-                Assert.Equal("input.Value", condition.Value);
+                var value = Assert.IsType<SemanticReferenceExpression>(condition.Value);
+                Assert.Equal("input.Value", value.Value);
             });
 
         var rules = LoadFixtureRules();
