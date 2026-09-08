@@ -99,9 +99,13 @@ internal static class TranspilationOperation
             environment.RuleSet,
             environment.Extensions.ValidationContext);
 
-        var lowered = parsed.Document!.Shape == "sum"
-            ? CSharpSumDomainTypeLowerer.Lower(parsed.Document, loweringContext)
-            : CSharpLanguageLowerer.Lower(parsed.Document, loweringContext);
+        var document = parsed.Document!;
+        var lowered = document.Classification switch
+        {
+            "maintained" => CSharpMaintainedDomainTypeLowerer.Lower(document, loweringContext),
+            _ when document.Shape == "sum" => CSharpSumDomainTypeLowerer.Lower(document, loweringContext),
+            _ => CSharpLanguageLowerer.Lower(document, loweringContext)
+        };
 
         if (!lowered.IsSuccess)
             return TranspilationResult.Failure(lowered.Diagnostics);
@@ -113,7 +117,7 @@ internal static class TranspilationOperation
         return TranspilationResult.Success(
             source,
             vsirPath,
-            parsed.Document!.Name,
+            document.Name,
             environment.Target,
             environment.Project,
             targetContext.Context!);
