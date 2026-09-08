@@ -27,14 +27,16 @@ internal static class CommandInfrastructure
         var symbol = Path.GetFileNameWithoutExtension(value);
         var policy = ArtifactDiscoveryPolicy.Load(cwd);
         var matches = EnumerateVsirFiles(cwd, symbol + ".vsir", policy)
-            .Take(3)
+            .OrderBy(path => Path.GetRelativePath(cwd, path), StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return matches.Length switch
         {
             1 => (matches[0], null),
             0 => (null, new("CLI001", $"Could not resolve VSIR symbol or path '{value}'.")),
-            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+            _ => (null, new(
+                "CLI002",
+                AmbiguousVsirMessage(symbol, cwd, matches)))
         };
     }
 
@@ -179,6 +181,18 @@ internal static class CommandInfrastructure
             return $"{diagnostic.Code} [{diagnostic.SemanticPath}]";
 
         return diagnostic.Code;
+    }
+
+    private static string AmbiguousVsirMessage(
+        string symbol,
+        string cwd,
+        IReadOnlyList<string> matches)
+    {
+        var candidates = string.Join(
+            Environment.NewLine,
+            matches.Select(path => $"  - {Path.GetRelativePath(cwd, path)}"));
+
+        return $"VSIR symbol '{symbol}' is ambiguous. Use one of these paths:{Environment.NewLine}{candidates}";
     }
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(
