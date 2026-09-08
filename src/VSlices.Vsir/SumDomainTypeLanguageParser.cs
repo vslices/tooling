@@ -3,16 +3,15 @@ using YamlDotNet.RepresentationModel;
 namespace VSlices.Vsir;
 
 /// <summary>
-/// Parses the canonical VSIR 0.1 sum-domain-type surface.
-/// A sum owns no product coordinates itself; each variant owns its traits,
-/// state, representation, input and construction semantics.
+/// Parses the canonical VSIR 0.1 sum-domain-type surface, including shared
+/// state/representation and variant-local transform semantics.
 /// </summary>
 public static class SumDomainTypeLanguageParser
 {
     private static readonly HashSet<string> RootKeys = new(StringComparer.Ordinal)
     {
         "vsir", "kind", "name", "classification", "shape",
-        "state", "representation", "variants"
+        "state", "representation", "identity", "variants"
     };
 
     private static readonly HashSet<string> VariantKeys = new(StringComparer.Ordinal)
@@ -21,7 +20,7 @@ public static class SumDomainTypeLanguageParser
     };
 
     private static readonly HashSet<string> SupportedClassifications =
-        new(["value-object", "identifier"], StringComparer.Ordinal);
+        new(["value-object", "identifier", "entity", "aggregate-root"], StringComparer.Ordinal);
 
     private static readonly HashSet<string> SupportedTraits =
         new(["transform", "identifier", "refined"], StringComparer.Ordinal);
@@ -63,8 +62,20 @@ public static class SumDomainTypeLanguageParser
         Require(shape == "sum", "VSIR203", "Sum parser requires shape 'sum'.", "shape");
         Require(!string.IsNullOrWhiteSpace(name), "VSIR105", "Domain Type name is required.", "name");
 
-        ValidateEmptyRootProduct(root, "state");
-        ValidateEmptyRootProduct(root, "representation");
+        var state = TryMapping(root, "state", out var stateNode)
+            ? new ProductShape(ReadFields(stateNode, "state", allowFrom: true, allowMapping: false, diagnostics).Fields)
+            : new ProductShape([]);
+
+        var representationResult = TryMapping(root, "representation", out var representationNode)
+            ? ReadFields(representationNode, "representation", allowFrom: true, allowMapping: true, diagnostics)
+            : new ParsedFields([], new Dictionary<string, RepresentationProjection>(StringComparer.Ordinal));
+        var representation = new ProductShape(representationResult.Fields);
+        var rootMapping = representationResult.Mappings.Count == 0
+            ? null
+            : new RepresentationMapping(representationResult.Mappings);
+
+        var identity = ParseIdentity(root, classification, state, diagnostics);
+        ValidateRepresentation("representation", state, representation, rootMapping, diagnostics);
 
         var variants = new List<DomainTypeVariant>();
         if (!TryMapping(root, "variants", out var variantsNode) || variantsNode.Children.Count == 0)
@@ -82,7 +93,8 @@ public static class SumDomainTypeLanguageParser
                     continue;
                 }
 
-                var variant = ParseVariant(variantKey.Value!, variantNode, validationContext, diagnostics);
+                var variant = ParseVariant(
+                    variantKey.Value!, variantNode, state, validationContext, diagnostics);
                 if (variant is not null)
                     variants.Add(variant);
             }
@@ -99,27 +111,15 @@ public static class SumDomainTypeLanguageParser
             shape,
             [],
             null,
-            new ProductShape([]),
-            new ProductShape([]),
-            null,
+            state,
+            representation,
+            rootMapping,
             new Construction(ConstructionInput.Product([]), []),
             null,
-            variants);
+            variants,
+            identity);
 
         return new(document, diagnostics);
-
-        void ValidateEmptyRootProduct(YamlMappingNode map, string key)
-        {
-            if (!map.Children.TryGetValue(new YamlScalarNode(key), out var node))
-                return;
-            if (node is not YamlMappingNode mapping || mapping.Children.Count != 0)
-            {
-                diagnostics.Add(new(
-                    "VSIR273",
-                    $"Shape 'sum' does not own root {key} coordinates; declare them inside each variant.",
-                    SemanticPath: key));
-            }
-        }
 
         void Require(bool condition, string code, string message, string path)
         {
@@ -128,9 +128,51 @@ public static class SumDomainTypeLanguageParser
         }
     }
 
+    private static IdentitySemantics? ParseIdentity(
+        YamlMappingNode root,
+        string classification,
+        ProductShape state,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        var requiresIdentity = classification is "entity" or "aggregate-root";
+        if (!root.Children.ContainsKey(new YamlScalarNode("identity")))
+        {
+            if (requiresIdentity)
+                diagnostics.Add(new("VSIR274", $"Classification '{classification}' requires identity semantics.", SemanticPath: "identity"));
+            return null;
+        }
+
+        if (!TryMapping(root, "identity", out var identity))
+        {
+            diagnostics.Add(new("VSIR274", "Identity must be a mapping with type and from.", SemanticPath: "identity"));
+            return null;
+        }
+
+        RejectUnknownKeys(identity, new HashSet<string>(["type", "from"], StringComparer.Ordinal), "identity", diagnostics, "VSIR104");
+        if (!identity.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode))
+        {
+            diagnostics.Add(new("VSIR274", "Identity requires type.", SemanticPath: "identity.type"));
+            return null;
+        }
+
+        var type = ParseType(typeNode, "identity.type", diagnostics);
+        var from = Scalar(identity, "from");
+        if (type is null || string.IsNullOrWhiteSpace(from))
+        {
+            diagnostics.Add(new("VSIR274", "Identity requires a valid type and non-empty from reference.", SemanticPath: "identity"));
+            return null;
+        }
+
+        if (!TryResolveStateRoot(from, state, out _))
+            diagnostics.Add(new("VSIR275", $"Identity source '{from}' must originate from declared root state.", SemanticPath: "identity.from"));
+
+        return new IdentitySemantics(type, from);
+    }
+
     private static DomainTypeVariant? ParseVariant(
         string name,
         YamlMappingNode node,
+        ProductShape sharedState,
         VsirValidationContext validationContext,
         ICollection<VsirDiagnostic> diagnostics)
     {
@@ -151,23 +193,24 @@ public static class SumDomainTypeLanguageParser
 
         var refinedFrom = OptionalScalar(node, "refined-from");
         var state = TryMapping(node, "state", out var stateNode)
-            ? new ProductShape(ReadFields(stateNode, $"{path}.state", diagnostics))
+            ? new ProductShape(ReadFields(stateNode, $"{path}.state", allowFrom: true, allowMapping: false, diagnostics).Fields)
             : new ProductShape([]);
-        var representation = TryMapping(node, "representation", out var representationNode)
-            ? new ProductShape(ReadFields(representationNode, $"{path}.representation", diagnostics))
-            : new ProductShape([]);
+        var representationResult = TryMapping(node, "representation", out var representationNode)
+            ? ReadFields(representationNode, $"{path}.representation", allowFrom: true, allowMapping: true, diagnostics)
+            : new ParsedFields([], new Dictionary<string, RepresentationProjection>(StringComparer.Ordinal));
+        var representation = new ProductShape(representationResult.Fields);
+        var representationMapping = representationResult.Mappings.Count == 0
+            ? null
+            : new RepresentationMapping(representationResult.Mappings);
         var input = ParseInput(node, path, diagnostics);
         var construction = new Construction(input, ParseConstruction(node, path, validationContext, diagnostics));
 
-        if (state.Fields.Count == 0)
-            diagnostics.Add(new("VSIR205", $"Sum variant '{name}' state must contain at least one field.", SemanticPath: $"{path}.state"));
-        if (representation.Fields.Count == 0)
-            diagnostics.Add(new("VSIR206", $"Sum variant '{name}' representation must contain at least one field.", SemanticPath: $"{path}.representation"));
         if (!input.IsScalar && input.Fields.Count == 0)
             diagnostics.Add(new("VSIR207", $"Sum variant '{name}' input must contain at least one field or declare a scalar type.", SemanticPath: $"{path}.input"));
 
-        ValidateRefineBindings(name, state, input, construction.Steps, diagnostics);
-        ValidateDirectRepresentation(name, state, representation, diagnostics);
+        var effectiveState = new ProductShape(sharedState.Fields.Concat(state.Fields).ToArray());
+        ValidateRefineBindings(name, effectiveState, input, construction.Steps, diagnostics);
+        ValidateRepresentation($"{path}.representation", effectiveState, representation, representationMapping, diagnostics);
 
         return new(
             name,
@@ -175,7 +218,7 @@ public static class SumDomainTypeLanguageParser
             refinedFrom,
             state,
             representation,
-            null,
+            representationMapping,
             construction,
             null);
     }
@@ -195,7 +238,7 @@ public static class SumDomainTypeLanguageParser
             return ConstructionInput.Scalar(new NamedVsirType(scalar.Value!));
 
         if (node is YamlMappingNode mapping)
-            return ConstructionInput.Product(ReadFields(mapping, $"{variantPath}.input", diagnostics));
+            return ConstructionInput.Product(ReadFields(mapping, $"{variantPath}.input", allowFrom: false, allowMapping: false, diagnostics).Fields);
 
         diagnostics.Add(new("VSIR111", "Variant input must be either a scalar semantic type or a product mapping.", SemanticPath: $"{variantPath}.input"));
         return ConstructionInput.Product([]);
@@ -378,12 +421,16 @@ public static class SumDomainTypeLanguageParser
             : null;
     }
 
-    private static IReadOnlyList<Field> ReadFields(
+    private static ParsedFields ReadFields(
         YamlMappingNode map,
         string path,
+        bool allowFrom,
+        bool allowMapping,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        var result = new List<Field>(map.Children.Count);
+        var fields = new List<Field>(map.Children.Count);
+        var mappings = new Dictionary<string, RepresentationProjection>(StringComparer.Ordinal);
+
         foreach (var pair in map.Children)
         {
             if (pair.Key is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
@@ -392,11 +439,97 @@ public static class SumDomainTypeLanguageParser
                 continue;
             }
 
-            var type = ParseType(pair.Value, $"{path}.{key.Value}", diagnostics);
+            var fieldName = key.Value!;
+            string? from = null;
+            VsirType? type;
+
+            if (pair.Value is YamlMappingNode declaration &&
+                declaration.Children.ContainsKey(new YamlScalarNode("type")))
+            {
+                var allowed = new HashSet<string>(StringComparer.Ordinal) { "type" };
+                if (allowFrom) allowed.Add("from");
+                if (allowMapping) allowed.Add("mapping");
+                RejectUnknownKeys(declaration, allowed, $"{path}.{fieldName}", diagnostics, "VSIR104");
+
+                type = declaration.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode)
+                    ? ParseType(typeNode, $"{path}.{fieldName}.type", diagnostics)
+                    : null;
+                if (allowFrom)
+                    from = OptionalScalar(declaration, "from");
+                if (allowMapping && declaration.Children.TryGetValue(new YamlScalarNode("mapping"), out var mappingNode))
+                {
+                    var projection = ParseProjection(mappingNode, $"{path}.{fieldName}.mapping", diagnostics);
+                    if (projection is not null)
+                        mappings[fieldName] = projection;
+                }
+            }
+            else
+            {
+                type = ParseType(pair.Value, $"{path}.{fieldName}", diagnostics);
+            }
+
             if (type is not null)
-                result.Add(new Field(key.Value!, type));
+                fields.Add(new Field(fieldName, type, from));
         }
-        return result;
+
+        return new(fields, mappings);
+    }
+
+    private static RepresentationProjection? ParseProjection(
+        YamlNode node,
+        string path,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (node is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
+            return new ReferenceProjection(scalar.Value!);
+        if (node is not YamlMappingNode mapping || mapping.Children.Count == 0)
+        {
+            diagnostics.Add(new("VSIR114", $"Semantic expression '{path}' must be a non-empty mapping or reference.", SemanticPath: path));
+            return null;
+        }
+
+        if (mapping.Children.ContainsKey(new YamlScalarNode("stringify")))
+        {
+            RejectUnknownKeys(mapping, new HashSet<string>(["stringify"], StringComparer.Ordinal), path, diagnostics, "VSIR104");
+            var value = Scalar(mapping, "stringify");
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                diagnostics.Add(new("VSIR115", $"{path}: stringify requires a semantic reference.", SemanticPath: path));
+                return null;
+            }
+            return new StringifyProjection(value);
+        }
+
+        if (mapping.Children.TryGetValue(new YamlScalarNode("represent"), out var represented))
+        {
+            RejectUnknownKeys(mapping, new HashSet<string>(["represent"], StringComparer.Ordinal), path, diagnostics, "VSIR104");
+            var value = ParseProjection(represented, path + ".represent", diagnostics);
+            return value is null ? null : new RepresentProjection(value);
+        }
+
+        if (TryMapping(mapping, "map", out var map))
+        {
+            RejectUnknownKeys(mapping, new HashSet<string>(["map"], StringComparer.Ordinal), path, diagnostics, "VSIR104");
+            RejectUnknownKeys(map, new HashSet<string>(["source", "bind", "value"], StringComparer.Ordinal), path + ".map", diagnostics, "VSIR104");
+            if (!map.Children.TryGetValue(new YamlScalarNode("source"), out var sourceNode) ||
+                !map.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
+            {
+                diagnostics.Add(new("VSIR115", $"{path}: map requires source, bind, and value.", SemanticPath: path));
+                return null;
+            }
+            var source = ParseProjection(sourceNode, path + ".map.source", diagnostics);
+            var value = ParseProjection(valueNode, path + ".map.value", diagnostics);
+            var bind = Scalar(map, "bind");
+            if (source is null || value is null || string.IsNullOrWhiteSpace(bind))
+            {
+                diagnostics.Add(new("VSIR115", $"{path}: map requires source, bind, and value.", SemanticPath: path));
+                return null;
+            }
+            return new MapProjection(source, bind, value);
+        }
+
+        diagnostics.Add(new("VSIR115", $"{path}: unknown semantic projection expression.", SemanticPath: path));
+        return null;
     }
 
     private static VsirType? ParseType(
@@ -410,7 +543,7 @@ public static class SumDomainTypeLanguageParser
         if (node is YamlMappingNode mapping && mapping.Children.Count == 1 &&
             mapping.Children.Keys.Single() is YamlScalarNode constructor && !string.IsNullOrWhiteSpace(constructor.Value))
         {
-            var inner = ParseType(mapping.Children.Values.Single(), path, diagnostics);
+            var inner = ParseType(mapping.Children.Values.Single(), path + "." + constructor.Value, diagnostics);
             return inner is null ? null : new UnaryVsirType(constructor.Value!, inner);
         }
 
@@ -420,7 +553,7 @@ public static class SumDomainTypeLanguageParser
 
     private static void ValidateRefineBindings(
         string variantName,
-        ProductShape state,
+        ProductShape effectiveState,
         ConstructionInput input,
         IReadOnlyList<ConstructionStep> steps,
         ICollection<VsirDiagnostic> diagnostics)
@@ -435,7 +568,7 @@ public static class SumDomainTypeLanguageParser
             }
 
             var stateName = refine.As["state.".Length..];
-            var stateField = state.Fields.SingleOrDefault(x => x.Name == stateName);
+            var stateField = effectiveState.Fields.SingleOrDefault(x => x.Name == stateName);
             if (stateField is null)
             {
                 diagnostics.Add(new("VSIR232", $"Refine references unknown state field '{stateName}'.", SemanticPath: $"variants.{variantName}.construction"));
@@ -454,23 +587,46 @@ public static class SumDomainTypeLanguageParser
         }
     }
 
-    private static void ValidateDirectRepresentation(
-        string variantName,
-        ProductShape state,
+    private static void ValidateRepresentation(
+        string path,
+        ProductShape effectiveState,
         ProductShape representation,
+        RepresentationMapping? mapping,
         ICollection<VsirDiagnostic> diagnostics)
     {
         foreach (var field in representation.Fields)
         {
-            var stateField = state.Fields.SingleOrDefault(x => x.Name == field.Name);
+            if (mapping?.Fields.ContainsKey(field.Name) == true)
+                continue;
+
+            if (field.From is not null)
+            {
+                if (!TryResolveStateRoot(field.From, effectiveState, out _))
+                    diagnostics.Add(new("VSIR210", $"Representation source '{field.From}' does not originate from declared state.", SemanticPath: $"{path}.{field.Name}"));
+                continue;
+            }
+
+            var stateField = effectiveState.Fields.SingleOrDefault(x => x.Name == field.Name);
             if (stateField is null || stateField.Type != field.Type)
             {
                 diagnostics.Add(new(
                     "VSIR210",
-                    $"Cannot project variants.{variantName}.representation.{field.Name} deterministically from same-named state.",
-                    SemanticPath: $"variants.{variantName}.representation.{field.Name}"));
+                    $"Cannot project {path}.{field.Name} deterministically from same-named state.",
+                    SemanticPath: $"{path}.{field.Name}"));
             }
         }
+    }
+
+    private static bool TryResolveStateRoot(string reference, ProductShape state, out Field? field)
+    {
+        field = null;
+        if (!reference.StartsWith("state.", StringComparison.Ordinal))
+            return false;
+        var tail = reference["state.".Length..];
+        var separator = tail.IndexOf('.', StringComparison.Ordinal);
+        var rootName = separator < 0 ? tail : tail[..separator];
+        field = state.Fields.SingleOrDefault(x => x.Name == rootName);
+        return field is not null;
     }
 
     private static IReadOnlyList<string> ReadScalarSequence(
@@ -535,4 +691,8 @@ public static class SumDomainTypeLanguageParser
 
     private static VsirParseResult Failure(string code, string message) =>
         new(null, [new(code, message)]);
+
+    private sealed record ParsedFields(
+        IReadOnlyList<Field> Fields,
+        IReadOnlyDictionary<string, RepresentationProjection> Mappings);
 }
