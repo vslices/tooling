@@ -84,7 +84,9 @@ internal static class LoweringSubjectResolver
         {
             1 => (new(LoweringSubjectKind.VsirArtifact, matches[0]), null),
             0 => (null, null),
-            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+            _ => (null, new(
+                "CLI002",
+                $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate. Candidates: {FormatRelativeCandidates(searchRoot, matches)}."))
         };
     }
 
@@ -122,6 +124,15 @@ internal static class LoweringSubjectResolver
         var policy = ArtifactDiscoveryPolicy.Load(root);
         return EnumerateFiles(root, "*.vsir", policy);
     }
+
+    private static string FormatRelativeCandidates(
+        string root,
+        IEnumerable<string> matches) =>
+        string.Join(
+            ", ",
+            matches
+                .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/'))
+                .OrderBy(path => path, StringComparer.Ordinal));
 
     private static IEnumerable<string> EnumerateFiles(
         string root,
