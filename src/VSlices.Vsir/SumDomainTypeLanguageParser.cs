@@ -276,30 +276,23 @@ public static class SumDomainTypeLanguageParser
         }
 
         var intrinsic = Scalar(condition, "intrinsic");
-        SemanticExpression? value = null;
-        if (args.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
+        if (!args.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
         {
-            value = ParseExpression(valueNode, $"{stepPath}.ensure.condition.args.value", diagnostics);
-        }
-        else if (args.Children.TryGetValue(new YamlScalarNode("values"), out var valuesNode) && valuesNode is YamlSequenceNode values)
-        {
-            var operands = values.Children
-                .Select((item, index) => ParseExpression(item, $"{stepPath}.ensure.condition.args.values[{index}]", diagnostics))
-                .Where(item => item is not null)
-                .Cast<SemanticExpression>()
-                .ToArray();
-            if (operands.Length == values.Children.Count && operands.Length > 0)
-                value = new SemanticIntrinsicExpression("sum-lengths", operands);
+            diagnostics.Add(new("VSIR102", $"Unsupported or malformed intrinsic '{intrinsic}': missing value expression.", SemanticPath: stepPath));
+            return;
         }
 
-        Condition? parsed = intrinsic switch
-        {
-            "non-empty" when value is not null => new NonEmptyCondition(value),
-            "not-whitespace" when value is not null => new NotWhitespaceCondition(value),
-            "length-at-most" when value is not null && TryInt(args, "max", out var max) => new LengthAtMostCondition(value, max),
-            "length-between" when value is not null && TryInt(args, "min", out var min) && TryInt(args, "max", out var upper) => new LengthBetweenCondition(value, min, upper),
-            _ => null
-        };
+        var value = ParseExpression(valueNode, $"{stepPath}.ensure.condition.args.value", diagnostics);
+        Condition? parsed = value is null
+            ? null
+            : intrinsic switch
+            {
+                "non-empty" => new NonEmptyCondition(value),
+                "not-whitespace" => new NotWhitespaceCondition(value),
+                "length-at-most" when TryInt(args, "max", out var max) => new LengthAtMostCondition(value, max),
+                "length-between" when TryInt(args, "min", out var min) && TryInt(args, "max", out var upper) => new LengthBetweenCondition(value, min, upper),
+                _ => null
+            };
 
         if (parsed is null)
         {
@@ -351,8 +344,38 @@ public static class SumDomainTypeLanguageParser
         if (node is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
             return new SemanticReferenceExpression(scalar.Value!);
 
-        diagnostics.Add(new("VSIR128", $"Semantic expression '{path}' must currently be a non-empty reference.", SemanticPath: path));
-        return null;
+        if (node is not YamlMappingNode mapping || mapping.Children.Count == 0)
+        {
+            diagnostics.Add(new("VSIR128", $"Semantic expression '{path}' must be a non-empty reference or intrinsic mapping.", SemanticPath: path));
+            return null;
+        }
+
+        var intrinsic = OptionalScalar(mapping, "intrinsic");
+        if (intrinsic is null)
+        {
+            diagnostics.Add(new("VSIR128", $"Semantic expression '{path}' currently requires intrinsic and values.", SemanticPath: path));
+            return null;
+        }
+
+        RejectUnknownKeys(mapping, new HashSet<string>(["intrinsic", "values"], StringComparer.Ordinal), path, diagnostics, "VSIR104");
+        if (!mapping.Children.TryGetValue(new YamlScalarNode("values"), out var valuesNode) ||
+            valuesNode is not YamlSequenceNode values || values.Children.Count == 0)
+        {
+            diagnostics.Add(new("VSIR128", $"Intrinsic semantic expression '{path}' requires at least one value expression.", SemanticPath: path));
+            return null;
+        }
+
+        var parsedValues = new List<SemanticExpression>(values.Children.Count);
+        for (var index = 0; index < values.Children.Count; index++)
+        {
+            var parsed = ParseExpression(values.Children[index], $"{path}.values[{index}]", diagnostics);
+            if (parsed is not null)
+                parsedValues.Add(parsed);
+        }
+
+        return parsedValues.Count == values.Children.Count
+            ? new SemanticIntrinsicExpression(intrinsic, parsedValues)
+            : null;
     }
 
     private static IReadOnlyList<Field> ReadFields(
