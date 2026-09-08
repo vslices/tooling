@@ -15,9 +15,10 @@ public static class VsirParser
     {
         var semanticText = StripSearchMetadata(text, out var metadataDiagnostic);
         if (metadataDiagnostic is not null)
-            return new(null, [metadataDiagnostic]);
+            return new(null, [VsirDiagnosticLocator.Attach(text, metadataDiagnostic)]);
 
-        return VsirLanguageParser.Parse(semanticText!, validationContext);
+        var result = VsirLanguageParser.Parse(semanticText!, validationContext);
+        return VsirDiagnosticLocator.Attach(text, result);
     }
 
     private static string? StripSearchMetadata(
