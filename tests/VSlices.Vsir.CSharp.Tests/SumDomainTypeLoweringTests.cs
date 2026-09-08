@@ -52,10 +52,12 @@ public sealed class SumDomainTypeLoweringTests
                   condition:
                     intrinsic: length-at-most
                     args:
-                      values:
-                        - input.Names
-                        - input.FirstSurname
-                        - input.SecondSurname
+                      value:
+                        intrinsic: concat-space
+                        values:
+                          - input.Names
+                          - input.FirstSurname
+                          - input.SecondSurname
                       max: 92
                   failure:
                     message: El nombre debe tener 92 caracteres o menos
@@ -108,9 +110,9 @@ public sealed class SumDomainTypeLoweringTests
         var fullName = Assert.Single(parsed.Document.Variants, variant => variant.Name == "FullName");
         var ensure = Assert.IsType<EnsureStep>(fullName.Construction.Steps[2]);
         var combinedLength = Assert.IsType<LengthAtMostCondition>(ensure.Condition);
-        var aggregate = Assert.IsType<SemanticIntrinsicExpression>(combinedLength.Value);
-        Assert.Equal("sum-lengths", aggregate.Intrinsic);
-        Assert.Equal(3, aggregate.Values.Count);
+        var concat = Assert.IsType<SemanticIntrinsicExpression>(combinedLength.Value);
+        Assert.Equal("concat-space", concat.Intrinsic);
+        Assert.Equal(3, concat.Values.Count);
     }
 
     [Fact]
@@ -131,7 +133,7 @@ public sealed class SumDomainTypeLoweringTests
         Assert.Contains("Transform<FullName, FullName.Input>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("Option<string> SecondSurname", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("!string.IsNullOrEmpty(input.Names)", lowered.Source, StringComparison.Ordinal);
-        Assert.Contains("input.Names.Length + input.FirstSurname.Length + input.SecondSurname.Map(value => value.Length).IfNone(0) <= 92", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("string.Join(\" \", new[] { input.Names, input.FirstSurname, input.SecondSurname }).Length <= 92", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("new(input.Names, input.FirstSurname, input.SecondSurname)", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("public sealed class CompanyName", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("input.Value.Length <= 92", lowered.Source, StringComparison.Ordinal);
@@ -175,6 +177,12 @@ public sealed class SumDomainTypeLoweringTests
                     renderer: expression
                     bindings: [value, max]
                     template: "{value}.Length <= {max}"
+
+                  - node: intrinsic.concat-space
+                    mode: deterministic
+                    renderer: expression
+                    bindings: [values]
+                    template: "string.Join(\" \", new[] { {values} })"
                 """);
 
             var loaded = CSharpLoweringRuleSet.Load(root);
