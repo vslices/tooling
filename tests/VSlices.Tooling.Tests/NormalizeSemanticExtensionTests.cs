@@ -17,6 +17,40 @@ public sealed class NormalizeSemanticExtensionTests
     }
 
     [Fact]
+    public async Task Discovery_uses_project_semantic_extensions_for_conformance()
+    {
+        using var project = ReadyProject();
+        WriteProjectExtension(project, includeRenderer: false);
+        var vsir = WriteProbe(project.Root);
+
+        var result = await project.Run(
+            project.Root,
+            "discovery", "vsir", Path.GetFileName(vsir));
+        var output = result.StandardError + result.StandardOutput;
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("conformance: conforming", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("VSIR221", output, StringComparison.Ordinal);
+        Assert.Contains("lowerability: not evaluated by discovery", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Discovery_without_project_semantic_extension_reports_nonconformance()
+    {
+        using var project = ReadyProject();
+        var vsir = WriteProbe(project.Root);
+
+        var result = await project.Run(
+            project.Root,
+            "discovery", "vsir", Path.GetFileName(vsir));
+        var output = result.StandardError + result.StandardOutput;
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("conformance: invalid", output, StringComparison.Ordinal);
+        Assert.Contains("VSIR221", output, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Declared_normalize_semantic_without_CSharp_realization_reaches_CSL031()
     {
         using var project = ReadyProject();
