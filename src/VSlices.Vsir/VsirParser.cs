@@ -4,7 +4,7 @@ namespace VSlices.Vsir;
 
 /// <summary>
 /// Canonical VSIR parser entry point.
-/// VSIR 0.1 has one admitted semantic grammar and no compatibility dispatch by document shape.
+/// VSIR 0.1 has one admitted semantic grammar and no compatibility dispatch by historical document shape.
 /// Searchable artifact metadata such as tags is validated and removed before semantic parsing.
 /// </summary>
 public static class VsirParser
@@ -17,8 +17,32 @@ public static class VsirParser
         if (metadataDiagnostic is not null)
             return new(null, [VsirDiagnosticLocator.Attach(text, metadataDiagnostic)]);
 
-        var result = VsirLanguageParser.Parse(semanticText!, validationContext);
+        var result = IsSumDomainType(semanticText!)
+            ? SumDomainTypeLanguageParser.Parse(semanticText!, validationContext)
+            : VsirLanguageParser.Parse(semanticText!, validationContext);
         return VsirDiagnosticLocator.Attach(text, result);
+    }
+
+    private static bool IsSumDomainType(string text)
+    {
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(text));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+                return false;
+
+            return root.Children.TryGetValue(new YamlScalarNode("kind"), out var kindNode) &&
+                   kindNode is YamlScalarNode kind &&
+                   string.Equals(kind.Value, "domain-type", StringComparison.Ordinal) &&
+                   root.Children.TryGetValue(new YamlScalarNode("shape"), out var shapeNode) &&
+                   shapeNode is YamlScalarNode shape &&
+                   string.Equals(shape.Value, "sum", StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static string? StripSearchMetadata(
