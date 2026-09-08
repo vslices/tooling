@@ -28,7 +28,7 @@ public sealed class VsirDiagnosticLocationTests
         Assert.Equal("shape", diagnostic.SemanticPath);
         Assert.NotNull(diagnostic.Source);
         Assert.Equal(5, diagnostic.Source!.Line);
-        Assert.Equal(8, diagnostic.Source.Column);
+        Assert.Equal(9, diagnostic.Source.Column);
     }
 
     [Fact]
@@ -57,7 +57,7 @@ public sealed class VsirDiagnosticLocationTests
         Assert.Equal("imaginary-root", diagnostic.SemanticPath);
         Assert.NotNull(diagnostic.Source);
         Assert.Equal(14, diagnostic.Source!.Line);
-        Assert.Equal(1, diagnostic.Source.Column);
+        Assert.Equal(2, diagnostic.Source.Column);
     }
 
     [Fact]
