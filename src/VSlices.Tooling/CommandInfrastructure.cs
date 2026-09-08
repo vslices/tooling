@@ -152,7 +152,7 @@ internal static class CommandInfrastructure
     {
         foreach (var diagnostic in diagnostics)
         {
-            Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+            Console.Error.WriteLine($"{DiagnosticHeader(diagnostic)}: {diagnostic.Message}");
 
             if (verbosity >= DiagnosticVerbosity.Verbose &&
                 !string.IsNullOrWhiteSpace(diagnostic.Details))
@@ -170,6 +170,19 @@ internal static class CommandInfrastructure
                 Console.Error.WriteLine(diagnostic.Trace);
             }
         }
+    }
+
+    internal static string DiagnosticHeader(VsirDiagnostic diagnostic)
+    {
+        if (diagnostic.Source is not null && !string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+        {
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath} @ {diagnostic.Source.Line}:{diagnostic.Source.Column}]";
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath}]";
+
+        return diagnostic.Code;
     }
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(
