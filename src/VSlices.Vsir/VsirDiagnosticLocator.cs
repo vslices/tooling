@@ -217,10 +217,10 @@ internal static partial class VsirDiagnosticLocator
 
         private static VsirSourceSpan ToSpan(YamlNode node) =>
             new(
-                node.Start.Line + 1,
-                node.Start.Column + 1,
-                node.End.Line + 1,
-                node.End.Column + 1);
+                checked((int)node.Start.Line) + 1,
+                checked((int)node.Start.Column) + 1,
+                checked((int)node.End.Line) + 1,
+                checked((int)node.End.Column) + 1);
 
         private sealed record Entry(VsirSourceSpan Key, VsirSourceSpan Value);
     }
