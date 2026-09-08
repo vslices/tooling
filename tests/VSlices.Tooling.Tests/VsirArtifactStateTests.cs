@@ -34,7 +34,159 @@ public sealed class VsirArtifactStateTests
         Assert.Contains("progressive validity: valid", result.StandardOutput);
         Assert.Contains("conformance: conforming", result.StandardOutput);
         Assert.DoesNotContain("missing required:", result.StandardOutput);
+        Assert.Contains("public semantic authoring: represented by the immediate frontier", result.StandardOutput);
         Assert.Contains("lowerability: not evaluated by discovery", result.StandardOutput);
+    }
+
+    [Fact]
+    public async Task Canonical_sum_can_conform_while_public_semantic_authoring_remains_gated()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        File.WriteAllText(Path.Combine(project.Root, "Name.vsir"), """
+            vsir: 0.1
+            kind: domain-type
+            name: Name
+            shape: sum
+            classification: value-object
+
+            state: {}
+            representation: {}
+
+            variants:
+              FullName:
+                traits: [transform]
+                state:
+                  Names: string
+                  FirstSurname: string
+                  SecondSurname:
+                    optional: string
+                representation:
+                  Names: string
+                  FirstSurname: string
+                  SecondSurname:
+                    optional: string
+                input:
+                  Names: string
+                  FirstSurname: string
+                  SecondSurname:
+                    optional: string
+                construction:
+                  - ensure:
+                      condition:
+                        intrinsic: non-empty
+                        args:
+                          value: input.Names
+                      failure:
+                        message: Debes especificar al menos un nombre
+                  - ensure:
+                      condition:
+                        intrinsic: non-empty
+                        args:
+                          value: input.FirstSurname
+                      failure:
+                        message: Debes especificar el primer apellido
+                  - ensure:
+                      condition:
+                        intrinsic: length-at-most
+                        args:
+                          value:
+                            intrinsic: concat-space
+                            values:
+                              - input.Names
+                              - input.FirstSurname
+                              - input.SecondSurname
+                          max: 92
+                      failure:
+                        message: El nombre debe tener 92 caracteres o menos
+                  - refine:
+                      state:
+                        Names: input.Names
+                        FirstSurname: input.FirstSurname
+                        SecondSurname: input.SecondSurname
+
+              CompanyName:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value: string
+                input:
+                  Value: string
+                construction:
+                  - ensure:
+                      condition:
+                        intrinsic: non-empty
+                        args:
+                          value: input.Value
+                      failure:
+                        message: Debes especificar el nombre de la empresa
+                  - ensure:
+                      condition:
+                        intrinsic: length-at-most
+                        args:
+                          value: input.Value
+                          max: 92
+                      failure:
+                        message: El nombre debe tener 92 caracteres o menos
+                  - refine:
+                      state:
+                        Value: input.Value
+            """);
+
+        var result = await project.Run(project.Root, "discovery", "vsir", "Name.vsir");
+        var output = result.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("conformance: conforming", output);
+        Assert.Contains("public semantic authoring: gated for this conforming form", output);
+        Assert.DoesNotContain("\nshape\n", output);
+        Assert.DoesNotContain("\nclassification\n", output);
+        Assert.Contains("\ntags\n", output);
+    }
+
+    [Fact]
+    public async Task Canonical_maintained_can_conform_while_public_semantic_authoring_remains_gated()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+        File.WriteAllText(Path.Combine(project.Root, "IdentityType.vsir"), """
+            vsir: 0.1
+            kind: domain-type
+            name: IdentityType
+            shape: product
+            classification: maintained
+
+            state:
+              Name: string
+
+            representation:
+              Value:
+                type: string
+                from: state.Name
+
+            values:
+              Natural:
+                state:
+                  Name: Natural
+              Juridical:
+                state:
+                  Name: Juridica
+
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Name
+            """);
+
+        var result = await project.Run(project.Root, "discovery", "vsir", "IdentityType.vsir");
+        var output = result.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("conformance: conforming", output);
+        Assert.Contains("public semantic authoring: gated for this conforming form", output);
+        Assert.DoesNotContain("\nclassification\n", output);
+        Assert.DoesNotContain("\nrepresentation.Value.from\n", output);
+        Assert.Contains("\ntags\n", output);
     }
 
     [Fact]
@@ -76,14 +228,16 @@ public sealed class VsirArtifactStateTests
             """);
 
         var result = await project.Run(project.Root, "discovery", "vsir", "Repairable.vsir");
+        var output = result.StandardError + result.StandardOutput;
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("progressive validity: valid", result.StandardOutput);
-        Assert.Contains("conformance: invalid", result.StandardOutput);
-        Assert.Contains("VSIR-AUTH001", result.StandardOutput);
-        Assert.Contains("shape", result.StandardOutput);
-        Assert.Contains("values: product", result.StandardOutput);
-        Assert.DoesNotContain("\nstate\n", result.StandardOutput.Replace("\r\n", "\n"));
+        Assert.Contains("progressive validity: valid", output);
+        Assert.Contains("conformance: invalid", output);
+        Assert.Contains("Conformance diagnostics:", output);
+        Assert.DoesNotContain("VSIR-AUTH", output);
+        Assert.Contains("shape", output, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("values: product", output);
+        Assert.DoesNotContain("\nstate\n", result.StandardOutput.Replace("\r\n", "\n", StringComparison.Ordinal));
     }
 
     [Fact]
