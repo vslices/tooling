@@ -106,7 +106,8 @@ public sealed class SumDomainTypeLoweringTests
             diagnostic.Code is "VSIR111" or "VSIR203" or "VSIR204" or "VSIR205" or "VSIR206" or "VSIR207");
 
         var fullName = Assert.Single(parsed.Document.Variants, variant => variant.Name == "FullName");
-        var combinedLength = Assert.IsType<LengthAtMostCondition>(fullName.Construction.Steps[2].As<EnsureStep>().Condition);
+        var ensure = Assert.IsType<EnsureStep>(fullName.Construction.Steps[2]);
+        var combinedLength = Assert.IsType<LengthAtMostCondition>(ensure.Condition);
         var aggregate = Assert.IsType<SemanticIntrinsicExpression>(combinedLength.Value);
         Assert.Equal("sum-lengths", aggregate.Intrinsic);
         Assert.Equal(3, aggregate.Values.Count);
