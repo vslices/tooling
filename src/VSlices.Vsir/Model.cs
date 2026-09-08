@@ -13,7 +13,8 @@ public sealed record DomainTypeVsir(
     RepresentationMapping? RepresentationMapping,
     Construction Construction,
     EqualitySemantics? Equality,
-    IReadOnlyList<DomainTypeVariant>? Variants = null);
+    IReadOnlyList<DomainTypeVariant>? Variants = null,
+    IdentitySemantics? Identity = null);
 
 public sealed record DomainTypeVariant(
     string Name,
@@ -27,6 +28,10 @@ public sealed record DomainTypeVariant(
 
 public sealed record ProductShape(IReadOnlyList<Field> Fields);
 public sealed record Field(string Name, VsirType Type, string? From = null);
+
+public sealed record IdentitySemantics(
+    VsirType Type,
+    string From);
 
 public abstract record VsirType
 {
