@@ -65,7 +65,7 @@ public sealed class DotNetTypeResolutionTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains(
             "Resolving C# type 'Rut' in project 'Demo.Domain'...",
-            result.Error,
+            result.StandardError,
             StringComparison.Ordinal);
         var materialization = File.ReadAllText(Path.Combine(project.Root, "WrappedRut.vsir.cs"));
         Assert.Contains("using Shared.Domain.ValueObjects;", materialization, StringComparison.Ordinal);
