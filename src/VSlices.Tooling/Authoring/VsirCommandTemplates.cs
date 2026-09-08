@@ -77,10 +77,11 @@ internal static class VsirGrammarDiscovery
                 ]),
             new(
                 "ensure",
-                "{ensure: {condition: {intrinsic: <ruleset-intrinsic>, args: <argument-map>}, failure: {message: <text>}}}",
+                "{ensure: {condition: {intrinsic: <ruleset-intrinsic>, args: {value: <expression>, ...}}, failure: {message: <text>}}}",
                 [
                     new("intrinsic", "ruleset-intrinsic"),
-                    new("args", "argument-map"),
+                    new("value", "expression"),
+                    new("args", "argument-map<expression>"),
                     new("message", "text")
                 ]),
             new(
