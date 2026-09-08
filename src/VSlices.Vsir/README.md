@@ -54,6 +54,41 @@ The lowering boundary remains:
 
 > Lowering may complete implementation detail. Lowering must not complete missing semantics.
 
+## Canonical conformance versus public authoring
+
+`VsirParser` is the public executable boundary for canonical conformance. It dispatches to the currently appropriate parser/validator implementation while preserving one canonical VSIR 0.1 surface.
+
+The `new/discovery/update` authoring contract is a separate capability surface and may intentionally lag executable parser/lowering coverage:
+
+```text
+canonical conformance
+  = VsirParser + semantic validation environment
+
+public authorability
+  = transitions new/discovery/update can establish safely
+```
+
+Current corpus evidence includes conforming/lowerable `sum`, `maintained`, and aggregate-root sum artifacts whose full public authoring parity is still gated. Tooling must report those artifacts as conforming rather than invalidating them against the narrower authoring vocabulary.
+
+Project semantic extensions are part of the validation environment, not part of the document. Any command that claims canonical conformance must therefore use the same relevant `VsirValidationContext`; target selection and Ruleset realization remain lowerability concerns.
+
+## Specialized parser coverage
+
+The current executable implementation contains specialized parser paths for forms such as product, sum and maintained Domain Types. Some low-level parsing code is still duplicated while the corpus reveals which primitives are genuinely common.
+
+Treat differences between those implementations as **witness-limited executable coverage**, not as language-level semantic distinctions. For example, the existence of a projection-expression form in one parser path does not make its absence from another parser normative; the VSIR specification remains the language authority.
+
+Do not respond to this duplication with a speculative universal/reflection-driven grammar. Prefer this sequence:
+
+```text
+repeated semantic form appears in multiple real witnesses
+  -> confirm the specification gives it the same meaning
+  -> add cross-path regression evidence
+  -> extract the genuinely shared parser primitive
+```
+
+Until then, keep unsupported specialized-parser forms explicit and fail-closed so implementation lag cannot masquerade as semantic rejection.
+
 ## Working procedure
 
 When changing VSIR semantics:
