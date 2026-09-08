@@ -17,13 +17,24 @@ public static class VsirParser
         if (metadataDiagnostic is not null)
             return new(null, [VsirDiagnosticLocator.Attach(text, metadataDiagnostic)]);
 
-        var result = IsSumDomainType(semanticText!)
-            ? SumDomainTypeLanguageParser.Parse(semanticText!, validationContext)
-            : VsirLanguageParser.Parse(semanticText!, validationContext);
+        VsirParseResult result;
+        if (IsMaintainedDomainType(semanticText!))
+            result = MaintainedDomainTypeLanguageParser.Parse(semanticText!);
+        else if (IsSumDomainType(semanticText!))
+            result = SumDomainTypeLanguageParser.Parse(semanticText!, validationContext);
+        else
+            result = VsirLanguageParser.Parse(semanticText!, validationContext);
+
         return VsirDiagnosticLocator.Attach(text, result);
     }
 
-    private static bool IsSumDomainType(string text)
+    private static bool IsMaintainedDomainType(string text) =>
+        MatchesDomainType(text, "classification", "maintained");
+
+    private static bool IsSumDomainType(string text) =>
+        MatchesDomainType(text, "shape", "sum");
+
+    private static bool MatchesDomainType(string text, string key, string expected)
     {
         try
         {
@@ -35,9 +46,9 @@ public static class VsirParser
             return root.Children.TryGetValue(new YamlScalarNode("kind"), out var kindNode) &&
                    kindNode is YamlScalarNode kind &&
                    string.Equals(kind.Value, "domain-type", StringComparison.Ordinal) &&
-                   root.Children.TryGetValue(new YamlScalarNode("shape"), out var shapeNode) &&
-                   shapeNode is YamlScalarNode shape &&
-                   string.Equals(shape.Value, "sum", StringComparison.Ordinal);
+                   root.Children.TryGetValue(new YamlScalarNode(key), out var valueNode) &&
+                   valueNode is YamlScalarNode value &&
+                   string.Equals(value.Value, expected, StringComparison.Ordinal);
         }
         catch
         {
