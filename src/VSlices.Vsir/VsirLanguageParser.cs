@@ -222,16 +222,24 @@ public static class VsirLanguageParser
             return;
         }
 
-        var value = Scalar(args, "value");
-        Condition? parsed = intrinsic switch
+        if (!args.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
         {
-            "non-empty" => new NonEmptyCondition(value),
-            "not-whitespace" => new NotWhitespaceCondition(value),
-            "length-at-most" when TryInt(args, "max", out var max) => new LengthAtMostCondition(value, max),
-            "length-between" when TryInt(args, "min", out var min) && TryInt(args, "max", out var upper) =>
-                new LengthBetweenCondition(value, min, upper),
-            _ => null
-        };
+            diagnostics.Add(new("VSIR102", $"Unsupported or malformed intrinsic '{intrinsic}': missing value expression."));
+            return;
+        }
+
+        var value = ParseSemanticExpression(valueNode, "construction[].ensure.condition.args.value", diagnostics);
+        Condition? parsed = value is null
+            ? null
+            : intrinsic switch
+            {
+                "non-empty" => new NonEmptyCondition(value),
+                "not-whitespace" => new NotWhitespaceCondition(value),
+                "length-at-most" when TryInt(args, "max", out var max) => new LengthAtMostCondition(value, max),
+                "length-between" when TryInt(args, "min", out var min) && TryInt(args, "max", out var upper) =>
+                    new LengthBetweenCondition(value, min, upper),
+                _ => null
+            };
 
         if (parsed is null)
         {
@@ -257,6 +265,47 @@ public static class VsirLanguageParser
         }
 
         result.Add(new EnsureStep(parsed, failureMessage));
+    }
+
+    private static SemanticExpression? ParseSemanticExpression(
+        YamlNode node,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (node is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
+            return new SemanticReferenceExpression(scalar.Value!);
+
+        if (node is not YamlMappingNode mapping || mapping.Children.Count == 0)
+        {
+            diagnostics.Add(new("VSIR128", $"Semantic expression '{semanticPath}' must be a non-empty reference or intrinsic mapping."));
+            return null;
+        }
+
+        var intrinsic = OptionalScalar(mapping, "intrinsic");
+        if (intrinsic is null)
+        {
+            diagnostics.Add(new("VSIR128", $"Semantic expression '{semanticPath}' currently requires intrinsic and values."));
+            return null;
+        }
+
+        RejectUnknownKeys(mapping, ["intrinsic", "values"], semanticPath, diagnostics);
+        if (!TrySequence(mapping, "values", out var values) || values.Children.Count == 0)
+        {
+            diagnostics.Add(new("VSIR128", $"Intrinsic semantic expression '{semanticPath}' requires at least one value expression."));
+            return null;
+        }
+
+        var parsedValues = new List<SemanticExpression>(values.Children.Count);
+        for (var index = 0; index < values.Children.Count; index++)
+        {
+            var parsed = ParseSemanticExpression(values.Children[index], $"{semanticPath}.values[{index}]", diagnostics);
+            if (parsed is not null)
+                parsedValues.Add(parsed);
+        }
+
+        return parsedValues.Count == values.Children.Count
+            ? new SemanticIntrinsicExpression(intrinsic, parsedValues)
+            : null;
     }
 
     private static void ParseResolve(
