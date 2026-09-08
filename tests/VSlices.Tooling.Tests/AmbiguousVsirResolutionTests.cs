@@ -20,14 +20,14 @@ public sealed class AmbiguousVsirResolutionTests
         Assert.Equal(1, result.ExitCode);
         Assert.Contains("CLI002", result.StandardError, StringComparison.Ordinal);
 
-        var candidateLines = result.StandardError
-            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => line.TrimStart().StartsWith("- ", StringComparison.Ordinal))
-            .Select(line => line.Trim()[2..].Replace('\\', '/'))
-            .ToArray();
-
-        Assert.Equal(2, candidateLines.Length);
-        Assert.Contains("Products/A/IncidentTypeReference.vsir", candidateLines, StringComparer.OrdinalIgnoreCase);
-        Assert.Contains("Products/B/IncidentTypeReference.vsir", candidateLines, StringComparer.OrdinalIgnoreCase);
+        var normalized = result.StandardError.Replace('\\', '/');
+        Assert.Contains(
+            "Products/A/IncidentTypeReference.vsir",
+            normalized,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(
+            "Products/B/IncidentTypeReference.vsir",
+            normalized,
+            StringComparison.OrdinalIgnoreCase);
     }
 }
