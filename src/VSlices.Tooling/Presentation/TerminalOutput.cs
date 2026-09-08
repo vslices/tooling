@@ -59,7 +59,32 @@ internal static class TerminalOutput
         Console.WriteLine(Chalk.Gray[text]);
 
     public static void Error(string text) =>
-        Console.Error.WriteLine(Chalk.Red[text]);
+        Console.Error.WriteLine(Console.IsErrorRedirected ? text : Chalk.Red[text]);
+
+    public static void DiagnosticError(string header, string message)
+    {
+        if (Console.IsErrorRedirected)
+        {
+            Console.Error.WriteLine($"{header}: {message}");
+            return;
+        }
+
+        Console.Error.WriteLine($"{Chalk.Red[header]}: {message}");
+    }
+
+    public static void DiagnosticSection(string label, string content)
+    {
+        Console.Error.WriteLine();
+        if (Console.IsErrorRedirected)
+        {
+            Console.Error.WriteLine(label + ":");
+            Console.Error.WriteLine(content);
+            return;
+        }
+
+        Console.Error.WriteLine(Chalk.Yellow[label + ":"]);
+        Console.Error.WriteLine(Chalk.Gray[content]);
+    }
 
     public static void Detail(string label, string value) =>
         Console.WriteLine(
