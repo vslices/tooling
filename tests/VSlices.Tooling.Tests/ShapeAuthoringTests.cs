@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class ShapeAuthoringTests
 {
     [Fact]
-    public void Domain_type_discovery_exposes_only_end_to_end_supported_product_shape()
+    public void Domain_type_discovery_exposes_only_publicly_authorable_product_shape()
     {
         var source = """
             vsir: 0.1
@@ -43,7 +43,7 @@ public sealed class ShapeAuthoringTests
     [Theory]
     [InlineData("sum")]
     [InlineData("scalar")]
-    public void Shapes_without_end_to_end_support_fail_closed(string value)
+    public void Shapes_outside_public_authoring_parity_fail_closed(string value)
     {
         var source = """
             vsir: 0.1
@@ -60,7 +60,7 @@ public sealed class ShapeAuthoringTests
     }
 
     [Fact]
-    public void Progressive_template_rejects_sum_until_parser_validator_and_lowering_support_it()
+    public void Progressive_template_rejects_sum_while_public_authoring_parity_is_gated()
     {
         var result = VsirTemplate.Create(
             "ContactMethod",
