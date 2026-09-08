@@ -99,6 +99,46 @@ public sealed class CSharpLoweringRuleSetTests
     }
 
     [Fact]
+    public void Hyphenated_binding_names_are_part_of_the_tooling_placeholder_grammar()
+    {
+        using var ruleset = TemporaryRuleset.Create("""
+            rules:
+              - node: projection.hyphen-probe
+                mode: deterministic
+                renderer: expression
+                bindings: [source-value]
+                template: "{source-value}.ToString()"
+            """);
+
+        var loaded = CSharpLoweringRuleSet.Load(ruleset.Root);
+
+        Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
+        Assert.True(loaded.RuleSet!.TryRenderDeterministicExpression(
+            "projection.hyphen-probe",
+            new Dictionary<string, string> { ["source-value"] = "input" },
+            out var expression));
+        Assert.Equal("input.ToString()", expression);
+    }
+
+    [Fact]
+    public void Leading_underscore_binding_names_are_outside_the_tooling_placeholder_grammar()
+    {
+        using var ruleset = TemporaryRuleset.Create("""
+            rules:
+              - node: projection.leading-underscore-probe
+                mode: deterministic
+                renderer: expression
+                bindings: [_value]
+                template: "{_value}"
+            """);
+
+        var loaded = CSharpLoweringRuleSet.Load(ruleset.Root);
+
+        Assert.False(loaded.IsSuccess);
+        Assert.Contains(loaded.Diagnostics, diagnostic => diagnostic.Code == "CSR019");
+    }
+
+    [Fact]
     public void Rendering_requires_exact_declared_binding_set()
     {
         using var ruleset = TemporaryRuleset.Create("""
