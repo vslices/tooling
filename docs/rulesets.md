@@ -88,6 +88,23 @@ Each target rule declares the values its renderer expects independently of the c
 
 `bindings` is target realization knowledge owned alongside the rule. Tooling does not hardcode a global `node -> bindings` vocabulary.
 
+The current binding-placeholder lexical contract is exact and shared by Tooling and the official Ruleset CI:
+
+```regex
+[A-Za-z][A-Za-z0-9_-]*
+```
+
+Therefore:
+
+```text
+value         valid
+source-value  valid
+source_value  valid
+_value        invalid
+```
+
+The same grammar is used to recognize `{placeholder}` names in templates. This is deliberately one cross-repository contract: a catalog must not pass the Ruleset CI with a placeholder name that Tooling cannot recognize, or vice versa.
+
 The loader validates the contract before a Ruleset becomes active:
 
 ```text
@@ -97,7 +114,7 @@ all declared bindings must be used by the template
 render calls must supply exactly the declared binding set
 ```
 
-Consequently a typo such as `{banana}` is an invalid Ruleset at load/update time rather than a malformed expression discovered later during materialization or compilation.
+Consequently a typo such as `{banana}` is an invalid Ruleset at load/update time rather than a malformed expression discovered later during materialization or compilation. Names outside the placeholder grammar similarly cannot form a valid used binding.
 
 A constant renderer can explicitly declare `bindings: []`.
 
