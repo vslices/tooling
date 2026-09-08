@@ -115,11 +115,20 @@ public sealed record LengthBetweenCondition(SemanticExpression Value, int Min, i
 {
     public LengthBetweenCondition(string value, int min, int max) : this(new SemanticReferenceExpression(value), min, max) { }
 }
+
+public sealed record VsirSourceSpan(
+    int Line,
+    int Column,
+    int EndLine,
+    int EndColumn);
+
 public sealed record VsirDiagnostic(
     string Code,
     string Message,
     string? Details = null,
-    string? Trace = null);
+    string? Trace = null,
+    string? SemanticPath = null,
+    VsirSourceSpan? Source = null);
 
 public sealed record VsirSemanticExtensions(IReadOnlySet<string> NormalizeIntrinsics)
 {
