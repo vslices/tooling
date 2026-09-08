@@ -24,12 +24,12 @@ kind: domain-type
 shape: triangle
 ```
 
-can remain progressively valid when discovery can safely expose the repair boundary:
+can remain progressively valid when discovery can safely expose the current public repair boundary:
 
 ```text
 shape
   operations: set
-  values: product, sum
+  values: product
 ```
 
 while conformance is reported as invalid. Tooling must not continue past that invalid discriminator and advertise dependent semantic choices as if `triangle` had acquired meaning.
@@ -50,7 +50,27 @@ Conformance answers:
 
 > Is the semantic source complete and valid according to the current VSIR language authority and validation environment?
 
-An artifact can therefore be:
+Canonical conformance is deliberately independent from the narrower public authoring surface:
+
+```text
+canonical conformance
+  = VsirParser + canonical parser/validator support
+  + active semantic validation environment
+
+public authorability
+  = transitions discovery/update currently know how to offer safely
+```
+
+This means a form can be:
+
+```text
+conforming
++ public semantic authoring gated
+```
+
+For example, current executable evidence establishes canonical parser/validation/lowering support for `sum` and `maintained` Domain Types, while public `new/discovery/update` authoring parity for those forms remains gated. Discovery must not misreport such an artifact as invalid merely because it does not advertise a transition that authors the form.
+
+An artifact can also be:
 
 ```text
 progressively valid
@@ -66,9 +86,11 @@ progressively valid
 
 when a present assertion is invalid but discovery can expose an explicit repair without inventing dependent semantics.
 
-Required obligations are checked against their complete semantic paths. A required `state.Value` is not satisfied merely because a `state` mapping exists.
+Required authoring obligations are checked against their complete semantic paths while the artifact is incomplete. A required `state.Value` is not satisfied merely because a `state` mapping exists.
 
-When all required authoring decisions are present, Tooling parses the same canonical source through `VsirLanguageParser`; success establishes current executable conformance, while diagnostics establish invalidity.
+Whenever the canonical source is complete enough to conform, Tooling evaluates it through the public `VsirParser` boundary. That parser dispatches to the appropriate executable parser/validator for the canonical form and receives the active `VsirValidationContext` when project semantic extensions exist. Parser success establishes current executable conformance; parser diagnostics establish invalidity once the artifact is no longer merely missing an advertised required authoring decision.
+
+`discovery` therefore loads `.vslices/extensions` from the owning project when available before it claims conformance. This does **not** make discovery a lowering command: target selection and target realization are still excluded from conformance.
 
 ## Lowerability
 
@@ -96,7 +118,10 @@ progressive-valid
     -> enough trustworthy structure to expose the next authorized transition or repair
 
 conforming
-    -> canonical semantic source is complete and valid
+    -> canonical semantic source is complete and valid in its semantic environment
+
+public-authorable
+    -> discovery/update have proven transitions for authoring that semantic form
 
 lowerable(target, context)
     -> conforming source plus sufficient target knowledge/context can be materialized
