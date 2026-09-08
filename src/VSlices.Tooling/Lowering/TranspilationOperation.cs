@@ -94,12 +94,14 @@ internal static class TranspilationOperation
         if (!typeResolution.IsSuccess)
             return TranspilationResult.Failure(typeResolution.Diagnostics);
 
-        var lowered = CSharpLanguageLowerer.Lower(
-            parsed.Document!,
-            new CSharpLoweringContext(
-                targetContext.Context!.Namespace,
-                environment.RuleSet,
-                environment.Extensions.ValidationContext));
+        var loweringContext = new CSharpLoweringContext(
+            targetContext.Context!.Namespace,
+            environment.RuleSet,
+            environment.Extensions.ValidationContext);
+
+        var lowered = parsed.Document!.Shape == "sum"
+            ? CSharpSumDomainTypeLowerer.Lower(parsed.Document, loweringContext)
+            : CSharpLanguageLowerer.Lower(parsed.Document, loweringContext);
 
         if (!lowered.IsSuccess)
             return TranspilationResult.Failure(lowered.Diagnostics);
