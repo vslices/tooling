@@ -176,15 +176,20 @@ public static class CSharpLanguageLowerer
         ICollection<string> pipeline,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        var (node, bindings) = DescribeCondition(ensure.Condition, references);
-        if (!rules.TryRenderDeterministicExpression(node, bindings, out var expression))
+        if (!TryDescribeCondition(ensure.Condition, rules, references, out var node, out var bindings, out var nestedError))
+        {
+            diagnostics.Add(new("CSL011", nestedError!));
+            return;
+        }
+
+        if (!rules.TryRenderDeterministicExpression(node!, bindings!, out var expression))
         {
             diagnostics.Add(new("CSL010", $"No deterministic C# lowering rule is available for '{node}'."));
             return;
         }
 
         pipeline.Add(
-            $"VSlices.Arrows.Req<{inputType}, {domain}>.Ensure(({inputType} input) => {expression}, Fail: {RenderFailure(ensure, inputType, references)})");
+            $"VSlices.Arrows.Req<{inputType}, {domain}>.Ensure(({inputType} input) => {expression}, Fail: {RenderFailure(ensure, inputType, references, rules)})");
     }
 
     private static void LowerResolve(
@@ -489,37 +494,121 @@ public static class CSharpLanguageLowerer
     private static string ResolveReference(string reference, IReadOnlyDictionary<string, string> references) =>
         references.TryGetValue(reference, out var expression) ? expression : reference;
 
-    private static (string Node, IReadOnlyDictionary<string, string> Bindings) DescribeCondition(
-        Condition condition,
-        IReadOnlyDictionary<string, string> references) => condition switch
+    private static bool TryRenderSemanticExpression(
+        SemanticExpression semanticExpression,
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> references,
+        out string? expression,
+        out string? error)
     {
-        NonEmptyCondition x => ("intrinsic.non-empty", new Dictionary<string, string> { ["value"] = ResolveReference(x.Value, references) }),
-        NotWhitespaceCondition x => ("intrinsic.not-whitespace", new Dictionary<string, string> { ["value"] = ResolveReference(x.Value, references) }),
-        LengthAtMostCondition x => ("intrinsic.length-at-most", new Dictionary<string, string>
+        switch (semanticExpression)
         {
-            ["value"] = ResolveReference(x.Value, references),
-            ["max"] = x.Max.ToString()
-        }),
-        LengthBetweenCondition x => ("intrinsic.length-between", new Dictionary<string, string>
+            case SemanticReferenceExpression reference:
+                expression = ResolveReference(reference.Value, references);
+                error = null;
+                return true;
+
+            case SemanticIntrinsicExpression intrinsic:
+            {
+                var values = new List<string>(intrinsic.Values.Count);
+                foreach (var operand in intrinsic.Values)
+                {
+                    if (!TryRenderSemanticExpression(operand, rules, references, out var rendered, out error))
+                    {
+                        expression = null;
+                        return false;
+                    }
+                    values.Add(rendered!);
+                }
+
+                var node = $"intrinsic.{intrinsic.Intrinsic}";
+                if (!rules.TryRenderDeterministicExpression(
+                        node,
+                        new Dictionary<string, string> { ["values"] = string.Join(", ", values) },
+                        out var renderedExpression))
+                {
+                    expression = null;
+                    error = $"No deterministic C# lowering rule is available for nested semantic expression '{node}'.";
+                    return false;
+                }
+
+                expression = renderedExpression;
+                error = null;
+                return true;
+            }
+
+            default:
+                expression = null;
+                error = $"Unsupported semantic expression '{semanticExpression.GetType().Name}'.";
+                return false;
+        }
+    }
+
+    private static bool TryDescribeCondition(
+        Condition condition,
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> references,
+        out string? node,
+        out IReadOnlyDictionary<string, string>? bindings,
+        out string? error)
+    {
+        SemanticExpression value;
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        switch (condition)
         {
-            ["value"] = ResolveReference(x.Value, references),
-            ["min"] = x.Min.ToString(),
-            ["max"] = x.Max.ToString()
-        }),
-        _ => throw new InvalidOperationException("Unsupported condition reached C# lowering.")
-    };
+            case NonEmptyCondition x:
+                node = "intrinsic.non-empty";
+                value = x.Value;
+                break;
+            case NotWhitespaceCondition x:
+                node = "intrinsic.not-whitespace";
+                value = x.Value;
+                break;
+            case LengthAtMostCondition x:
+                node = "intrinsic.length-at-most";
+                value = x.Value;
+                result["max"] = x.Max.ToString();
+                break;
+            case LengthBetweenCondition x:
+                node = "intrinsic.length-between";
+                value = x.Value;
+                result["min"] = x.Min.ToString();
+                result["max"] = x.Max.ToString();
+                break;
+            default:
+                node = null;
+                bindings = null;
+                error = "Unsupported condition reached C# lowering.";
+                return false;
+        }
+
+        if (!TryRenderSemanticExpression(value, rules, references, out var renderedValue, out error))
+        {
+            bindings = null;
+            return false;
+        }
+
+        result["value"] = renderedValue!;
+        bindings = result;
+        error = null;
+        return true;
+    }
 
     private static string RenderFailure(
         EnsureStep ensure,
         string inputType,
-        IReadOnlyDictionary<string, string> references)
+        IReadOnlyDictionary<string, string> references,
+        CSharpLoweringRuleSet rules)
     {
         var literal = Quote(ensure.FailureMessage);
         if (!ensure.FailureMessage.Contains("{length}", StringComparison.Ordinal))
             return literal;
         if (ensure.Condition is not LengthAtMostCondition condition)
             return literal;
-        return $"({inputType} input) => {literal}.Replace(\"{{length}}\", {ResolveReference(condition.Value, references)}.Length.ToString())";
+        if (!TryRenderSemanticExpression(condition.Value, rules, references, out var value, out _))
+            return literal;
+        return $"({inputType} input) => {literal}.Replace(\"{{length}}\", {value}.Length.ToString())";
     }
 
     private static IEnumerable<string> Contracts(DomainTypeVsir document, string inputType)
