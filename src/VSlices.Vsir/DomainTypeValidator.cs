@@ -112,11 +112,11 @@ public static class DomainTypeValidator
                 NotWhitespaceCondition x => x.Value,
                 LengthAtMostCondition x => x.Value,
                 LengthBetweenCondition x => x.Value,
-                _ => string.Empty
+                _ => null
             };
 
-            Require(TryInputReferenceType(value, out _), "VSIR211",
-                $"Only construction input references are supported by the current ensure boundary, got '{value}'.");
+            if (value is not null)
+                ValidateEnsureExpression(value);
         }
 
         var hasIdentifierCapability =
@@ -147,6 +147,30 @@ public static class DomainTypeValidator
         }
 
         return diagnostics;
+
+        void ValidateEnsureExpression(SemanticExpression expression)
+        {
+            switch (expression)
+            {
+                case SemanticReferenceExpression reference:
+                    Require(TryInputReferenceType(reference.Value, out _), "VSIR211",
+                        $"Only construction input references are supported by the current ensure expression boundary, got '{reference.Value}'.");
+                    break;
+
+                case SemanticIntrinsicExpression intrinsic:
+                    Require(!string.IsNullOrWhiteSpace(intrinsic.Intrinsic), "VSIR259",
+                        "Intrinsic ensure expressions require a non-empty intrinsic name.");
+                    Require(intrinsic.Values.Count > 0, "VSIR260",
+                        $"Intrinsic ensure expression '{intrinsic.Intrinsic}' requires at least one operand.");
+                    foreach (var operand in intrinsic.Values)
+                        ValidateEnsureExpression(operand);
+                    break;
+
+                default:
+                    diagnostics.Add(new("VSIR261", $"Unsupported ensure expression '{expression.GetType().Name}'."));
+                    break;
+            }
+        }
 
         void ValidateStateSources()
         {
