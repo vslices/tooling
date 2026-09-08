@@ -64,6 +64,11 @@ internal static class DotNetTypeResolutionClient
                 Add("--type", typeName);
             Add("--manifest", manifestPath);
 
+            var projectName = Path.GetFileNameWithoutExtension(targetContext.ProjectPath);
+            var typeList = string.Join(", ", typeNames.Select(x => $"'{x}'"));
+            Console.Error.WriteLine(
+                $"Resolving C# type{(typeNames.Length == 1 ? string.Empty : "s")} {typeList} in project '{projectName}'...");
+
             using var process = Process.Start(startInfo);
             if (process is null)
             {
