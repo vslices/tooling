@@ -1,4 +1,5 @@
 using ConsoleAppFramework;
+using YamlDotNet.RepresentationModel;
 
 namespace VSlices.Tooling;
 
@@ -21,6 +22,23 @@ internal static class DiscoveryCommands
         {
             CommandInfrastructure.WriteDiagnostics([resolution.Diagnostic]);
             return 1;
+        }
+
+        // Conformance is evaluated in the semantic environment of the project
+        // that owns the artifact. Discovery still does not prepare a target or
+        // Ruleset because those facts belong to lowerability, not conformance.
+        var project = VSlicesProjectContext.FindFrom(resolution.Path!);
+        var validationContext = ProjectExtensions.Empty.ValidationContext;
+        if (project is not null)
+        {
+            var extensions = ProjectExtensionCatalogs.Load(project.ExtensionsRoot);
+            if (!extensions.IsSuccess)
+            {
+                CommandInfrastructure.WriteDiagnostics(extensions.Diagnostics);
+                return 2;
+            }
+
+            validationContext = extensions.Extensions!.ValidationContext;
         }
 
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
@@ -76,14 +94,27 @@ internal static class DiscoveryCommands
             return 2;
         }
 
+        var state = VsirArtifactState.Assess(inspectedSource, frontier, validationContext);
+        var semanticAuthoringGated =
+            state.Conformance == VsirConformanceState.Conforming &&
+            IsOutsidePublicSemanticAuthoringEnvelope(inspectedSource);
+
+        // A canonical form can be executable/conforming before discovery/update
+        // has proven public authoring parity for it. In that state we expose no
+        // narrower semantic repair path; searchable metadata remains available.
+        if (semanticAuthoringGated)
+            frontier.Clear();
+
         frontier.Insert(0, VsirMetadataAuthoring.TagsContract);
 
-        var state = VsirArtifactState.Assess(inspectedSource, frontier);
         Console.WriteLine("Artifact state:");
         Console.WriteLine($"  progressive validity: {DisplayProgressiveValidity(state.ProgressiveValidity)}");
         Console.WriteLine($"  conformance: {DisplayConformance(state.Conformance)}");
         if (state.MissingRequiredPaths.Count > 0)
             Console.WriteLine($"  missing required: {string.Join(", ", state.MissingRequiredPaths)}");
+        Console.WriteLine(semanticAuthoringGated
+            ? "  public semantic authoring: gated for this conforming form"
+            : "  public semantic authoring: represented by the immediate frontier");
         Console.WriteLine("  lowerability: not evaluated by discovery; it requires target, Ruleset and project context");
 
         if (projections.Count > 0)
@@ -130,6 +161,66 @@ internal static class DiscoveryCommands
 
         return 0;
     }
+
+    private static bool IsOutsidePublicSemanticAuthoringEnvelope(string source)
+    {
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+                return false;
+
+            var kind = Scalar(root, "kind");
+            if (string.IsNullOrWhiteSpace(kind))
+                return false;
+            if (!VsirAuthoringContract.Kinds.Contains(kind, StringComparer.Ordinal))
+                return true;
+            if (!kind.Equals(VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
+                return false;
+
+            var shape = Scalar(root, "shape");
+            if (!string.IsNullOrWhiteSpace(shape) &&
+                !VsirAuthoringContract.DomainTypeShapes.Contains(shape, StringComparer.Ordinal))
+            {
+                return true;
+            }
+
+            var classification = Scalar(root, "classification");
+            if (!string.IsNullOrWhiteSpace(classification) &&
+                !VsirAuthoringContract.DomainTypeClassifications.Contains(classification, StringComparer.Ordinal))
+            {
+                return true;
+            }
+
+            if (root.Children.TryGetValue(new YamlScalarNode("traits"), out var traitsNode) &&
+                traitsNode is YamlSequenceNode traits)
+            {
+                foreach (var traitNode in traits.Children.OfType<YamlScalarNode>())
+                {
+                    if (!string.IsNullOrWhiteSpace(traitNode.Value) &&
+                        !VsirAuthoringContract.ExplicitDomainTypeTraits.Contains(traitNode.Value, StringComparer.Ordinal))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+        catch
+        {
+            // Syntax/conformance diagnostics are owned by the existing parser
+            // paths. This helper only gates transitions after conformance has
+            // already succeeded, so parse failure here cannot authorize more.
+            return false;
+        }
+    }
+
+    private static string? Scalar(YamlMappingNode root, string key) =>
+        root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
+            ? scalar.Value
+            : null;
 
     private static string DisplayOperation(VsirMutationKind kind) =>
         kind.ToString().ToLowerInvariant();
