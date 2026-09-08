@@ -152,22 +152,18 @@ internal static class CommandInfrastructure
     {
         foreach (var diagnostic in diagnostics)
         {
-            Console.Error.WriteLine($"{DiagnosticHeader(diagnostic)}: {diagnostic.Message}");
+            TerminalOutput.DiagnosticError(DiagnosticHeader(diagnostic), diagnostic.Message);
 
             if (verbosity >= DiagnosticVerbosity.Verbose &&
                 !string.IsNullOrWhiteSpace(diagnostic.Details))
             {
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("Details:");
-                Console.Error.WriteLine(diagnostic.Details);
+                TerminalOutput.DiagnosticSection("Details", diagnostic.Details);
             }
 
             if (verbosity >= DiagnosticVerbosity.Trace &&
                 !string.IsNullOrWhiteSpace(diagnostic.Trace))
             {
-                Console.Error.WriteLine();
-                Console.Error.WriteLine("Trace:");
-                Console.Error.WriteLine(diagnostic.Trace);
+                TerminalOutput.DiagnosticSection("Trace", diagnostic.Trace);
             }
         }
     }
