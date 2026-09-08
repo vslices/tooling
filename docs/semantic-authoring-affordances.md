@@ -170,7 +170,7 @@ construction
 
 Semantic discovery is computed from the current artifact, not from a static list of every historical or hypothetical VSIR property.
 
-The current end-to-end Domain Type envelope is deliberately narrow and corpus-backed:
+The current **public authoring-parity** Domain Type envelope is deliberately narrow and corpus-backed:
 
 ```text
 kind: domain-type
@@ -178,6 +178,8 @@ shape: product
 classification: value-object | identifier
 traits: transform | identifier | refined
 ```
+
+This is an authoring contract, not the definition of canonical VSIR conformance. `VsirParser` plus the active semantic validation environment owns conformance. The executable parser/lowering surface is already broader than the transitions `discovery/update` advertise.
 
 Classification and traits are independent semantic axes. `TicketId` witnesses `classification: identifier` without an identifier trait. `TicketCode` witnesses `classification: value-object` combined with the explicit `identifier` trait. Either form establishes identifier capability and therefore requires explicit equality semantics. Equality without identifier capability is rejected. `refined` remains an additional trait-driven capability.
 
@@ -223,7 +225,17 @@ traits contains refined
   -> scalar input required while absent
 ```
 
-Historical experiments for `sum`, `maintained`, `entity`, and `aggregate-root` are not advertised by the public authoring frontier until parser, conformance and lowering evidence cross the same form end-to-end. They are research candidates, not compatibility promises.
+Current executable evidence has already crossed canonical parsing/conformance/lowering for additional forms, including:
+
+```text
+sum Domain Types
+maintained Domain Types
+aggregate-root sum Domain Types
+```
+
+Those forms remain **public-authoring gated** because `new/discovery/update` parity has not been established for them. A conforming `sum` or `maintained` artifact is therefore reported as `conforming + public semantic authoring gated`; discovery does not offer a narrower repair toward `product` or `value-object`.
+
+`entity` and other forms without equivalent executable corpus evidence remain separate open coverage questions. Do not collapse “not publicly authorable”, “not conforming”, and “not lowerable” into one state.
 
 ## 5. Grammar-driven discovery
 
@@ -275,11 +287,15 @@ An additional parity rule applies:
 
 > If the canonical parser/validator/lowering path cannot consume a semantic form, discovery must not advertise that form as an available public transition.
 
-The inverse matters too:
+The converse is intentionally asymmetric:
+
+> Canonical parser/lowering support does not automatically authorize public authoring. A form may conform while its discovery/update transitions remain gated until authoring parity is evidenced.
+
+And corpus evidence continues to outrank accidental implementation restrictions:
 
 > If an admitted corpus artifact already carries a semantic form, an accidental restriction in one implementation layer must not be promoted into language authority. Repair the first stale layer instead of rewriting the corpus to match it.
 
-`TicketId` exposed classification drift; `TicketCode` exposed the missing `normalize` affordance and the second, trait-based route to identifier capability. `SrvIdentityId` exposed that a Framework convenience composite must not become semantic authority for target contract selection.
+`TicketId` exposed classification drift; `TicketCode` exposed the missing `normalize` affordance and the second, trait-based route to identifier capability. `SrvIdentityId` exposed that a Framework convenience composite must not become semantic authority for target contract selection. `Name` and `IdentityType` then exposed the need to keep canonical conformance independent from public authorability.
 
 ## 7. Agent-facing traversal
 
@@ -293,9 +309,11 @@ vslices update vsir <artifact> ...
 
 and then traverse through advertised operations and grammars without embedding a second copy of the VSIR authoring language.
 
+For a canonical form whose public authoring parity is still gated, discovery reports that state rather than inventing a repair to the narrower authoring envelope.
+
 ## 8. Authoring parity
 
-A semantic VSIR construction is fully supported when:
+A semantic VSIR construction has full public authoring parity when:
 
 ```text
 discovery can explain how to express it
@@ -305,6 +323,8 @@ lower can consume it
 Ruleset can materialize it when target knowledge is required
 ```
 
+Canonical conformance needs only the semantic parser/validator and its validation environment. It does **not** require the first two authoring capabilities.
+
 Artifact metadata has the related invariant:
 
 ```text
@@ -313,7 +333,7 @@ authorable metadata
   -> semantic effect = none
 ```
 
-Current parity witnesses:
+Current public authoring-parity witnesses include:
 
 ```text
 Location
@@ -334,6 +354,8 @@ SrvIdentityId
      scalar input, refined-from, semantic equality, stringify, refine,
      primitive DomainType + Identifier + Refined target contracts
 ```
+
+Additional executable parser/lowering witnesses (`Name`, `IdentityType`, `SrvIdentity`) prove broader canonical consumption without claiming public authoring parity for their full forms.
 
 ## 9. Evidence precedence
 
@@ -357,7 +379,9 @@ always-available searchable tags metadata
 state-driven semantic discovery
 set/add/remove mutations with repeated CLI occurrences preserved
 one public VsirParser artifact boundary
-product + value-object/identifier public Domain Type envelope
+project semantic extensions participate in discovery conformance
+canonical conformance independent from public authoring vocabulary
+product + value-object/identifier public Domain Type authoring envelope
 transform / identifier / refined trait authoring
 kind: domain-type -> DomainType<T,T.Repr> target contract
 identifier classification OR identifier trait -> equality obligation
@@ -370,7 +394,8 @@ normalize trim is corpus-backed by TicketCode
 atomic update
 canonical C# lowering
 explicit semantic expression preservation
-sum / maintained / entity / aggregate-root remain gated
+sum / maintained / aggregate-root sum parser+lowering evidence
+sum / maintained / aggregate-root public authoring remains gated
 ```
 
 Remaining work should be treated as corpus-driven coverage expansion rather than a need for a new authoring protocol.
