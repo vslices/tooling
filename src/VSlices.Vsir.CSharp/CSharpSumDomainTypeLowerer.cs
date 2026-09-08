@@ -175,7 +175,7 @@ public static class CSharpSumDomainTypeLowerer
         ICollection<string> pipeline,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        if (!TryRenderCondition(variant, ensure.Condition, rules, references, out var expression, out var error))
+        if (!TryRenderCondition(ensure.Condition, rules, references, out var expression, out var error))
         {
             diagnostics.Add(new("CSL011", $"Variant '{variant.Name}': {error}"));
             return;
@@ -186,52 +186,12 @@ public static class CSharpSumDomainTypeLowerer
     }
 
     private static bool TryRenderCondition(
-        DomainTypeVariant variant,
         Condition condition,
         CSharpLoweringRuleSet rules,
         IReadOnlyDictionary<string, string> references,
         out string expression,
         out string? error)
     {
-        if (condition is LengthAtMostCondition
-            {
-                Value: SemanticIntrinsicExpression { Intrinsic: "sum-lengths" } aggregate
-            } atMost)
-        {
-            var terms = new List<string>();
-            foreach (var operand in aggregate.Values)
-            {
-                if (operand is not SemanticReferenceExpression reference ||
-                    !references.TryGetValue(reference.Value, out var rendered) ||
-                    !TryInputReferenceType(variant.Construction.Input, reference.Value, out var type))
-                {
-                    expression = string.Empty;
-                    error = "sum-lengths requires known variant input references.";
-                    return false;
-                }
-
-                if (type == new NamedVsirType("string"))
-                {
-                    terms.Add($"{rendered}.Length");
-                    continue;
-                }
-
-                if (type is UnaryVsirType { Constructor: "optional", Value: NamedVsirType { Name: "string" } })
-                {
-                    terms.Add($"{rendered}.Map(value => value.Length).IfNone(0)");
-                    continue;
-                }
-
-                expression = string.Empty;
-                error = $"sum-lengths does not know how to measure semantic type '{type}'.";
-                return false;
-            }
-
-            expression = $"{string.Join(" + ", terms)} <= {atMost.Max}";
-            error = null;
-            return true;
-        }
-
         string node;
         SemanticExpression value;
         var bindings = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -262,15 +222,13 @@ public static class CSharpSumDomainTypeLowerer
                 return false;
         }
 
-        if (value is not SemanticReferenceExpression referenceValue ||
-            !references.TryGetValue(referenceValue.Value, out var renderedValue))
+        if (!TryRenderSemanticExpression(value, rules, references, out var renderedValue, out error))
         {
             expression = string.Empty;
-            error = "Condition requires a known variant input reference.";
             return false;
         }
 
-        bindings["value"] = renderedValue;
+        bindings["value"] = renderedValue!;
         if (!rules.TryRenderDeterministicExpression(node, bindings, out expression))
         {
             error = $"No deterministic C# lowering rule is available for '{node}'.";
@@ -279,6 +237,63 @@ public static class CSharpSumDomainTypeLowerer
 
         error = null;
         return true;
+    }
+
+    private static bool TryRenderSemanticExpression(
+        SemanticExpression semanticExpression,
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> references,
+        out string? expression,
+        out string? error)
+    {
+        switch (semanticExpression)
+        {
+            case SemanticReferenceExpression reference:
+                if (!references.TryGetValue(reference.Value, out var renderedReference))
+                {
+                    expression = null;
+                    error = $"Semantic expression references unknown variant input '{reference.Value}'.";
+                    return false;
+                }
+
+                expression = renderedReference;
+                error = null;
+                return true;
+
+            case SemanticIntrinsicExpression intrinsic:
+            {
+                var values = new List<string>(intrinsic.Values.Count);
+                foreach (var operand in intrinsic.Values)
+                {
+                    if (!TryRenderSemanticExpression(operand, rules, references, out var rendered, out error))
+                    {
+                        expression = null;
+                        return false;
+                    }
+                    values.Add(rendered!);
+                }
+
+                var node = $"intrinsic.{intrinsic.Intrinsic}";
+                if (!rules.TryRenderDeterministicExpression(
+                        node,
+                        new Dictionary<string, string> { ["values"] = string.Join(", ", values) },
+                        out var renderedExpression))
+                {
+                    expression = null;
+                    error = $"No deterministic C# lowering rule is available for nested semantic expression '{node}'.";
+                    return false;
+                }
+
+                expression = renderedExpression;
+                error = null;
+                return true;
+            }
+
+            default:
+                expression = null;
+                error = $"Unsupported semantic expression '{semanticExpression.GetType().Name}'.";
+                return false;
+        }
     }
 
     private static Dictionary<string, string> ResolveStateExpressions(
@@ -321,32 +336,6 @@ public static class CSharpSumDomainTypeLowerer
             field => "input." + field.Name,
             field => "input." + field.Name,
             StringComparer.Ordinal);
-    }
-
-    private static bool TryInputReferenceType(
-        ConstructionInput input,
-        string reference,
-        out VsirType type)
-    {
-        if (input.IsScalar && reference == "input")
-        {
-            type = input.ScalarType!;
-            return true;
-        }
-
-        if (reference.StartsWith("input.", StringComparison.Ordinal))
-        {
-            var name = reference["input.".Length..];
-            var field = input.Fields.SingleOrDefault(x => x.Name == name);
-            if (field is not null)
-            {
-                type = field.Type;
-                return true;
-            }
-        }
-
-        type = null!;
-        return false;
     }
 
     private static void ValidateVariantTypes(
