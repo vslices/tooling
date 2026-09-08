@@ -1,68 +1,105 @@
 # TicketTrayFilter projection relation experiment
 
-This branch continues the Ticket Support post-migration reconstruction with the first real specimen whose semantic representation and target-facing representation are intentionally non-isomorphic.
+Status: **closed for this branch**. The original flattening hypothesis was rejected; no implicit `flatten-single-field` relation was admitted.
 
-The experiment follows the repository rule:
+This branch continues the Ticket Support post-migration reconstruction using the repository rule:
 
 > change only the first layer that can no longer justify the result, then rerun the real consumer before generalizing further.
 
-## Consumer evidence
+The reproducible consumer evidence for the final review handoff is pinned to:
 
-The Ticket Support specimen declares semantic representation coordinates such as:
+```text
+atom-dev-serviu/access-management-product
+commit: 7bae60d7e1af637cfcac6a802f867bc6979da444
+branch at observation time: analysis/ticket-support-post-mortem
+artifact: products/ticket-support-product/TicketSupport.Queries/Domain/Search/TicketTrayFilter.vsir
+```
+
+The branch name is useful for continuing analysis, but the commit above is the evidence reference for reconstructing this experiment.
+
+## Original question
+
+The experiment began from an apparent non-isomorphism:
+
+```text
+semantic representation
+  Option<X.Repr>
+
+historical Query-facing C# materialization
+  several string? coordinates
+```
+
+The initial research question was whether a target relation such as `flatten-single-field` was needed to justify that difference without allowing Tooling to infer semantic structure from an existing C# witness.
+
+The discriminating rule was:
+
+```text
+if more than one realization is plausible
+and no authority distinguishes them
+-> stop rather than guess
+```
+
+## Final TicketTrayFilter result
+
+The normalized consumer artifact expresses the relation directly and structurally:
 
 ```yaml
+state:
+  ProjectReference:
+    optional: ProjectReference
+
 representation:
-  Search: Option<TicketSearch.Repr>
-  ProjectReference: Option<ProjectReference.Repr>
-  IncidentTypeReference: Option<IncidentTypeReference.Repr>
-  ResponsibleReference: Option<AccountReference.Repr>
-  Risk: Option<string>
-  Module: Option<string>
-  Dates: Option<TicketDateRange.Repr>
+  ProjectReference:
+    type:
+      optional: ProjectReference.Repr
+    mapping:
+      represent: state.ProjectReference
 ```
 
-The current Query-facing C# representation instead contains, among other coordinates:
+The same pattern is used where applicable for `IncidentTypeReference`, `ResponsibleReference`, `Search`, `Dates`, and the scalar optional coordinates.
 
-```csharp
-string? ProjectReference
-string? IncidentTypeReference
-string? ResponsibleReference
+The final authority split is therefore:
+
+```text
+VSIR
+  -> optionality is structural
+  -> nominal representation type is preserved
+  -> represent(...) is explicit semantic projection
+
+Tooling
+  -> parses/validates the structural semantic type
+  -> preserves and composes the projection expression
+  -> resolves nominal target symbols from target context
+  -> does not reconstruct a missing relation from historical C#
+
+Ruleset
+  -> type.optional realizes optional<T> for C#
+  -> projection.represent realizes represent(...) for C#
+
+historical/human C# materialization
+  -> evidence about one witness
+  -> not authority to rewrite Option<X.Repr> as string?
 ```
 
-That difference is evidence to investigate, not permission for Tooling to flatten nominal representations automatically.
+`flatten-single-field` is therefore **rejected for this experiment**, not merely postponed. No current semantic or target authority justifies it.
 
-## Research question
+A future corpus case may establish a different explicit projection relation, but it must start a new discriminating experiment rather than retroactively treating this rejected hypothesis as latent behavior.
 
-Can VSlices Tooling lower a semantic representation into an intentionally non-isomorphic C# representation only when an explicit projection relation justifies the structural change, while preserving the distinction between:
+## Project lowering crossed during the experiment
 
-1. VSIR semantic representation,
-2. target-specific lowering knowledge,
-3. the lowering mechanism,
-4. target context, and
-5. the editable human witness?
+PR #6 recorded project/folder/batch lowering as future work. This branch took the narrowest useful slice into scope: complete .NET project lowering.
 
-## Project lowering enters scope
-
-PR #6 recorded project/folder/batch lowering as future work. This experiment deliberately takes the first, narrowest part of that item into scope: **complete .NET project lowering**.
-
-The command keeps the existing subject-oriented CLI shape:
+The existing subject-oriented CLI now accepts either an artifact or a project:
 
 ```text
 vslices lower Identities.Domain
 ```
 
-A lower subject may now resolve to either:
-
-```text
-VSIR artifact
-.NET project (.csproj)
-```
-
-When an extensionless symbol resolves to both, Tooling must not guess:
+Resolution is fail-closed when an extensionless symbol is ambiguous:
 
 ```text
 vslices lower Identities.Domain
-  -> ambiguous
+  -> ambiguous when both forms exist
 
 vslices lower Identities.Domain.vsir
   -> artifact
@@ -71,25 +108,21 @@ vslices lower Identities.Domain.csproj
   -> project
 ```
 
-Project lowering establishes one coherent lowering environment before processing its artifacts:
+Project lowering prepares one coherent environment before visiting artifacts:
 
 ```text
 project
   -> VSlicesProjectContext
   -> configured target
   -> installed Ruleset
-  -> project extension overlay
+  -> project semantic extension overlay
   -> enumerate project .vsir artifacts
   -> lower each artifact through the existing artifact mechanism
 ```
 
-The purpose of this first project-level surface is both operational and experimental: existing projects can expose which VSIR artifacts the current semantic/lowering surface already accepts and which explicit boundary each remaining artifact reaches.
+Unsupported artifacts remain explicit per-artifact boundaries; supported siblings are not abandoned. Artifact-specific overrides are not generalized into batch semantics without evidence.
 
-An unsupported artifact therefore does not cause supported siblings to be abandoned. The project run reports the per-artifact boundary and a summary while preserving fail-closed behavior inside every individual artifact.
-
-Artifact-specific overrides (`--from`, `--source`, `--output`, `--stdout`, `--namespace`) are not generalized to project semantics by this change. They remain individual-artifact surfaces until concrete evidence establishes meaningful batch behavior.
-
-### Still outside the project-lowering slice
+Still outside this slice:
 
 ```text
 --path / folder-scoped lowering
@@ -98,144 +131,129 @@ multi-project / solution lowering
 cross-project dependency orchestration
 ```
 
-The intended future module syntax is recorded only as direction, not implemented here:
+## Corpus witnesses crossed on the way
 
-```text
-vslices lower Identities.Domain --path ValueObjects
+The experiment did not jump directly from `TicketTrayFilter` to a projection rule. The project run exposed intermediate real artifacts, each of which changed only the first unsupported layer it reached.
+
+### SrvIdentityId
+
+Established independent primitive target contracts, refined semantics, nominal semantic type resolution, equality-over-semantic-type, and stringify projection.
+
+### Location
+
+Established structural `sequence<T>`, derived state, explicit representation composition (`represent`, `select`, `map`), `resolve`, and one semantic `apply` whose direct/container target realizations may differ without creating two VSIR operations.
+
+### StreetExtension
+
+Established intrinsic refinement with named ordered outputs:
+
+```yaml
+- refine:
+    intrinsic: split-first-rest
+    value: input.Value
+    as:
+      Name: name
+      Value: value
 ```
 
-## First-boundary protocol
+The language amendment is tracked in `vslices/intermediate-representation#1`; Ruleset owns the C# condition/output realizations.
 
-Run the real `TicketTrayFilter.vsir` through the current CLI and stop at the first boundary that cannot justify the next result.
+### Name
 
-Classify the boundary before changing code:
+Established canonical `sum` parsing/lowering and nested semantic expressions such as `concat-space` inside another condition argument.
+
+### IdentityType
+
+Established canonical `maintained` parsing/lowering and declared maintained values.
+
+### SrvIdentity
+
+Established aggregate-root sum parsing/lowering, shared state/representation/identity and variant-specific projections.
+
+These witnesses also exposed an important review distinction:
 
 ```text
-semantic representation
-parsing / validation
-ruleset knowledge
-target context
-lowering mechanism
-rebase / provenance
-consumer-only
+canonical parser/conformance/lowering coverage
+  !=
+public new/discovery/update authoring parity
 ```
 
-Expected discriminating outcomes:
+`sum`, `maintained`, and aggregate-root sum are executable canonical forms in this branch, while full public authoring remains gated. Discovery must report a canonical instance as conforming rather than invalidating it against the narrower authoring vocabulary.
 
-- If `Option<T>` or nominal `.Repr` forms cannot be represented faithfully, the first gap is VSIR/model/parsing support.
-- If a projection relation is represented but no C# realization is known, the first gap is Ruleset knowledge.
-- If the Ruleset can state the realization but the C# projector cannot execute that primitive, the first gap is lowering mechanism.
-- If Tooling silently turns `Option<X.Repr>` into `X?` or `string?`, the experiment fails semantic conservation.
-- If more than one realization is plausible and no authority distinguishes them, Tooling must stop rather than choose one.
+## Conformance environment
 
-## Projection relation hypothesis
+Project semantic extensions are environmental authority, not document content.
 
-`flatten-single-field` is retained only as a candidate relation from the Ticket Support post-migration analysis. It is not accepted here as canonical syntax, VSIR semantics, Ruleset vocabulary or C# behavior.
+Therefore any command that claims VSIR conformance uses:
 
-Before promoting it, the experiment must establish at least:
+```text
+VsirParser
++ owning project's VsirValidationContext
+```
 
-- what semantic fact authorizes flattening;
-- whether the relation belongs to VSIR or is target-specific knowledge;
-- how optionality composes with the relation;
-- how the relation behaves for a nominal representation with more than one field;
-- how the CLI diagnoses an absent, ambiguous or unsupported relation.
+when `.vslices/extensions` exists.
 
-## Ruleset gate
+`discovery` still does **not** evaluate lowerability. Ruleset availability, target selection and target context remain `lower` concerns.
 
-Do not add an executable projection rule merely to make `TicketTrayFilter` pass.
+## Ruleset extensibility result
 
-A Ruleset change becomes justified only after Tooling can represent the relevant source and projection relation faithfully and the real consumer reaches a missing-target-knowledge boundary.
-
-The companion branch in `vslices/ruleset` records the same evidence gate without pre-authorizing a projection primitive.
-
-## Ruleset extensibility enters implementation scope
-
-The current implementation already separates document semantics from environment-provided semantic extensions, but it does not yet establish a general architectural rule for how far Rulesets may extend vocabulary. This experiment makes that rule explicit and treats it as an implementation objective rather than a future aspiration.
-
-The intended ownership boundary is:
+The ownership boundary remains:
 
 ```text
 Tooling
-  -> owns the constrained rule language and execution mechanisms
-  -> validates structure, bindings, composition and allowed effects
+  -> constrained rule language
+  -> structural validation
+  -> exact binding contract
+  -> allowed execution mechanisms
 
 Ruleset
-  -> owns the semantic vocabulary expressed with that language
-  -> owns target realizations for that vocabulary
+  -> semantic/target vocabulary expressible through those mechanisms
+  -> deterministic target realizations
 ```
 
-Tooling must therefore be restrictive about **how** a Ruleset can express and execute knowledge, but not about **which** semantic capabilities or relations a Ruleset may define.
+A new node name does not justify a Tooling code change when an admitted mechanism can already express it. Conversely, renderer/template presence never creates semantic authority.
 
-Built-in semantic names are bootstrap vocabulary, not a whitelist. A new semantic node should not require a Tooling code change merely because its name is new. If an active Ruleset can express the node through already-admitted rule-language mechanisms and Tooling can validate and execute that contract without interpreting undeclared meaning, the node is eligible for use.
+The exact binding placeholder grammar shared by Tooling and Ruleset CI is:
 
-Conversely, renderer lookup remains insufficient authority. A Ruleset extension fails closed when it needs an execution/validation mechanism Tooling does not expose, when bindings/types cannot be validated, or when its contract would require Tooling to infer missing semantics.
-
-This PR will use the `Identities.Domain` coverage run to identify existing closed semantic switches that are acting as accidental vocabulary gates. The implementation goal is to generalize only the gates reached by real consumer evidence, while preserving fail-closed behavior.
-
-The review criterion is:
-
-> adding a new Ruleset vocabulary item should require a Tooling change only when the item needs a genuinely new rule-language, validation or execution mechanism.
-
-This criterion applies to the current semantic surfaces under investigation, including type forms, intrinsics, representation projections, construction operations, equality relations, condition operators and traits.
-
-This does **not** place a universal semantic plugin system or arbitrary executable extensions into scope. The extension surface remains constrained by Tooling-owned declarative mechanisms.
-
-## Explicit non-scope inherited from PR #6
-
-The PR #6 baseline was:
-
-```text
-implicit semantics from renderer lookup
-a universal semantic plugin system
-multi-target execution
-extension support for ensure/equality/invariants/features
-behavioral-equivalence claims across targets
-arbitrary executable extensions
-purity/determinism/idempotence metadata without evidence
-project/folder/batch lowering
+```regex
+[A-Za-z][A-Za-z0-9_-]*
 ```
-
-This experiment has now taken **project lowering** out of the final item and takes a narrower, constrained form of **Ruleset vocabulary extensibility** into scope. This is not a universal plugin system: Tooling still owns and limits the declarative mechanisms available to Rulesets.
-
-Folder/path-scoped lowering and stronger batch semantics remain outside the current slice as described above.
 
 ## Nominal C# type resolution
 
-`SrvIdentityId` supplied a concrete target-context gap after its VSIR semantics became representable: the semantic type name `Rut` is sufficient inside VSIR, but C# needs a target symbol such as `Shared.Domain.ValueObjects.Rut` to compile.
-
-This does not introduce a semantic mapping such as `Rut -> string`. The authority split is:
+`SrvIdentityId` exposed a target-context fact after its VSIR semantics became representable: semantic `Rut` is sufficient in VSIR, while C# needs the target symbol found through the related project/references.
 
 ```text
 VSIR
-  -> semantic nominal type name: Rut
+  -> nominal semantic type: Rut
 
 .NET target context
-  -> target symbol: Shared.Domain.ValueObjects.Rut
+  -> target symbol/import resolution through Roslyn/MSBuild
 ```
 
-Tooling delegates that lookup to the existing Roslyn/MSBuild companion against the related `.csproj` and its referenced assemblies. Missing and ambiguous target symbols fail closed.
+This never becomes a semantic mapping such as `Rut -> string`.
 
-The preferred materialization policy is readability-first:
+## Specialized parser watchpoint
 
-```csharp
-using Shared.Domain.ValueObjects;
+Product, sum and maintained parser paths currently duplicate some parsing primitives. That is an implementation coverage concern, not a semantic distinction.
 
-// ...
-private readonly Rut _value;
+Do not introduce a speculative universal grammar to remove duplication. When the same semantic form is evidenced across multiple real parser paths, first establish identical specification meaning, add cross-path regression evidence, then extract the genuinely shared primitive.
+
+Until then, specialized-parser gaps remain explicit and fail-closed.
+
+## Final success criterion
+
+This experiment is complete because:
+
+```text
+TicketTrayFilter semantics are preserved without guessed flattening
+structural optional and nominal representation types lower deterministically
+explicit represent(...) reaches target realization
+project lowering exposes unsupported siblings without hiding them
+canonical conformance is distinct from public authorability
+project semantic extensions participate consistently in conformance
+Ruleset vocabulary remains constrained but name-extensible
+unknown/underdetermined relations still stop explicitly
 ```
 
-rather than eagerly emitting:
-
-```csharp
-private readonly global::Shared.Domain.ValueObjects.Rut _value;
-```
-
-`global::` is intentionally reserved as a future conflict-resolution fallback. If real consumer evidence shows that the preferred imports create an unavoidable simple-name collision, Tooling may qualify only the conflicting references while keeping `using` + short names as the normal form. That fallback is not introduced pre-emptively in this slice.
-
-## Success criterion
-
-The first projection iteration succeeds when the CLI exposes the earliest unsupported boundary for `TicketTrayFilter` without inventing semantics, and the result is specific enough to design the next discriminating experiment.
-
-The project-lowering iteration succeeds when a real existing project can be used as a coverage probe: supported artifacts use the existing lowering/lineage behavior, unsupported artifacts remain explicit, and the project shares one prepared Ruleset/extension/target environment rather than rediscovering semantic authority independently for every file.
-
-The Ruleset-extensibility iteration succeeds when a consumer-driven semantic vocabulary addition that is expressible through existing Tooling mechanisms can be supplied by Ruleset/environment knowledge without adding a Tooling-specific semantic-name branch, while vocabulary that requires a genuinely new mechanism still fails explicitly at that mechanism boundary.
+Future consumer artifacts should start new discriminating experiments rather than growing this one indefinitely.
