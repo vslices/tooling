@@ -667,5 +667,5 @@ public static class CSharpSumDomainTypeLowerer
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
     private static string Quote(string value) =>
-        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        CSharpLiteral.String(value);
 }
