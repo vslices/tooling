@@ -91,48 +91,14 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
-        var metadataMutations = mutations
-            .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
-            .ToArray();
-        var semanticMutations = mutations
-            .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
-            .ToArray();
-
-        var current = source;
-        if (semanticMutations.Length > 0)
+        var candidate = VsirMutationCandidate.Build(source, mutations);
+        if (!candidate.IsSuccess)
         {
-            // Normalize field declarations that must become expanded in order to
-            // carry local source/projection metadata. This preserves a structural
-            // semantic type instead of creating an invalid sibling-key layout.
-            var prepared = VsirMutationCandidate.Prepare(current, semanticMutations);
-            if (!prepared.IsSuccess)
-            {
-                TerminalOutput.Error(prepared.Error!);
-                return 2;
-            }
-
-            var semanticResult = VsirMutationPipeline.Apply(prepared.Source!, semanticMutations);
-            if (!semanticResult.IsSuccess)
-            {
-                TerminalOutput.Error(semanticResult.Error!);
-                return 2;
-            }
-
-            current = semanticResult.Source!;
+            TerminalOutput.Error(candidate.Error!);
+            return 2;
         }
 
-        if (metadataMutations.Length > 0)
-        {
-            var metadataResult = VsirMetadataAuthoring.Apply(current, metadataMutations);
-            if (!metadataResult.IsSuccess)
-            {
-                TerminalOutput.Error(metadataResult.Error!);
-                return 2;
-            }
-
-            current = metadataResult.Source!;
-        }
-
+        var current = candidate.Source!;
         var validationContext = VsirValidationContext.Empty;
         var project = VSlicesProjectContext.FindFrom(resolution.Path!);
         if (project is not null)
@@ -147,9 +113,10 @@ internal static class UpdateCommands
             validationContext = extensions.Extensions!.ValidationContext;
         }
 
-        // All public mutation routes converge here before persistence. Progressive
-        // incompleteness is allowed; an assertion the canonical parser already
-        // knows is invalid is not.
+        // Projection and persistence share VsirMutationCandidate.Build. The write
+        // path adds only canonical validation plus persistence after that common
+        // transition, so discovery --set and update --set cannot interpret the
+        // same decision into different candidates.
         var validationError = VsirMutationCandidate.Validate(current, validationContext);
         if (validationError is not null)
         {
