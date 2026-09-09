@@ -173,11 +173,11 @@ public static class CSharpSumDomainTypeLowerer
 
         if (effectiveRepresentation.Length == 0)
         {
-            source.AppendLine($"    public sealed record Repr : {root.Name}.Repr;");
+            source.AppendLine($"    public new sealed record Repr : {root.Name}.Repr;");
         }
         else
         {
-            source.AppendLine($"    public sealed record Repr({Parameters(effectiveRepresentation, context.Rules)})");
+            source.AppendLine($"    public new sealed record Repr({Parameters(effectiveRepresentation, context.Rules)})");
             var baseArguments = string.Join(", ", root.Representation.Fields.Select(field => field.Name));
             source.AppendLine(root.Representation.Fields.Count == 0
                 ? $"        : {root.Name}.Repr;"
