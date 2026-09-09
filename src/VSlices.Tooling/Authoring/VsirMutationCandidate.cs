@@ -16,9 +16,10 @@ internal static class VsirMutationCandidate
     {
         var declarationTargets = semanticMutations
             .Where(mutation => mutation.Kind == VsirMutationKind.Set)
-            .Select(mutation => RepresentationDeclarationTarget(mutation.Path))
-            .Where(name => !string.IsNullOrWhiteSpace(name) && !name.Contains('.', StringComparison.Ordinal))
-            .Distinct(StringComparer.Ordinal)
+            .Select(mutation => DeclarationTargetFor(mutation.Path))
+            .Where(target => target is not null)
+            .Select(target => target!)
+            .Distinct()
             .ToArray();
 
         if (declarationTargets.Length == 0)
@@ -39,15 +40,15 @@ internal static class VsirMutationCandidate
             return VsirMutationResult.Failure($"UPDATE003: Could not parse VSIR artifact: {ex.Message}");
         }
 
-        if (!root.Children.TryGetValue(new YamlScalarNode("representation"), out var representationNode) ||
-            representationNode is not YamlMappingNode representation)
-            return VsirMutationResult.Success(source);
-
         var changed = false;
-        foreach (var fieldName in declarationTargets)
+        foreach (var target in declarationTargets)
         {
-            var fieldKey = new YamlScalarNode(fieldName);
-            if (!representation.Children.TryGetValue(fieldKey, out var fieldNode) ||
+            if (!root.Children.TryGetValue(new YamlScalarNode(target.MapPath), out var mapNode) ||
+                mapNode is not YamlMappingNode map)
+                continue;
+
+            var fieldKey = new YamlScalarNode(target.FieldName);
+            if (!map.Children.TryGetValue(fieldKey, out var fieldNode) ||
                 fieldNode is not YamlMappingNode shorthand)
                 continue;
 
@@ -72,7 +73,7 @@ internal static class VsirMutationCandidate
             foreach (var pair in shorthand.Children)
                 type.Children.Add(pair.Key, pair.Value);
 
-            representation.Children[fieldKey] = new YamlMappingNode
+            map.Children[fieldKey] = new YamlMappingNode
             {
                 { "type", type }
             };
@@ -108,20 +109,39 @@ internal static class VsirMutationCandidate
             : $"UPDATE050: Candidate VSIR assertion is invalid ({diagnostic.Code}): {diagnostic.Message}";
     }
 
-    private static string? RepresentationDeclarationTarget(string path)
+    private static DeclarationTarget? DeclarationTargetFor(string path)
     {
-        const string prefix = "representation.";
-        if (!path.StartsWith(prefix, StringComparison.Ordinal))
-            return null;
+        if (TryTarget(path, "state", ".from", out var stateField))
+            return new("state", stateField!);
 
-        var suffixLength = path.EndsWith(".mapping", StringComparison.Ordinal)
-            ? ".mapping".Length
-            : path.EndsWith(".from", StringComparison.Ordinal)
-                ? ".from".Length
-                : 0;
-        if (suffixLength == 0)
-            return null;
+        if (TryTarget(path, "representation", ".from", out var representationFromField))
+            return new("representation", representationFromField!);
 
-        return path[prefix.Length..^suffixLength];
+        if (TryTarget(path, "representation", ".mapping", out var representationMappingField))
+            return new("representation", representationMappingField!);
+
+        return null;
     }
+
+    private static bool TryTarget(
+        string path,
+        string mapPath,
+        string suffix,
+        out string? fieldName)
+    {
+        var prefix = mapPath + ".";
+        fieldName = null;
+        if (!path.StartsWith(prefix, StringComparison.Ordinal) ||
+            !path.EndsWith(suffix, StringComparison.Ordinal))
+            return false;
+
+        var candidate = path[prefix.Length..^suffix.Length];
+        if (string.IsNullOrWhiteSpace(candidate) || candidate.Contains('.', StringComparison.Ordinal))
+            return false;
+
+        fieldName = candidate;
+        return true;
+    }
+
+    private sealed record DeclarationTarget(string MapPath, string FieldName);
 }
