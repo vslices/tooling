@@ -139,10 +139,11 @@ jobs:
 
           # A zero exit code alone is not evidence that the updater ran: the root
           # help path can also return zero. Require updater-specific postconditions
-          # emitted before and after release resolution.
-          if ($updateOutput -notmatch '(?m)^Channel\s+preview\s*$' -or
-              $updateOutput -notmatch '(?m)^Mode\s+check only\s*$' -or
-              $updateOutput -notmatch '(?m)^Current\s+' -or
-              $updateOutput -notmatch '(?m)^Latest\s+') {
+          # emitted before and after release resolution. Detail output is padded,
+          # so matching deliberately accepts leading/padding whitespace.
+          if ($updateOutput -notmatch '(?m)^\s*Channel\s+preview\s*$' -or
+              $updateOutput -notmatch '(?m)^\s*Mode\s+check only\s*$' -or
+              $updateOutput -notmatch '(?m)^\s*Current\s+' -or
+              $updateOutput -notmatch '(?m)^\s*Latest\s+') {
             throw 'Published update smoke did not observe the expected updater-specific output contract.'
           }
