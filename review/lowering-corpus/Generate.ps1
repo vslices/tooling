@@ -113,14 +113,14 @@ $entries = Import-Csv -Path $corpusPath -Delimiter "`t"
 @"
 # Lowering review evidence
 
-- Tooling CLI version: `$toolingVersion`
-- Tooling source HEAD: `$sourceHead`
-- Ruleset: `vslices/ruleset@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668`
-- Generated at UTC: `$generatedAt`
+- Tooling CLI version: $toolingVersion
+- Tooling source HEAD: $sourceHead
+- Ruleset: vslices/ruleset@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
+- Generated at UTC: $generatedAt
 - Corpus entries: $($entries.Count)
-- Command shape: `vslices lower <artifact.vsir> --namespace <manifest namespace> --stdout`
+- Command shape: vslices lower <artifact.vsir> --namespace <manifest namespace> --stdout
 
-`inputs/` and `outputs/` are paired by filename. `logs/` preserves target-context/type-resolution diagnostics emitted on stderr. `context/` contains only the isolated .NET symbol context used for nominal type resolution.
+inputs/ and outputs/ are paired by filename. logs/ preserves target-context/type-resolution diagnostics emitted on stderr. context/ contains only the isolated .NET symbol context used for nominal type resolution.
 "@ | Set-Content (Join-Path $outputPath 'MANIFEST.md') -Encoding utf8
 
 $checksumRoots = @(
