@@ -215,7 +215,7 @@ public static class CSharpSumDomainTypeLowerer
         {
             for (var index = 0; index < pipeline.Count; index++)
                 source.AppendLine((index == 0 ? "        " : "        >> ") + pipeline[index]);
-            source.AppendLine("        * Instance;");
+            source.AppendLine($"        * (({inputType} input) => Instance(input));");
         }
 
         source.AppendLine();
