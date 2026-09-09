@@ -126,13 +126,24 @@ internal sealed class ToolingTestProject : IDisposable
         return path;
     }
 
-    public async Task<CliResult> Run(string workingDirectory, params string[] arguments)
+    public Task<CliResult> Run(string workingDirectory, params string[] arguments) =>
+        Run(workingDirectory, environment: null, arguments);
+
+    public async Task<CliResult> Run(
+        string workingDirectory,
+        IReadOnlyDictionary<string, string?>? environment,
+        params string[] arguments)
     {
         var repositoryRoot = FindRepositoryRoot();
         var cli = Path.Combine(repositoryRoot, "src", "VSlices.Tooling", "bin", "Release", "net10.0", "vslices.dll");
         Assert.True(File.Exists(cli), $"Expected built CLI at '{cli}'.");
 
-        var start = new ProcessStartInfo("dotnet")
+        // Resolve the host from the parent environment before applying an
+        // invocation-local PATH override. Tests can then inject a fake nested
+        // `dotnet` for the CLI without accidentally replacing the host that is
+        // launching vslices.dll itself.
+        var dotnetHost = ResolveExecutable("dotnet");
+        var start = new ProcessStartInfo(dotnetHost)
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardOutput = true,
@@ -142,6 +153,17 @@ internal sealed class ToolingTestProject : IDisposable
         start.ArgumentList.Add(cli);
         foreach (var argument in arguments)
             start.ArgumentList.Add(argument);
+
+        if (environment is not null)
+        {
+            foreach (var (name, value) in environment)
+            {
+                if (value is null)
+                    start.Environment.Remove(name);
+                else
+                    start.Environment[name] = value;
+            }
+        }
 
         using var process = Process.Start(start) ?? throw new InvalidOperationException("Could not start VSlices CLI.");
         var stdout = process.StandardOutput.ReadToEndAsync();
@@ -155,6 +177,20 @@ internal sealed class ToolingTestProject : IDisposable
             LineageRoot,
             "csharp",
             Path.GetRelativePath(Root, materializationPath) + ".baseline");
+
+    private static string ResolveExecutable(string name)
+    {
+        var fileName = OperatingSystem.IsWindows() ? name + ".exe" : name;
+        var path = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+        foreach (var directory in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var candidate = Path.Combine(directory.Trim(), fileName);
+            if (File.Exists(candidate))
+                return candidate;
+        }
+
+        return name;
+    }
 
     private static string FindRepositoryRoot()
     {
