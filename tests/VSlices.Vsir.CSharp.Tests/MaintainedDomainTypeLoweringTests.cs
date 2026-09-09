@@ -84,6 +84,26 @@ public sealed class MaintainedDomainTypeLoweringTests
     }
 
     [Fact]
+    public void Maintained_string_values_use_the_shared_CSharp_literal_encoder()
+    {
+        var source = IdentityTypeSource.Replace(
+            "Name: Natural",
+            "Name: \"First line\\nSecond line\"",
+            StringComparison.Ordinal);
+        var parsed = VsirParser.Parse(source);
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        Assert.Equal("First line\nSecond line", parsed.Document!.Values![0].State["Name"]);
+
+        var lowered = CSharpMaintainedDomainTypeLowerer.Lower(
+            parsed.Document,
+            new CSharpLoweringContext("Identities.Domain.Maintainers", LoadRules()));
+
+        Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
+        Assert.Contains("new(\"First line\\nSecond line\")", lowered.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("First line\nSecond line", lowered.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Maintained_value_must_establish_every_state_coordinate()
     {
         var parsed = VsirParser.Parse(IdentityTypeSource.Replace("Name: Juridica", "Other: Juridica", StringComparison.Ordinal));
