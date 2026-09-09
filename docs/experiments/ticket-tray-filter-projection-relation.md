@@ -233,13 +233,23 @@ VSIR
 
 This never becomes a semantic mapping such as `Rut -> string`.
 
-## Specialized parser watchpoint
+## Specialized parser/lowerer coverage watchpoint
 
-Product, sum and maintained parser paths currently duplicate some parsing primitives. That is an implementation coverage concern, not a semantic distinction.
+Product, sum and maintained paths remain specialized because their shape-specific grammar is not identical. The release review did, however, produce direct evidence that **common field-declaration obligations must be shared** rather than implemented as three subtly different contracts.
 
-Do not introduce a speculative universal grammar to remove duplication. When the same semantic form is evidenced across multiple real parser paths, first establish identical specification meaning, add cross-path regression evidence, then extract the genuinely shared primitive.
+The common preflight now owns guarantees such as:
 
-Until then, specialized-parser gaps remain explicit and fail-closed.
+```text
+non-scalar semantic keys fail closed
+unknown keys in expanded field declarations fail closed
+malformed from fails closed
+from or mapping on an expanded field requires type
+from + mapping is contradictory
+```
+
+What remains specialized is corpus-backed executable coverage, not alternate language meaning. For example, a projection form may already be part of canonical VSIR and exercised by product witnesses while no current sum witness has forced the sum lowerer to execute that same form yet. That gap is **witness-limited implementation coverage**.
+
+Do not introduce a speculative universal grammar to remove every remaining duplication. When a new real artifact carries the same semantic form through another specialized path, establish identical specification meaning, add the cross-path regression, then extract the genuinely shared primitive. A specialized implementation gap must not be promoted into shape-specific VSIR semantics.
 
 ## Final success criterion
 
