@@ -1,4 +1,5 @@
 using ConsoleAppFramework;
+using VSlices.Vsir;
 
 namespace VSlices.Tooling;
 
@@ -83,6 +84,12 @@ internal static class UpdateCommands
             return 2;
         }
 
+        if (mutations.Count == 0)
+        {
+            TerminalOutput.Error("UPDATE001: At least one mutation is required.");
+            return 2;
+        }
+
         var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
         var metadataMutations = mutations
             .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
@@ -94,7 +101,17 @@ internal static class UpdateCommands
         var current = source;
         if (semanticMutations.Length > 0)
         {
-            var semanticResult = VsirMutationPipeline.Apply(current, semanticMutations);
+            // Normalize only representation syntax that must become expanded in
+            // order to carry a local source/mapping assertion. This preserves the
+            // semantic type rather than creating an invalid sibling key layout.
+            var prepared = VsirMutationCandidate.Prepare(current, semanticMutations);
+            if (!prepared.IsSuccess)
+            {
+                TerminalOutput.Error(prepared.Error!);
+                return 2;
+            }
+
+            var semanticResult = VsirMutationPipeline.Apply(prepared.Source!, semanticMutations);
             if (!semanticResult.IsSuccess)
             {
                 TerminalOutput.Error(semanticResult.Error!);
@@ -116,9 +133,27 @@ internal static class UpdateCommands
             current = metadataResult.Source!;
         }
 
-        if (mutations.Count == 0)
+        var validationContext = VsirValidationContext.Empty;
+        var project = VSlicesProjectContext.FindFrom(resolution.Path!);
+        if (project is not null)
         {
-            TerminalOutput.Error("UPDATE001: At least one mutation is required.");
+            var extensions = ProjectExtensionCatalogs.Load(project.ExtensionsRoot);
+            if (!extensions.IsSuccess)
+            {
+                CommandInfrastructure.WriteDiagnostics(extensions.Diagnostics);
+                return 2;
+            }
+
+            validationContext = extensions.Extensions!.ValidationContext;
+        }
+
+        // All public mutation routes converge here before persistence. Progressive
+        // incompleteness is allowed; an assertion the canonical parser already
+        // knows is invalid is not.
+        var validationError = VsirMutationCandidate.Validate(current, validationContext);
+        if (validationError is not null)
+        {
+            TerminalOutput.Error(validationError);
             return 2;
         }
 
