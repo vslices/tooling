@@ -113,7 +113,13 @@ $sourceHead = if (-not [string]::IsNullOrWhiteSpace($env:VSLICES_REVIEW_SOURCE_S
 } else {
     'local-worktree'
 }
-$workflowCheckout = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) { 'local-worktree' } else { $env:GITHUB_SHA }
+$workflowCheckout = if (-not [string]::IsNullOrWhiteSpace($env:VSLICES_REVIEW_CHECKOUT_SHA)) {
+    $env:VSLICES_REVIEW_CHECKOUT_SHA
+} elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
+    $env:GITHUB_SHA
+} else {
+    'local-worktree'
+}
 $generatedAt = [DateTimeOffset]::UtcNow.ToString('O')
 $entries = Import-Csv -Path $corpusPath -Delimiter "`t"
 
