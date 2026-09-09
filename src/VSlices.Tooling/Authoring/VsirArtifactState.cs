@@ -77,10 +77,11 @@ internal sealed record VsirArtifactState(
         if (missing.Length > 0)
         {
             // Missing knowledge and invalid knowledge are independent facts.
-            // A partial artifact may legitimately produce parser diagnostics for
-            // assertions that have not been authored yet, but an assertion that
-            // is already present and invalid must never disappear behind the
-            // broader "incomplete" state.
+            // Canonical parsing is intentionally stricter than progressive
+            // authoring, so diagnostics caused only by absent assertions are not
+            // evidence that a present assertion is invalid. Conversely, any
+            // diagnostic about knowledge already present must survive alongside
+            // the list of missing obligations.
             var blocking = parsed.Diagnostics
                 .Where(diagnostic => !CanBeExplainedByMissingKnowledge(diagnostic, root))
                 .ToArray();
@@ -113,6 +114,13 @@ internal sealed record VsirArtifactState(
         YamlMappingNode root) =>
         diagnostic.Code switch
         {
+            // Parser-level absence diagnostics must participate in the same
+            // progressive classification as validator-level absence diagnostics.
+            // VSIR111 is emitted before the validator's VSIR207 when root input
+            // has not been authored yet; treating it as blocking would make every
+            // legitimate new -> update progression invalid until input exists.
+            "VSIR111" => !HasKey(root, "input"),
+
             "VSIR201" => !HasKey(root, "kind"),
             "VSIR202" => !HasKey(root, "classification"),
             "VSIR203" => !HasKey(root, "shape"),
