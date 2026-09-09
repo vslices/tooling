@@ -85,36 +85,29 @@ public sealed class ProjectLoweringTests
     }
 
     [Fact]
-    public async Task Project_lowering_returns_failure_when_target_toolchain_fails_even_if_processing_can_continue()
+    public async Task Project_lowering_returns_failure_when_target_toolchain_rejects_project_even_if_processing_can_continue()
     {
-        if (OperatingSystem.IsWindows())
-            return; // Linux CI carries the executable PATH fault-injection witness.
-
         using var project = CreateProject("Identities.Domain");
         project.WriteStreetName();
 
-        var fakeBin = Path.Combine(project.Root, "fake-bin");
-        Directory.CreateDirectory(fakeBin);
-        var fakeDotNet = Path.Combine(fakeBin, "dotnet");
-        File.WriteAllText(fakeDotNet, "#!/bin/sh\necho review-injected-MSBuild-failure >&2\nexit 42\n");
-        File.SetUnixFileMode(
-            fakeDotNet,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        // Exercise the real child-process boundary instead of mocking the
+        // coordinator. A malformed project makes the real `dotnet msbuild`
+        // invocation fail while the VSIR artifact itself remains supported.
+        File.WriteAllText(Path.Combine(project.Root, "Identities.Domain.csproj"), """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <PropertyGroup>
+                <TargetFramework>net10.0</TargetFramework>
+                <RootNamespace>Identities.Domain</RootNamespace>
+              <!-- deliberately malformed: PropertyGroup is never closed -->
+            </Project>
+            """);
 
-        var environment = new Dictionary<string, string?>
-        {
-            ["PATH"] = fakeBin + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
-        };
-
-        var result = await project.Run(
-            project.Root,
-            environment,
-            "lower", "Identities.Domain");
+        var result = await project.Run(project.Root, "lower", "Identities.Domain");
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("DOTNET002", result.StandardError);
-        Assert.Contains("review-injected-MSBuild-failure", result.StandardError);
         Assert.Contains("Project lowering: 0 succeeded, 0 unsupported, 1 failures", result.StandardOutput);
+        Assert.False(File.Exists(Path.Combine(project.Root, "StreetName.vsir.cs")));
     }
 
     private static ToolingTestProject CreateProject(string name)
