@@ -22,10 +22,25 @@ public sealed class VsirCanonicalStructuralContractTests
     [Fact]
     public void Product_rejects_non_scalar_from_instead_of_treating_it_as_absent()
     {
-        var source = ProductSource.Replace(
-            "Value: string\n\n        input:",
-            "Value:\n            type: string\n            from: [state.Value]\n\n        input:",
-            StringComparison.Ordinal);
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Probe
+            shape: product
+            classification: value-object
+            traits: [transform]
+
+            state:
+              Value: string
+
+            representation:
+              Value:
+                type: string
+                from: [state.Value]
+
+            input:
+              Value: string
+            """;
 
         var parsed = VsirParser.Parse(source);
 
@@ -36,10 +51,34 @@ public sealed class VsirCanonicalStructuralContractTests
     [Fact]
     public void Sum_representation_rejects_simultaneous_from_and_mapping()
     {
-        var source = SumSource.Replace(
-            "Value: string\n            input:",
-            "Value:\n                type: string\n                from: state.Value\n                mapping:\n                  stringify: state.Value\n            input:",
-            StringComparison.Ordinal);
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeSum
+            shape: sum
+            classification: value-object
+
+            state: {}
+            representation: {}
+
+            variants:
+              ProbeValue:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value:
+                    type: string
+                    from: state.Value
+                    mapping:
+                      stringify: state.Value
+                input:
+                  Value: string
+                construction:
+                  - refine:
+                      state:
+                        Value: input.Value
+            """;
 
         var parsed = VsirParser.Parse(source);
 
