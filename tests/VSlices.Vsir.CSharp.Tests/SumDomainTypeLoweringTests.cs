@@ -130,6 +130,7 @@ public sealed class SumDomainTypeLoweringTests
         Assert.Contains("public abstract class Name", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("DomainType<Name, Name.Repr>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("public sealed class FullName", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("public new sealed record Repr(", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("Transform<FullName, FullName.Input>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("Option<string> SecondSurname", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("!string.IsNullOrEmpty(input.Names)", lowered.Source, StringComparison.Ordinal);
