@@ -58,6 +58,46 @@ public sealed class VsirUpdateCandidateTests
     }
 
     [Fact]
+    public async Task Adding_state_source_to_structural_type_shorthand_expands_type_without_losing_it()
+    {
+        using var project = new ToolingTestProject();
+        var path = Path.Combine(project.Root, "ProbeDerivedSequence.vsir");
+        File.WriteAllText(path, """
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeDerivedSequence
+            shape: product
+            classification: value-object
+            traits: [transform]
+
+            state:
+              Source:
+                sequence: string
+              Derived:
+                sequence: string
+
+            representation:
+              Derived:
+                sequence: string
+
+            input:
+              Source:
+                sequence: string
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "update", "vsir", path,
+            "--set", "state.Derived.from=state.Source");
+
+        Assert.Equal(0, result.ExitCode);
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+        Assert.Contains("Derived:\n    type:\n      sequence: string\n    from: state.Source", source, StringComparison.Ordinal);
+        var parsed = VsirParser.Parse(source);
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+    }
+
+    [Fact]
     public async Task Legitimately_incomplete_progressive_artifact_remains_writable()
     {
         using var project = new ToolingTestProject();
