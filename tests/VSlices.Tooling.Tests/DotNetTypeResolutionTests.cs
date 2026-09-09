@@ -8,6 +8,53 @@ public sealed class DotNetTypeResolutionTests
     public async Task Lowering_resolves_unique_nominal_type_as_using_and_short_name()
     {
         using var project = new ToolingTestProject();
+        var domainProject = ConfigureNominalTypeFixture(project);
+
+        var restore = await RunDotNet(project.Root, "restore", domainProject);
+        Assert.Equal(0, restore.ExitCode);
+
+        var result = await project.Run(project.Root, "lower", "WrappedRut.vsir");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(
+            "Resolving C# type 'Rut' in project 'Demo.Domain'...",
+            result.StandardError,
+            StringComparison.Ordinal);
+        var materialization = File.ReadAllText(Path.Combine(project.Root, "WrappedRut.vsir.cs"));
+        Assert.Contains("using Shared.Domain.ValueObjects;", materialization, StringComparison.Ordinal);
+        Assert.Contains("private readonly Rut _value;", materialization, StringComparison.Ordinal);
+        Assert.DoesNotContain("global::Shared.Domain.ValueObjects.Rut", materialization, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Namespace_override_preserves_project_context_for_nominal_type_resolution()
+    {
+        using var project = new ToolingTestProject();
+        var domainProject = ConfigureNominalTypeFixture(project);
+
+        var restore = await RunDotNet(project.Root, "restore", domainProject);
+        Assert.Equal(0, restore.ExitCode);
+
+        var result = await project.Run(
+            project.Root,
+            "lower", "WrappedRut.vsir",
+            "--namespace", "Review.Override");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains(
+            "Resolving C# type 'Rut' in project 'Demo.Domain'...",
+            result.StandardError,
+            StringComparison.Ordinal);
+
+        var materialization = File.ReadAllText(Path.Combine(project.Root, "WrappedRut.vsir.cs"));
+        Assert.Contains("namespace Review.Override;", materialization, StringComparison.Ordinal);
+        Assert.Contains("using Shared.Domain.ValueObjects;", materialization, StringComparison.Ordinal);
+        Assert.Contains("private readonly Rut _value;", materialization, StringComparison.Ordinal);
+        Assert.DoesNotContain("DOTNET040", result.StandardError, StringComparison.Ordinal);
+    }
+
+    private static string ConfigureNominalTypeFixture(ToolingTestProject project)
+    {
         project.WriteConfiguration();
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot);
 
@@ -57,20 +104,7 @@ public sealed class DotNetTypeResolutionTests
             construction: []
             """);
 
-        var restore = await RunDotNet(project.Root, "restore", domainProject);
-        Assert.Equal(0, restore.ExitCode);
-
-        var result = await project.Run(project.Root, "lower", "WrappedRut.vsir");
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.Contains(
-            "Resolving C# type 'Rut' in project 'Demo.Domain'...",
-            result.StandardError,
-            StringComparison.Ordinal);
-        var materialization = File.ReadAllText(Path.Combine(project.Root, "WrappedRut.vsir.cs"));
-        Assert.Contains("using Shared.Domain.ValueObjects;", materialization, StringComparison.Ordinal);
-        Assert.Contains("private readonly Rut _value;", materialization, StringComparison.Ordinal);
-        Assert.DoesNotContain("global::Shared.Domain.ValueObjects.Rut", materialization, StringComparison.Ordinal);
+        return domainProject;
     }
 
     private static async Task<CliResult> RunDotNet(
