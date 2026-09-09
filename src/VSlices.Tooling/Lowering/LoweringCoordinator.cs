@@ -344,7 +344,8 @@ internal static class LoweringCoordinator
         bool exactDeterministic,
         CancellationToken cancellationToken)
     {
-        if (stdout)
+        var writesToStdout = CommandInfrastructure.IsStdoutDestination(output, stdout);
+        if (writesToStdout)
         {
             Console.Error.WriteLine(exactDeterministic
                 ? $"Established lowering lineage for '{existing}'."
@@ -365,7 +366,7 @@ internal static class LoweringCoordinator
         // Bootstrap establishes operational ancestry even in stdout mode, but the
         // requested content destination is still honored. The returned content is
         // the human materialization that bootstrap deliberately preserved.
-        if (!stdout && string.IsNullOrWhiteSpace(output))
+        if (!writesToStdout && string.IsNullOrWhiteSpace(output))
             return ArtifactExecution.Lowered();
 
         var exitCode = await CommandInfrastructure.WriteResult(
@@ -384,7 +385,7 @@ internal static class LoweringCoordinator
         bool stdout,
         out string? resolved)
     {
-        if (stdout || output == "-")
+        if (CommandInfrastructure.IsStdoutDestination(output, stdout))
         {
             resolved = null;
             return false;
