@@ -19,6 +19,26 @@ public sealed class VsirCanonicalStructuralContractTests
         Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "VSIR104");
     }
 
+    [Theory]
+    [MemberData(nameof(ExpandedFormsWithUnknownDeclarationKey))]
+    public void Canonical_forms_share_unknown_expanded_field_key_rejection(string source)
+    {
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "VSIR104");
+    }
+
+    [Theory]
+    [MemberData(nameof(ExpandedFormsWithoutType))]
+    public void Canonical_forms_require_type_when_source_metadata_expands_a_field(string source)
+    {
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "VSIR156");
+    }
+
     [Fact]
     public void Product_rejects_non_scalar_from_instead_of_treating_it_as_absent()
     {
@@ -91,6 +111,138 @@ public sealed class VsirCanonicalStructuralContractTests
         yield return [ProductSource];
         yield return [SumSource];
         yield return [MaintainedSource];
+    }
+
+    public static IEnumerable<object[]> ExpandedFormsWithUnknownDeclarationKey()
+    {
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: Probe
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value:
+                type: string
+                from: state.Value
+                unsupported: true
+            input:
+              Value: string
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeSum
+            shape: sum
+            classification: value-object
+            state: {}
+            representation: {}
+            variants:
+              ProbeValue:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value:
+                    type: string
+                    from: state.Value
+                    unsupported: true
+                input:
+                  Value: string
+                construction:
+                  - refine:
+                      state:
+                        Value: input.Value
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeMaintained
+            shape: product
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value:
+                type: string
+                from: state.Name
+                unsupported: true
+            values:
+              One:
+                state:
+                  Name: One
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Name
+            """];
+    }
+
+    public static IEnumerable<object[]> ExpandedFormsWithoutType()
+    {
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: Probe
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value:
+                from: state.Value
+            input:
+              Value: string
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeSum
+            shape: sum
+            classification: value-object
+            state: {}
+            representation: {}
+            variants:
+              ProbeValue:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value:
+                    from: state.Value
+                input:
+                  Value: string
+                construction:
+                  - refine:
+                      state:
+                        Value: input.Value
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeMaintained
+            shape: product
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value:
+                from: state.Name
+            values:
+              One:
+                state:
+                  Name: One
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Name
+            """];
     }
 
     private const string ProductSource = """
