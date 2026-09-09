@@ -13,7 +13,7 @@ public sealed class RulesetUpdateTests
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
         project.WriteConfiguration(source);
 
-        var result = await project.Run(project.Root, "update", "--ruleset");
+        var result = await project.Run(project.Root, "update", "ruleset");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "new.marker")));
@@ -32,7 +32,7 @@ public sealed class RulesetUpdateTests
         project.WriteConfiguration(source);
         WriteProjectExtensionMarker(project, "keep-me");
 
-        var result = await project.Run(project.Root, "update", "--ruleset");
+        var result = await project.Run(project.Root, "update", "ruleset");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "keep-me")));
@@ -76,7 +76,7 @@ public sealed class RulesetUpdateTests
         Assert.Contains($"source: {localSource}", configuration, StringComparison.Ordinal);
         Assert.DoesNotContain("ref:", configuration, StringComparison.Ordinal);
 
-        var updated = await project.Run(project.Root, "update", "--ruleset");
+        var updated = await project.Run(project.Root, "update", "ruleset");
 
         Assert.Equal(0, updated.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "local.marker")));
@@ -99,7 +99,7 @@ public sealed class RulesetUpdateTests
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
         project.WriteConfiguration(source);
 
-        var result = await project.Run(project.Root, "update", "--ruleset");
+        var result = await project.Run(project.Root, "update", "ruleset");
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));
@@ -129,7 +129,7 @@ public sealed class RulesetUpdateTests
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
         project.WriteConfiguration(source, "main");
 
-        var result = await project.Run(project.Root, "update", "--ruleset");
+        var result = await project.Run(project.Root, "update", "ruleset");
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "old.marker")));

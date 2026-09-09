@@ -117,8 +117,109 @@ public sealed class CSharpRebaserTests
         var result = CSharpRebaser.Rebase(previous, human, next);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains(result.Diagnostics, x => x.Code == "REB001");
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("REB001", diagnostic.Code);
+        Assert.Contains("--resolve deterministic", diagnostic.Message, StringComparison.Ordinal);
         Assert.Equal("MaxLength = GetConfiguredMaximum();", human);
+    }
+
+    [Fact]
+    public void Rebase_can_resolve_a_uniquely_bounded_replacement_conflict_deterministically()
+    {
+        const string previous = """
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static VSlices.Arrows.Req<Input, TicketId>.Full Invariants =>
+                    VSlices.Arrows.Req<Input, TicketId>.Transform((Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+            }
+            """;
+
+        const string human = """
+            using static VSlices.Arrows.Req<Tickets.Domain.Aggregates.TicketId.Input, Tickets.Domain.Aggregates.TicketId>;
+
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static Req<Input, TicketId>.Full Invariants =>
+                    Transform((Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+
+                public override string ToString() =>
+                    _value;
+            }
+            """;
+
+        const string next = """
+            namespace Tickets.Domain.Aggregates;
+
+            public sealed class TicketId
+            {
+                public static VSlices.Arrows.Req<TicketId.Input, TicketId>.Full Invariants =>
+                    VSlices.Arrows.Req<TicketId.Input, TicketId>.Transform((TicketId.Input input) => Instance(input));
+
+                public Repr To() =>
+                    new(_value);
+            }
+            """;
+
+        var result = CSharpRebaser.Rebase(
+            previous,
+            human,
+            next,
+            CSharpRebaseResolution.Deterministic);
+
+        Assert.True(result.IsSuccess, string.Join(Environment.NewLine, result.Diagnostics));
+        Assert.Contains("VSlices.Arrows.Req<TicketId.Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+        Assert.Contains("VSlices.Arrows.Req<TicketId.Input, TicketId>.Transform((TicketId.Input input) => Instance(input))", result.Source, StringComparison.Ordinal);
+        Assert.Contains("using static VSlices.Arrows.Req<", result.Source, StringComparison.Ordinal);
+        Assert.Contains("public override string ToString()", result.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("public static Req<Input, TicketId>.Full Invariants", result.Source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Deterministic_replacement_resolution_still_fails_closed_when_the_conflict_has_no_unique_boundary()
+    {
+        const string previous = "left old right";
+        const string human = "left human right left human right";
+        const string next = "left new right";
+
+        var result = CSharpRebaser.Rebase(
+            previous,
+            human,
+            next,
+            CSharpRebaseResolution.Deterministic);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains(result.Diagnostics, x => x.Code == "REB001");
+    }
+
+    [Fact]
+    public void Rebase_conflict_preserves_full_details_and_trace_beyond_compact_preview()
+    {
+        var previousRegion = new string('a', 220) + "PREVIOUS-TAIL-A";
+        var nextRegion = new string('b', 220) + "NEXT-TAIL-B";
+        var human = new string('c', 220) + "HUMAN-TAIL-C";
+
+        var result = CSharpRebaser.Rebase(previousRegion, human, nextRegion);
+
+        Assert.False(result.IsSuccess);
+        var diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal("REB001", diagnostic.Code);
+        Assert.Contains("...", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("PREVIOUS-TAIL-A", diagnostic.Details, StringComparison.Ordinal);
+        Assert.Contains("NEXT-TAIL-B", diagnostic.Details, StringComparison.Ordinal);
+        Assert.Contains("PREVIOUS-TAIL-A", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("HUMAN-TAIL-C", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("NEXT-TAIL-B", diagnostic.Trace, StringComparison.Ordinal);
+        Assert.Contains("Common prefix length:", diagnostic.Trace, StringComparison.Ordinal);
     }
 
     [Fact]

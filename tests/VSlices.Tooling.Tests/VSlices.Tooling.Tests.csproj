@@ -14,6 +14,19 @@
     <PackageReference Include="YamlDotNet" Version="16.3.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/VSlices.Vsir/VSlices.Vsir.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirTemplate.cs" Link="Linked/VsirTemplate.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirAuthoringContract.cs" Link="Linked/VsirAuthoringContract.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirArtifactState.cs" Link="Linked/VsirArtifactState.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirCommandTemplates.cs" Link="Linked/VsirCommandTemplates.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMetadataAuthoring.cs" Link="Linked/VsirMetadataAuthoring.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationArgumentParser.cs" Link="Linked/VsirMutationArgumentParser.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationEngine.cs" Link="Linked/VsirMutationEngine.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/VsirMutationPipeline.cs" Link="Linked/VsirMutationPipeline.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Authoring/Source/VsirSourceFormatter.cs" Link="Linked/VsirSourceFormatter.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Commands/SearchFilter.cs" Link="Linked/SearchFilter.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticNamespaceMovePreflight.cs" Link="Linked/SemanticNamespaceMovePreflight.cs" />

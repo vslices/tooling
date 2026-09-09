@@ -12,6 +12,8 @@ internal static class VsirCommands
     /// <param name="stdout">Write the result to standard output instead of a file. Equivalent to -o -.</param>
     /// <param name="force">Replace an existing output explicitly.</param>
     /// <param name="namespace">-n, Optional namespace override. By default VSlices asks the .NET target tooling for project/item context.</param>
+    /// <param name="verbose">Show expanded human-oriented diagnostic details.</param>
+    /// <param name="trace">Show the full diagnostic decision trace. Implies verbose diagnostic output.</param>
     public static async Task<int> Transpile(
         [Argument] string subject,
         string? to = null,
@@ -19,12 +21,15 @@ internal static class VsirCommands
         bool stdout = false,
         bool force = false,
         string? @namespace = null,
+        bool verbose = false,
+        bool trace = false,
         CancellationToken cancellationToken = default)
     {
+        var diagnosticVerbosity = CommandInfrastructure.ResolveDiagnosticVerbosity(verbose, trace);
         var result = await TranspilationOperation.Execute(subject, to, @namespace, cancellationToken);
         if (!result.IsSuccess)
         {
-            CommandInfrastructure.WriteDiagnostics(result.Diagnostics);
+            CommandInfrastructure.WriteDiagnostics(result.Diagnostics, diagnosticVerbosity);
             return 1;
         }
 
@@ -50,6 +55,8 @@ internal static class VsirCommands
     /// <param name="stdout">Write the result to standard output instead of updating a file. Equivalent to -o -.</param>
     /// <param name="namespace">-n, Optional namespace override. By default VSlices asks the target tooling for project/item context.</param>
     /// <param name="resolve">Optional conflict resolution strategy. Current supported value: deterministic.</param>
+    /// <param name="verbose">Show expanded human-oriented diagnostic details.</param>
+    /// <param name="trace">Show the full diagnostic decision trace. Implies verbose diagnostic output.</param>
     public static async Task<int> Rebase(
         [Argument] string subject,
         string? to = null,
@@ -59,6 +66,8 @@ internal static class VsirCommands
         bool stdout = false,
         string? @namespace = null,
         string? resolve = null,
+        bool verbose = false,
+        bool trace = false,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(from))
@@ -71,6 +80,7 @@ internal static class VsirCommands
         if (!TryParseResolution(resolve, out var resolution))
             return 2;
 
+        var diagnosticVerbosity = CommandInfrastructure.ResolveDiagnosticVerbosity(verbose, trace);
         var result = await RebaseOperation.ExecuteFromVsir(
             subject,
             to,
@@ -81,7 +91,7 @@ internal static class VsirCommands
             cancellationToken);
         if (!result.IsSuccess)
         {
-            CommandInfrastructure.WriteDiagnostics(result.Diagnostics);
+            CommandInfrastructure.WriteDiagnostics(result.Diagnostics, diagnosticVerbosity);
             return 1;
         }
 
@@ -103,6 +113,8 @@ internal static class VsirCommands
     /// <param name="stdout">Write the result to standard output instead of a file. Equivalent to -o -.</param>
     /// <param name="namespace">-n, Optional namespace override.</param>
     /// <param name="resolve">Optional conflict resolution strategy. Current supported value: deterministic.</param>
+    /// <param name="verbose">Show expanded human-oriented diagnostic details.</param>
+    /// <param name="trace">Show the full diagnostic decision trace. Implies verbose diagnostic output.</param>
     public static async Task<int> Lower(
         [Argument] string subject,
         string? to = null,
@@ -112,6 +124,8 @@ internal static class VsirCommands
         bool stdout = false,
         string? @namespace = null,
         string? resolve = null,
+        bool verbose = false,
+        bool trace = false,
         CancellationToken cancellationToken = default)
     {
         if (!TryParseResolution(resolve, out var resolution))
@@ -126,6 +140,7 @@ internal static class VsirCommands
             stdout,
             @namespace,
             resolution,
+            CommandInfrastructure.ResolveDiagnosticVerbosity(verbose, trace),
             cancellationToken);
     }
 

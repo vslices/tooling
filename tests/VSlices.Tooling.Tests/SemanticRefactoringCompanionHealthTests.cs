@@ -51,12 +51,12 @@ public sealed class SemanticRefactoringCompanionHealthTests
     }
 
     [Fact]
-    public void Self_update_suppresses_notification_because_it_repairs_the_companion()
+    public void Self_update_subject_suppresses_notification_because_it_repairs_the_companion()
     {
         using var temp = TempDirectory.Create();
 
         var shouldNotify = SemanticRefactoringCompanionHealth.ShouldNotify(
-            ["update", "--self"],
+            ["update", "self"],
             Path.Combine(temp.Path, OperatingSystem.IsWindows() ? "vslices.exe" : "vslices"),
             temp.Path,
             isNativeAot: true);

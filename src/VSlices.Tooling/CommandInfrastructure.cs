@@ -2,6 +2,13 @@ using VSlices.Vsir;
 
 namespace VSlices.Tooling;
 
+internal enum DiagnosticVerbosity
+{
+    Normal,
+    Verbose,
+    Trace
+}
+
 internal static class CommandInfrastructure
 {
     public static (string? Path, VsirDiagnostic? Diagnostic) ResolveVsir(string value, string cwd)
@@ -20,14 +27,16 @@ internal static class CommandInfrastructure
         var symbol = Path.GetFileNameWithoutExtension(value);
         var policy = ArtifactDiscoveryPolicy.Load(cwd);
         var matches = EnumerateVsirFiles(cwd, symbol + ".vsir", policy)
-            .Take(3)
+            .OrderBy(path => Path.GetRelativePath(cwd, path), StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return matches.Length switch
         {
             1 => (matches[0], null),
             0 => (null, new("CLI001", $"Could not resolve VSIR symbol or path '{value}'.")),
-            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+            _ => (null, new(
+                "CLI002",
+                AmbiguousVsirMessage(symbol, cwd, matches)))
         };
     }
 
@@ -136,10 +145,54 @@ internal static class CommandInfrastructure
         }
     }
 
-    public static void WriteDiagnostics(IEnumerable<VsirDiagnostic> diagnostics)
+    public static DiagnosticVerbosity ResolveDiagnosticVerbosity(bool verbose, bool trace) =>
+        trace ? DiagnosticVerbosity.Trace : verbose ? DiagnosticVerbosity.Verbose : DiagnosticVerbosity.Normal;
+
+    public static void WriteDiagnostics(
+        IEnumerable<VsirDiagnostic> diagnostics,
+        DiagnosticVerbosity verbosity = DiagnosticVerbosity.Normal)
     {
         foreach (var diagnostic in diagnostics)
-            Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+        {
+            TerminalOutput.DiagnosticError(DiagnosticHeader(diagnostic), diagnostic.Message);
+
+            if (verbosity >= DiagnosticVerbosity.Verbose &&
+                !string.IsNullOrWhiteSpace(diagnostic.Details))
+            {
+                TerminalOutput.DiagnosticSection("Details", diagnostic.Details);
+            }
+
+            if (verbosity >= DiagnosticVerbosity.Trace &&
+                !string.IsNullOrWhiteSpace(diagnostic.Trace))
+            {
+                TerminalOutput.DiagnosticSection("Trace", diagnostic.Trace);
+            }
+        }
+    }
+
+    internal static string DiagnosticHeader(VsirDiagnostic diagnostic)
+    {
+        if (diagnostic.Source is not null && !string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+        {
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath} @ {diagnostic.Source.Line}:{diagnostic.Source.Column}]";
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath}]";
+
+        return diagnostic.Code;
+    }
+
+    private static string AmbiguousVsirMessage(
+        string symbol,
+        string cwd,
+        IReadOnlyList<string> matches)
+    {
+        var candidates = string.Join(
+            Environment.NewLine,
+            matches.Select(path => $"  - {Path.GetRelativePath(cwd, path)}"));
+
+        return $"VSIR symbol '{symbol}' is ambiguous. Use one of these paths:{Environment.NewLine}{candidates}";
     }
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(

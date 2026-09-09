@@ -1,58 +1,19 @@
+using ConsoleAppFramework;
+
 namespace VSlices.Tooling;
 
 internal static class UpdateCommands
 {
-    /// <summary>Updates VSlices tooling components.</summary>
-    /// <param name="self">Update the standalone VSlices CLI executable.</param>
-    /// <param name="ruleset">Update the project-local ruleset snapshot from configured ruleset provenance.</param>
-    /// <param name="channel">Override the configured CLI update channel for this invocation.</param>
-    /// <param name="source">Override the configured CLI update source for this invocation.</param>
-    /// <param name="pullRequest">Override the configured pull request used by the build update channel.</param>
-    /// <param name="check">Check whether a CLI update is available without replacing the executable.</param>
-    public static Task<int> Update(
-        bool self = false,
-        bool ruleset = false,
+    /// <summary>Updates the standalone VSlices CLI executable.</summary>
+    public static Task<int> Self(
         string? channel = null,
         string? source = null,
         int? pullRequest = null,
         bool check = false,
         CancellationToken cancellationToken = default)
     {
-        if (!self && !ruleset)
-        {
-            TerminalOutput.Error(
-                "UPD000: Specify what to update. Supported surfaces: 'vslices update --self' and 'vslices update --ruleset'. Plain 'vslices update' is not defined yet.");
-            return Task.FromResult(2);
-        }
-
-        if (self && ruleset)
-        {
-            TerminalOutput.Error(
-                "UPD001: Updating self and ruleset together is not defined yet. Run the explicit update surfaces separately while aggregate update semantics are being established.");
-            return Task.FromResult(2);
-        }
-
         var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
         var configuration = project?.Configuration;
-
-        if (ruleset)
-        {
-            if (check)
-            {
-                TerminalOutput.Error(
-                    "UPD002: --check currently applies only to 'vslices update --self'.");
-                return Task.FromResult(2);
-            }
-
-            if (project is null)
-            {
-                TerminalOutput.Error(
-                    "UPD010: Could not locate .vslices/config.yaml. Run 'vslices init' before updating the project ruleset.");
-                return Task.FromResult(1);
-            }
-
-            return RulesetUpdater.Update(project, cancellationToken);
-        }
 
         var resolvedSource = source
             ?? configuration?.UpdateSource
@@ -75,5 +36,95 @@ internal static class UpdateCommands
             resolvedPullRequest,
             check,
             cancellationToken);
+    }
+
+    /// <summary>Updates the project-local ruleset snapshot from configured provenance.</summary>
+    public static Task<int> Ruleset(CancellationToken cancellationToken = default)
+    {
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        if (project is null)
+        {
+            TerminalOutput.Error(
+                "UPD010: Could not locate .vslices/config.yaml. Run 'vslices init' before updating the project ruleset.");
+            return Task.FromResult(1);
+        }
+
+        return RulesetUpdater.Update(project, cancellationToken);
+    }
+
+    /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>
+    /// <param name="artifact">VSIR symbol or path.</param>
+    /// <param name="add">Adds members to collection-valued surfaces. The option may be repeated. Available for searchable tags metadata and semantic traits.</param>
+    /// <param name="remove">Removes collection members or removable semantic assertions. The option may be repeated. Set-valued surfaces use path=value; assertion removal may use path alone.</param>
+    /// <param name="set">Establishes or replaces assertions as path=value clauses. The option may be repeated; each occurrence may also contain semicolon-separated clauses. Use discovery to obtain the currently authorized paths and command templates.</param>
+    public static async Task<int> Vsir(
+        ConsoleAppContext context,
+        [Argument] string artifact,
+        string? add = null,
+        string? remove = null,
+        string? set = null,
+        CancellationToken cancellationToken = default)
+    {
+        var resolution = CommandInfrastructure.ResolveVsir(artifact, Environment.CurrentDirectory);
+        if (resolution.Diagnostic is not null)
+        {
+            CommandInfrastructure.WriteDiagnostics([resolution.Diagnostic]);
+            return 1;
+        }
+
+        var mutations = new List<VsirMutation>();
+        var parseError = VsirMutationArgumentParser.AddRepeatedOptions(
+            mutations,
+            context.CommandArguments,
+            "UPDATE020");
+        if (parseError is not null)
+        {
+            TerminalOutput.Error(parseError);
+            return 2;
+        }
+
+        var source = await File.ReadAllTextAsync(resolution.Path!, cancellationToken);
+        var metadataMutations = mutations
+            .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+        var semanticMutations = mutations
+            .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+
+        var current = source;
+        if (semanticMutations.Length > 0)
+        {
+            var semanticResult = VsirMutationPipeline.Apply(current, semanticMutations);
+            if (!semanticResult.IsSuccess)
+            {
+                TerminalOutput.Error(semanticResult.Error!);
+                return 2;
+            }
+
+            current = semanticResult.Source!;
+        }
+
+        if (metadataMutations.Length > 0)
+        {
+            var metadataResult = VsirMetadataAuthoring.Apply(current, metadataMutations);
+            if (!metadataResult.IsSuccess)
+            {
+                TerminalOutput.Error(metadataResult.Error!);
+                return 2;
+            }
+
+            current = metadataResult.Source!;
+        }
+
+        if (mutations.Count == 0)
+        {
+            TerminalOutput.Error("UPDATE001: At least one mutation is required.");
+            return 2;
+        }
+
+        var formatted = VsirSourceFormatter.FormatAfterMutation(current);
+        await CommandInfrastructure.AtomicWrite(resolution.Path!, formatted, cancellationToken);
+        Console.WriteLine($"Updated '{resolution.Path}'.");
+        return 0;
     }
 }

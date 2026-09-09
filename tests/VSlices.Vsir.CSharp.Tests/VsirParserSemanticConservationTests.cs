@@ -5,33 +5,92 @@ namespace VSlices.Vsir.CSharp.Tests;
 
 public sealed class VsirParserSemanticConservationTests
 {
-    [Theory]
-    [InlineData("identifier, transform")]
-    [InlineData("transform, identifier")]
-    public void TicketId_traits_are_unordered_capabilities(string traits)
+    [Fact]
+    public void TicketId_identifier_classification_does_not_require_an_identifier_trait()
     {
-        var parsed = VsirParser.Parse(TicketIdLike($"[{traits}]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
+
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        Assert.Equal("identifier", parsed.Document!.Classification);
+        Assert.Equal(["transform"], parsed.Document.Traits);
+    }
+
+    [Fact]
+    public void TicketCode_identifier_trait_is_independent_from_value_object_classification()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: TicketCode
+            classification: value-object
+            shape: product
+            traits: [transform, identifier]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Value
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        Assert.Equal("value-object", parsed.Document!.Classification);
+        Assert.Contains("identifier", parsed.Document.Traits);
+        Assert.NotNull(parsed.Document.Equality);
+    }
+
+    [Fact]
+    public void Equality_without_identifier_semantics_is_rejected()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: Value
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Value
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR252");
     }
 
     [Fact]
     public void TicketId_semantics_are_preserved_and_lowered_through_identifier_structure_and_ruleset_equality()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
-        Assert.Equal(new EqualitySemantics("ordinal-equals", "state.Value"), parsed.Document!.Equality);
+        Assert.Equal(new EqualitySemantics("ordinal-equals", null, "state.Value"), parsed.Document!.Equality);
         var rules = CSharpLoweringRuleSet.Load(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset"));
         Assert.True(rules.IsSuccess, string.Join(Environment.NewLine, rules.Diagnostics));
-        var lowered = CSharpLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
+        var lowered = CSharpLanguageLowerer.Lower(parsed.Document, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
-        Assert.Contains("Identifier<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("DomainType<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("Identifier<TicketIdLike>", lowered.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Identifier<TicketIdLike, TicketIdLike.Repr>", lowered.Source, StringComparison.Ordinal);
         Assert.Contains("string.Equals(_value, other._value, StringComparison.Ordinal)", lowered.Source, StringComparison.Ordinal);
     }
 
     [Fact]
     public void Identifier_lowering_stops_when_equality_ruleset_knowledge_is_missing()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]"));
         Assert.True(parsed.IsSuccess);
         var temporary = Path.Combine(Path.GetTempPath(), "vslices-ruleset-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(temporary, "csharp"));
@@ -48,11 +107,12 @@ public sealed class VsirParserSemanticConservationTests
                   - node: intrinsic.non-empty
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "!string.IsNullOrEmpty({value})"
                 """);
             var rules = CSharpLoweringRuleSet.Load(temporary);
             Assert.True(rules.IsSuccess);
-            var lowered = CSharpLowerer.Lower(parsed.Document!, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
+            var lowered = CSharpLanguageLowerer.Lower(parsed.Document!, new CSharpLoweringContext("Tickets.Domain.Aggregates", rules.RuleSet!));
             Assert.False(lowered.IsSuccess);
             Assert.Contains(lowered.Diagnostics, d => d.Code == "CSL021");
             Assert.Contains(lowered.Diagnostics, d => d.Code == "CSL022");
@@ -66,7 +126,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Identifier_requires_explicit_equality_semantics()
     {
-        var source = TicketIdLike("[identifier, transform]");
+        var source = TicketIdLike("[transform]");
         var equalityStart = source.IndexOf("\nequality:", StringComparison.Ordinal);
         Assert.True(equalityStart >= 0);
         source = source[..equalityStart];
@@ -78,7 +138,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Duplicate_traits_are_rejected()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform, identifier]"));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform, transform]"));
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR217");
     }
@@ -108,9 +168,12 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
+              - refine:
+                  state:
+                    Value: input.Value
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -133,29 +196,29 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                - hey-I-am-semantics
+                  failure:
+                    message: required
+              - hey-I-am-semantics
             """;
 
         var parsed = VsirParser.Parse(source);
 
         Assert.False(parsed.IsSuccess);
-        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR108");
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR100");
     }
 
     [Fact]
     public void Unsupported_root_semantics_are_rejected()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]") + "\nlifecycle:\n  imaginary: true\n");
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]") + "\nlifecycle:\n  imaginary: true\n");
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR104" && d.Message.Contains("lifecycle", StringComparison.Ordinal));
     }
@@ -163,7 +226,7 @@ public sealed class VsirParserSemanticConservationTests
     [Fact]
     public void Unknown_equality_semantics_are_rejected()
     {
-        var source = TicketIdLike("[identifier, transform]").Replace("  by: state.Value", "  by: state.Value\n  imaginary-new-semantic: true", StringComparison.Ordinal);
+        var source = TicketIdLike("[transform]").Replace("  by: state.Value", "  by: state.Value\n  imaginary-new-semantic: true", StringComparison.Ordinal);
         var parsed = VsirParser.Parse(source);
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR104" && d.Message.Contains("equality.imaginary-new-semantic", StringComparison.Ordinal));
@@ -183,17 +246,17 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                      retry: true
-                    failure:
-                      message: required
+                    retry: true
+                  failure:
+                    message: required
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -201,7 +264,7 @@ public sealed class VsirParserSemanticConservationTests
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d =>
             d.Code == "VSIR104" &&
-            d.Message.Contains("construction.steps[].ensure.condition.retry", StringComparison.Ordinal));
+            d.Message.Contains("construction[].ensure.condition.retry", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -218,17 +281,17 @@ public sealed class VsirParserSemanticConservationTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                      retry: true
+                  failure:
+                    message: required
+                    retry: true
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -236,31 +299,60 @@ public sealed class VsirParserSemanticConservationTests
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d =>
             d.Code == "VSIR104" &&
-            d.Message.Contains("construction.steps[].ensure.failure.retry", StringComparison.Ordinal));
+            d.Message.Contains("construction[].ensure.failure.retry", StringComparison.Ordinal));
     }
 
     [Fact]
     public void Equality_must_reference_known_state()
     {
-        var parsed = VsirParser.Parse(TicketIdLike("[identifier, transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
+        var parsed = VsirParser.Parse(TicketIdLike("[transform]").Replace("state.Value", "state.Missing", StringComparison.Ordinal));
         Assert.False(parsed.IsSuccess);
         Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR215");
+    }
+
+    [Fact]
+    public void Obsolete_construction_shape_is_rejected_without_a_compatibility_parser()
+    {
+        const string source = """
+            vsir: 0.1
+            kind: domain-type
+            name: OldShape
+            classification: value-object
+            shape: product
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            construction:
+              input:
+                Value: string
+            """;
+
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR111");
+        Assert.Contains(parsed.Diagnostics, d => d.Code == "VSIR002");
     }
 
     private static string TicketIdLike(string traits) => $$"""
         vsir: 0.1
         kind: domain-type
         name: TicketIdLike
-        classification: value-object
+        classification: identifier
         shape: product
         traits: {{traits}}
         state:
           Value: string
         representation:
           Value: string
+        input:
+          Value: string
         construction:
-          input:
-            Value: string
+          - refine:
+              state:
+                Value: input.Value
         equality:
           intrinsic: ordinal-equals
           by: state.Value

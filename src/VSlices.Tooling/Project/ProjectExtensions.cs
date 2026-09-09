@@ -234,7 +234,7 @@ internal static class ProjectExtensionCatalogs
 
                     RejectUnknownKeys(
                         csharp,
-                        ["mode", "renderer", "template"],
+                        ["mode", "renderer", "bindings", "template"],
                         $"project extension '{node}'.targets.csharp",
                         diagnostics);
 
@@ -254,9 +254,13 @@ internal static class ProjectExtensionCatalogs
                         $"project extension '{node}'.targets.csharp",
                         diagnostics,
                         allowWhitespace: true);
+                    var bindings = ReadRequiredBindings(
+                        csharp,
+                        $"project extension '{node}'.targets.csharp",
+                        diagnostics);
 
-                    if (mode is not null && renderer is not null && template is not null)
-                        csharpRules.Add(new(node, mode, renderer, template));
+                    if (mode is not null && renderer is not null && template is not null && bindings is not null)
+                        csharpRules.Add(new(node, mode, renderer, bindings, template));
                 }
             }
 
@@ -270,6 +274,35 @@ internal static class ProjectExtensionCatalogs
         {
             return Failure("EXT000", ex.Message);
         }
+    }
+
+    private static IReadOnlyList<string>? ReadRequiredBindings(
+        YamlMappingNode mapping,
+        string semanticPath,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        if (!TryRequiredSequence(mapping, "bindings", semanticPath, diagnostics, out var bindings))
+            return null;
+
+        var result = new List<string>(bindings.Children.Count);
+        foreach (var node in bindings.Children)
+        {
+            if (node is not YamlScalarNode scalar || string.IsNullOrWhiteSpace(scalar.Value))
+            {
+                diagnostics.Add(new("EXT020", $"{semanticPath}.bindings requires non-empty scalar names."));
+                return null;
+            }
+
+            result.Add(scalar.Value.Trim());
+        }
+
+        if (result.Distinct(StringComparer.Ordinal).Count() != result.Count)
+        {
+            diagnostics.Add(new("EXT021", $"{semanticPath}.bindings must be unique."));
+            return null;
+        }
+
+        return result;
     }
 
     private static ProjectExtensionsLoadResult Success(ProjectExtensions extensions) =>

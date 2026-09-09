@@ -11,7 +11,7 @@ public sealed class TicketCodeLoweringExperimentTests
         name: TicketCode
         classification: value-object
         shape: product
-        traits: [transform]
+        traits: [transform, identifier]
 
         state:
           Value: string
@@ -19,19 +19,20 @@ public sealed class TicketCodeLoweringExperimentTests
         representation:
           Value: string
 
+        input:
+          Value: string
+
         construction:
-          input:
-            Value: string
-          steps:
-            - normalize:
-                target: input.Value
-                intrinsic: trim
-            - ensure:
-                condition:
-                  intrinsic: non-empty
+          - normalize:
+              target: input.Value
+              intrinsic: trim
+          - ensure:
+              condition:
+                intrinsic: non-empty
+                args:
                   value: input.Value
-                failure:
-                  message: Debes especificar el correlativo de la solicitud
+              failure:
+                message: Debes especificar el correlativo de la solicitud
 
         equality:
           intrinsic: ordinal-equals
@@ -56,11 +57,12 @@ public sealed class TicketCodeLoweringExperimentTests
             {
                 var ensure = Assert.IsType<EnsureStep>(step);
                 var condition = Assert.IsType<NonEmptyCondition>(ensure.Condition);
-                Assert.Equal("input.Value", condition.Value);
+                var value = Assert.IsType<SemanticReferenceExpression>(condition.Value);
+                Assert.Equal("input.Value", value.Value);
             });
 
         var rules = LoadFixtureRules();
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document,
             new CSharpLoweringContext("Tickets.Domain.Aggregates", rules));
 
@@ -79,12 +81,28 @@ public sealed class TicketCodeLoweringExperimentTests
         Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
 
         var rules = LoadRulesWithTrim();
-        var lowered = CSharpLowerer.Lower(
+        var lowered = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new CSharpLoweringContext("Tickets.Domain.Aggregates", rules));
 
         Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
         Assert.NotNull(lowered.Source);
+        Assert.Contains(
+            "DomainType<TicketCode, TicketCode.Repr>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Identifier<TicketCode>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Identifier<TicketCode, TicketCode.Repr>",
+            lowered.Source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Transform<TicketCode, TicketCode.Input>",
+            lowered.Source,
+            StringComparison.Ordinal);
         Assert.Contains(
             "!string.IsNullOrEmpty(input.Value.Trim())",
             lowered.Source,
@@ -113,14 +131,13 @@ public sealed class TicketCodeLoweringExperimentTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - normalize:
-                    target: input.Value
-                    intrinsic: trim
-                    imaginary-new-semantic: true
+              - normalize:
+                  target: input.Value
+                  intrinsic: trim
+                  imaginary-new-semantic: true
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -129,7 +146,7 @@ public sealed class TicketCodeLoweringExperimentTests
         Assert.Contains(parsed.Diagnostics, diagnostic =>
             diagnostic.Code == "VSIR104" &&
             diagnostic.Message.Contains(
-                "construction.steps[].normalize.imaginary-new-semantic",
+                "construction[].normalize.imaginary-new-semantic",
                 StringComparison.Ordinal));
     }
 
@@ -147,13 +164,12 @@ public sealed class TicketCodeLoweringExperimentTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - normalize:
-                    target: input.Value
-                    intrinsic: hacer-magia
+              - normalize:
+                  target: input.Value
+                  intrinsic: hacer-magia
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -196,21 +212,25 @@ public sealed class TicketCodeLoweringExperimentTests
                   - node: intrinsic.trim
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "{value}.Trim()"
 
                   - node: intrinsic.non-empty
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "!string.IsNullOrEmpty({value})"
 
                   - node: equality.ordinal-equals.equals
                     mode: deterministic
                     renderer: expression
+                    bindings: [left, right]
                     template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
 
                   - node: equality.ordinal-equals.hash
                     mode: deterministic
                     renderer: expression
+                    bindings: [value]
                     template: "StringComparer.Ordinal.GetHashCode({value})"
                 """);
 

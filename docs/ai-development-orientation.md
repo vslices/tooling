@@ -10,7 +10,11 @@ Read current repository evidence before relying on chat history. Suggested order
 4. `docs/context.vslices-tooling.md`
 5. `docs/rulesets.md`
 6. `docs/configuration.md`
-7. implementation/tests for the concrete case.
+7. `src/VSlices.Vsir/README.md` when work touches VSIR semantics, parsing or validation.
+8. the current VSIR language specification in `vslices/intermediate-representation/SPECIFICATION.md` when language semantics are involved.
+9. implementation/tests for the concrete case.
+
+For VSIR language semantics, `vslices/intermediate-representation` is the authority. `src/VSlices.Vsir/README.md` explains how Tooling relates to that authority and where executable support lives. Consumer-project documents are evidence about real cases, not schema authority merely because they were written first.
 
 ## Cross-repository authority map
 
@@ -30,11 +34,14 @@ config.yaml
 lineage
   = deterministic ancestry evidence
 
+vslices/intermediate-representation
+  = VSIR language semantics and reconstructible file contract
+
 vslices/ruleset
   = revisable target-lowering knowledge
 
 vslices/tooling
-  = mechanisms, coordination, guarantees, CLI and target adapters
+  = mechanisms, coordination, guarantees, CLI, VSIR executable support and target adapters
 
 target-native tooling
   = target-owned facts
@@ -61,11 +68,56 @@ Do not make extracted `lower` behavior public merely because it has a class. Do 
 
 `VSlicesProjectContext` is the canonical detected project representation. Reuse it instead of deriving project/config/ruleset/lineage roots independently.
 
+## Diagnostic output contract
+
+VSIR-facing commands expose three human diagnostic levels:
+
+```text
+default
+  -> compact failure and bounded previews
+
+--verbose
+  -> expanded human-oriented evidence needed to understand the failure
+
+--trace
+  -> complete available decision evidence; implies verbose output
+```
+
+`--verbose` and `--trace` affect diagnostic presentation, not semantic or lowering behavior. Diagnostic producers should preserve useful structured detail rather than truncating evidence before it reaches the CLI. `--trace` is an audit trail for the decision path, not a synonym for infrastructure debug logging.
+
+For rebase conflicts, default output keeps bounded region previews, `--verbose` exposes the complete conflicting regions, and `--trace` additionally exposes the complete deterministic/human sources plus the comparison measurements used by the rebaser.
+
 ## Semantic conservation
 
 Known semantic mappings are fail-closed: unknown keys at root, construction, construction step, ensure, condition, failure and equality produce explicit diagnostics. Do not apply fixed-key rejection to variable-key semantic data maps such as `state`, `representation`, and `construction.input`.
 
 Traits are unordered capabilities. Duplicates and unknown traits fail explicitly. Current subset requires `transform`; `identifier` separately requires equality.
+
+## Ruleset extensibility contract
+
+Tooling owns the constrained language in which Rulesets may express semantic knowledge and target realizations. Rulesets own the vocabulary they build with that language.
+
+The intended boundary is:
+
+```text
+Tooling
+  -> constrains available rule forms, inputs/outputs, bindings, composition,
+     validation, renderers and allowed execution mechanisms
+
+Ruleset
+  -> defines semantic capabilities/relations and target realizations using
+     those constrained mechanisms
+```
+
+Tooling must not treat its built-in vocabulary as the exhaustive universe of valid Ruleset semantics. Built-ins bootstrap the language; they are not a whitelist of what third-party or future Rulesets may define.
+
+Therefore a new Ruleset semantic node must not require a Tooling code change merely because its semantic name is new. If the node can be expressed, validated and executed through already-admitted Tooling mechanisms, Tooling should accept it from the active Ruleset environment.
+
+Conversely, Ruleset extensibility does not grant arbitrary execution. Tooling remains fail-closed when a Ruleset requires a mechanism that the rule language does not expose or when the declared contract is insufficient to validate composition safely. Renderer/template existence alone never grants semantic authority.
+
+When adding new built-in semantics, prefer expressing them as instances of reusable rule-language mechanisms instead of adding another closed `switch`/enum branch. A Tooling code change is justified when the new evidence requires a genuinely new expression/validation/execution mechanism, not merely a new Ruleset vocabulary item.
+
+This extensibility rule applies across the existing semantic surfaces, including intrinsics, projections, construction operations, equality relations, condition operators, traits and type forms. Existing closed implementations may remain as bootstrap machinery while they are progressively generalized, but they must not be treated as architectural limits of what a Ruleset may ultimately express.
 
 ## Ruleset update contract
 
@@ -135,4 +187,4 @@ An in-process Tooling test reference exposed a case-insensitive assembly-name co
 
 ## Continuity
 
-When command semantics, authority, project context, lineage or ruleset behavior changes materially, update the closest repository document in the same change. Repository artifacts must remain sufficient to reconstruct accepted behavior without conversation history.
+When command semantics, authority, project context, lineage, ruleset behavior or VSIR executable support changes materially, update the closest owning repository document in the same change. VSIR language changes belong in `vslices/intermediate-representation`; Tooling documentation should reference them rather than duplicate them.

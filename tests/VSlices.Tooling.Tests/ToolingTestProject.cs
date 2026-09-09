@@ -61,22 +61,27 @@ internal sealed class ToolingTestProject : IDisposable
               - node: intrinsic.non-empty
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "!string.IsNullOrEmpty({value})"
               - node: intrinsic.not-whitespace
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "!string.IsNullOrWhiteSpace({value})"
               - node: intrinsic.length-at-most
                 mode: deterministic
                 renderer: expression
+                bindings: [value, max]
                 template: "{value}.Length <= {max}"
               - node: equality.ordinal-equals.equals
                 mode: deterministic
                 renderer: expression
+                bindings: [left, right]
                 template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
               - node: equality.ordinal-equals.hash
                 mode: deterministic
                 renderer: expression
+                bindings: [value]
                 template: "StringComparer.Ordinal.GetHashCode({value})"
             """);
         if (marker is not null)
@@ -99,23 +104,24 @@ internal sealed class ToolingTestProject : IDisposable
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: non-empty
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
                       value: input.Value
-                    failure:
-                      message: required
-                - ensure:
-                    condition:
-                      intrinsic: length-at-most
+                  failure:
+                    message: required
+              - ensure:
+                  condition:
+                    intrinsic: length-at-most
+                    args:
                       value: input.Value
                       max: {{max}}
-                    failure:
-                      message: too long
+                  failure:
+                    message: too long
             """);
         return path;
     }
