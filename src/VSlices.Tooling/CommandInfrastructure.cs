@@ -85,6 +85,9 @@ internal static class CommandInfrastructure
             ? "csharp"
             : target.Trim().ToLowerInvariant();
 
+    public static bool IsStdoutDestination(string? output, bool stdout) =>
+        stdout || output == "-";
+
     public static async Task<int> WriteResult(
         string content,
         string defaultPath,
@@ -99,7 +102,7 @@ internal static class CommandInfrastructure
             return 2;
         }
 
-        if (stdout || output == "-")
+        if (IsStdoutDestination(output, stdout))
         {
             Console.Write(content);
             return 0;
