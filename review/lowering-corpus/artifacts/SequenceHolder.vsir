@@ -1,0 +1,23 @@
+vsir: 0.1
+kind: domain-type
+name: SequenceHolder
+classification: value-object
+shape: product
+traits: [transform]
+
+state:
+  Extensions:
+    sequence: StreetExtension
+
+representation:
+  Extensions:
+    sequence: StreetExtension
+
+input:
+  Extensions:
+    sequence: StreetExtension
+
+construction:
+  - refine:
+      state:
+        Extensions: input.Extensions

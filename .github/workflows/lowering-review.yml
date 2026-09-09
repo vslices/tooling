@@ -1,0 +1,40 @@
+name: Lowering Review Corpus
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: lowering-review-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Tooling and target-context companion
+        run: dotnet build tooling.slnx --configuration Release
+
+      - name: Generate review corpus through the CLI
+        shell: pwsh
+        run: |
+          ./review/lowering-corpus/Generate.ps1 `
+            -Vslices ./src/VSlices.Tooling/bin/Release/net10.0/vslices.dll `
+            -Output ./lowering-review-artifact
+
+      - name: Upload lowering review corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lowering-review-${{ github.run_number }}
+          path: lowering-review-artifact/**
+          if-no-files-found: error
+          retention-days: 30

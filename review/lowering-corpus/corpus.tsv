@@ -1,0 +1,15 @@
+file	namespace	origin	purpose
+StreetName.vsir	Identities.Domain.ValueObjects	consumer@7bae60d:services/identity-service/Identities.Domain/ValueObjects/StreetName.vsir	product transform; non-empty + length-at-most; explicit state refinement
+StreetExtension.vsir	Identities.Domain.ValueObjects	consumer@7bae60d:services/identity-service/Identities.Domain/ValueObjects/StreetExtension.vsir	intrinsic refinement outputs; ordered bindings; concat-space representation
+TicketId.vsir	Tickets.Domain.Aggregates	consumer@7bae60d:services/ticket-service/Tickets.Domain/Aggregates/Tickets/TicketId.vsir	identifier classification; ordinal equality
+TicketCode.vsir	Tickets.Domain.Aggregates	consumer@7bae60d:services/ticket-service/Tickets.Domain/Aggregates/Tickets/TicketCode.vsir	normalize trim; identifier trait; ordinal equality
+Risk.vsir	Tickets.Domain.Aggregates	consumer@7bae60d:services/ticket-service/Tickets.Domain/Aggregates/Tickets/Risk.vsir	normalize trim followed by not-whitespace ensure
+TicketTrayFilter.vsir	TicketSupport.Queries.Domain.Search	consumer@7bae60d:products/ticket-support-product/TicketSupport.Queries/Domain/Search/TicketTrayFilter.vsir	structural optional types; explicit represent projections; no flatten-single-field
+Location.vsir	Identities.Domain.Entities	tooling:test/LocationLoweringTests.cs	derived state; sequence; resolve/apply/refine; represent/select/map projections
+IdentityType.vsir	Identities.Domain.Maintainers	tooling:test/MaintainedDomainTypeLoweringTests.cs	maintained classification; closed values; equality
+Name.vsir	Identities.Domain.ValueObjects	tooling:test/SumDomainTypeLoweringTests.cs	sum root; transform variants; optional type; composed intrinsic condition
+SrvIdentityId.vsir	Identities.Domain.Aggregates	tooling:test/SrvIdentityIdLoweringTests.cs	identifier + refined-from; scalar input; stringify; equality over base
+SrvIdentity.vsir	Identities.Domain.Aggregates	tooling:test/AggregateRootSumLoweringTests.cs	aggregate-root sum; identity construction; shared state; variant projections
+SequenceHolder.vsir	Identities.Domain.Entities	tooling:test/SemanticTypeLoweringTests.cs	structural sequence type realization through Ruleset
+ReviewProbe.vsir	Generated.Review	tooling:release-hardening/F03	derived state projection plus multiline failure literal
+ReviewChoice.vsir	Generated.Review	tooling:release-hardening/F03	sum compile witness with transform variant

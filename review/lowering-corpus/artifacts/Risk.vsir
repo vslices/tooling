@@ -1,0 +1,27 @@
+vsir: 0.1
+kind: domain-type
+name: Risk
+classification: value-object
+shape: product
+traits: [transform]
+
+state:
+  Value: string
+
+representation:
+  Value: string
+
+input:
+  Value: string
+
+construction:
+- normalize:
+    target: input.Value
+    intrinsic: trim
+- ensure:
+    condition:
+      intrinsic: not-whitespace
+      args:
+        value: input.Value
+    failure:
+      message: Debes especificar el riesgo

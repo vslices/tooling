@@ -1,0 +1,29 @@
+vsir: 0.1
+kind: domain-type
+name: ReviewProbe
+shape: product
+classification: value-object
+traits: [transform]
+
+state:
+  Value: string
+  Length:
+    type: int
+    from: state.Value.Length
+
+representation:
+  Length: int
+
+input:
+  Value: string
+
+construction:
+  - ensure:
+      condition:
+        intrinsic: non-empty
+        args:
+          value: input.Value
+      failure:
+        message: |
+          First line
+          Second line
