@@ -75,7 +75,7 @@ public static class CSharpMaintainedDomainTypeLowerer
 
         source.AppendLine();
         source.AppendLine("    public Repr To() =>");
-        source.AppendLine($"        new({string.Join(", ", document.Representation.Fields.Select(RenderRepresentationExpression))});");
+        source.AppendLine($"        new({string.Join(", ", document.Representation.Fields.Select(RenderRepresentationExpression))});
         source.AppendLine("}");
 
         return new(source.ToString(), []);
@@ -99,7 +99,7 @@ public static class CSharpMaintainedDomainTypeLowerer
     {
         if (!value.State.TryGetValue(field.Name, out var literal))
             throw new InvalidOperationException($"Validated maintained value '{value.Name}' does not establish state.{field.Name}.");
-        return field.Type == new NamedVsirType("string") ? Quote(literal) : literal;
+        return field.Type == new NamedVsirType("string") ? CSharpLiteral.String(literal) : literal;
     }
 
     private static void ValidateEqualityRules(
@@ -193,7 +193,4 @@ public static class CSharpMaintainedDomainTypeLowerer
 
     private static string Camel(string value) =>
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
-
-    private static string Quote(string value) =>
-        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
 }
