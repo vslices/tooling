@@ -183,7 +183,7 @@ CLI adapter
 
 `VSlicesProjectContext` is the single detected representation of a VSlices project and carries the project root, `.vslices` root, configuration, installed Ruleset root, project extensions root and lineage root.
 
-Filesystem persistence that is not command-specific lives below `IO/`; project configuration does not depend on command infrastructure merely to obtain atomic text replacement.
+Filesystem persistence that is not command-specific lives below `IO/`; project configuration does not depend on command infrastructure merely to obtain atomic text replacement. The test host links that real shared primitive rather than substituting a command-infrastructure write stub.
 
 ## Progressive validity, conformance and authorability
 
@@ -643,6 +643,8 @@ CI process smokes
   -> extension/ruleset lifecycle
   -> Native AOT packaging
 ```
+
+The project-lowering failure regression exercises a deliberately malformed `.csproj` through the real child-process boundary. It does not replace the CLI's nested `dotnet` executable with a fake PATH shim.
 
 The final TicketTrayFilter consumer evidence is pinned to:
 
