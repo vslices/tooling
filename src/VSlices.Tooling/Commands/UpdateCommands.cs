@@ -101,9 +101,9 @@ internal static class UpdateCommands
         var current = source;
         if (semanticMutations.Length > 0)
         {
-            // Normalize only representation syntax that must become expanded in
-            // order to carry a local source/mapping assertion. This preserves the
-            // semantic type rather than creating an invalid sibling key layout.
+            // Normalize field declarations that must become expanded in order to
+            // carry local source/projection metadata. This preserves a structural
+            // semantic type instead of creating an invalid sibling-key layout.
             var prepared = VsirMutationCandidate.Prepare(current, semanticMutations);
             if (!prepared.IsSuccess)
             {
