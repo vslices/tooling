@@ -4,13 +4,71 @@ using YamlDotNet.RepresentationModel;
 namespace VSlices.Tooling;
 
 /// <summary>
-/// Common pre-persistence boundary for progressive VSIR mutations.
-/// It preserves legitimate incompleteness while refusing to persist assertions
-/// that the canonical parser already knows are invalid.
+/// Common candidate boundary for progressive VSIR mutations.
+/// Projection and persistence must observe the same semantic candidate; persistence
+/// adds validation and IO after this transition rather than interpreting mutations again.
 /// </summary>
 internal static class VsirMutationCandidate
 {
-    public static VsirMutationResult Prepare(
+    public static VsirMutationResult Build(
+        string source,
+        IReadOnlyList<VsirMutation> mutations)
+    {
+        var metadataMutations = mutations
+            .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+        var semanticMutations = mutations
+            .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
+            .ToArray();
+
+        var current = source;
+        if (semanticMutations.Length > 0)
+        {
+            var prepared = Prepare(current, semanticMutations);
+            if (!prepared.IsSuccess)
+                return prepared;
+
+            var semanticResult = VsirMutationPipeline.Apply(prepared.Source!, semanticMutations);
+            if (!semanticResult.IsSuccess)
+                return semanticResult;
+
+            current = semanticResult.Source!;
+        }
+
+        if (metadataMutations.Length > 0)
+        {
+            var metadataResult = VsirMetadataAuthoring.Apply(current, metadataMutations);
+            if (!metadataResult.IsSuccess)
+                return metadataResult;
+
+            current = metadataResult.Source!;
+        }
+
+        return VsirMutationResult.Success(current);
+    }
+
+    public static string? Validate(
+        string source,
+        VsirValidationContext validationContext)
+    {
+        var frontier = VsirMutationPipeline.Discover(source, out var discoveryError);
+        if (discoveryError is not null)
+            return discoveryError.Replace("DISC", "UPDATE", StringComparison.Ordinal);
+
+        var state = VsirArtifactState.Assess(source, frontier, validationContext);
+        if (state.ProgressiveValidity != VsirProgressiveValidity.Invalid &&
+            state.Conformance != VsirConformanceState.Invalid)
+        {
+            return null;
+        }
+
+        var diagnostic = state.ConformanceDiagnostics.FirstOrDefault();
+        return diagnostic is null
+            ? "UPDATE050: Candidate VSIR is structurally invalid."
+            : $"UPDATE050: Candidate VSIR assertion is invalid ({diagnostic.Code}): {diagnostic.Message}";
+    }
+
+    private static VsirMutationResult Prepare(
         string source,
         IReadOnlyList<VsirMutation> semanticMutations)
     {
@@ -86,27 +144,6 @@ internal static class VsirMutationCandidate
         using var writer = new StringWriter();
         yaml.Save(writer, assignAnchors: false);
         return VsirMutationResult.Success(writer.ToString());
-    }
-
-    public static string? Validate(
-        string source,
-        VsirValidationContext validationContext)
-    {
-        var frontier = VsirMutationPipeline.Discover(source, out var discoveryError);
-        if (discoveryError is not null)
-            return discoveryError.Replace("DISC", "UPDATE", StringComparison.Ordinal);
-
-        var state = VsirArtifactState.Assess(source, frontier, validationContext);
-        if (state.ProgressiveValidity != VsirProgressiveValidity.Invalid &&
-            state.Conformance != VsirConformanceState.Invalid)
-        {
-            return null;
-        }
-
-        var diagnostic = state.ConformanceDiagnostics.FirstOrDefault();
-        return diagnostic is null
-            ? "UPDATE050: Candidate VSIR is structurally invalid."
-            : $"UPDATE050: Candidate VSIR assertion is invalid ({diagnostic.Code}): {diagnostic.Message}";
     }
 
     private static DeclarationTarget? DeclarationTargetFor(string path)
