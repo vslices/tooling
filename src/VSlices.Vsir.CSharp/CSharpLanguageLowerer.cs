@@ -54,13 +54,15 @@ public static class CSharpLanguageLowerer
             }
         }
 
+        var stateBindings = StateBindings(document.State);
+
         if (document.Equality is not null)
-            ValidateEqualityRules(document.Equality, context.Rules, diagnostics);
+            ValidateEqualityRules(document.Equality, context.Rules, stateBindings, diagnostics);
 
         var representationExpressions = new List<string>();
         foreach (var field in document.Representation.Fields)
         {
-            if (!TryRepresentationExpression(document, field, context.Rules, out var expression, out var error))
+            if (!TryRepresentationExpression(document, field, context.Rules, stateBindings, out var expression, out var error))
             {
                 diagnostics.Add(new("CSL060", error!));
                 continue;
@@ -99,7 +101,7 @@ public static class CSharpLanguageLowerer
         {
             source.AppendLine();
             source.AppendLine($"    public {RenderType(field.Type, context.Rules)} {field.Name} =>");
-            source.AppendLine($"        {RenderSemanticReference(field.From!, EmptyBindings)};");
+            source.AppendLine($"        {RenderSemanticReference(field.From!, stateBindings)};");
         }
 
         source.AppendLine();
@@ -126,7 +128,7 @@ public static class CSharpLanguageLowerer
         if (document.Equality is not null)
         {
             source.AppendLine();
-            RenderEquality(source, document.Name, document.Equality, context.Rules);
+            RenderEquality(source, document.Name, document.Equality, context.Rules, stateBindings);
         }
 
         if (document.RefinedFrom is not null)
@@ -145,9 +147,6 @@ public static class CSharpLanguageLowerer
 
         return new(source.ToString(), []);
     }
-
-    private static IReadOnlyDictionary<string, string> EmptyBindings { get; } =
-        new Dictionary<string, string>(StringComparer.Ordinal);
 
     private static void LowerNormalize(
         NormalizeStep normalize,
@@ -347,20 +346,27 @@ public static class CSharpLanguageLowerer
         return result;
     }
 
+    private static IReadOnlyDictionary<string, string> StateBindings(ProductShape state) =>
+        state.Fields.ToDictionary(
+            field => "state." + field.Name,
+            field => field.From is null ? "_" + Camel(field.Name) : field.Name,
+            StringComparer.Ordinal);
+
     private static bool TryRepresentationExpression(
         DomainTypeVsir document,
         Field field,
         CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> stateBindings,
         out string? expression,
         out string? error)
     {
         if (document.RepresentationMapping?.Fields.TryGetValue(field.Name, out var projection) == true)
-            return TryRenderProjection(projection, rules, EmptyBindings, out expression, out error);
+            return TryRenderProjection(projection, rules, stateBindings, out expression, out error);
 
         error = null;
         expression = field.From is not null
-            ? RenderSemanticReference(field.From, EmptyBindings)
-            : RenderSemanticReference("state." + field.Name, EmptyBindings);
+            ? RenderSemanticReference(field.From, stateBindings)
+            : RenderSemanticReference("state." + field.Name, stateBindings);
         return true;
     }
 
@@ -473,6 +479,17 @@ public static class CSharpLanguageLowerer
     {
         if (bindings.TryGetValue(reference, out var bound))
             return bound;
+
+        // Bindings describe semantic roots, not only exact leaf strings. This lets
+        // a derived reference such as state.Value.Length realize through the
+        // concrete accessor selected for state.Value without inventing a field
+        // named _length for the derived state coordinate.
+        var prefix = bindings.Keys
+            .Where(key => reference.StartsWith(key + ".", StringComparison.Ordinal))
+            .OrderByDescending(key => key.Length)
+            .FirstOrDefault();
+        if (prefix is not null)
+            return bindings[prefix] + reference[prefix.Length..];
 
         if (!reference.StartsWith("state.", StringComparison.Ordinal))
             return reference;
@@ -692,12 +709,14 @@ public static class CSharpLanguageLowerer
     private static void ValidateEqualityRules(
         EqualitySemantics equality,
         CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> stateBindings,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        var member = "_" + Camel(equality.By["state.".Length..]);
+        var member = RenderSemanticReference(equality.By, stateBindings);
+        var otherMember = "other." + member;
         if (!rules.TryRenderDeterministicExpression(
                 EqualityNode(equality, "equals"),
-                new Dictionary<string, string> { ["left"] = member, ["right"] = "other." + member },
+                new Dictionary<string, string> { ["left"] = member, ["right"] = otherMember },
                 out _))
             diagnostics.Add(new("CSL021", "No deterministic C# equality rule is available."));
         if (!rules.TryRenderDeterministicExpression(
@@ -711,12 +730,14 @@ public static class CSharpLanguageLowerer
         StringBuilder source,
         string typeName,
         EqualitySemantics equality,
-        CSharpLoweringRuleSet rules)
+        CSharpLoweringRuleSet rules,
+        IReadOnlyDictionary<string, string> stateBindings)
     {
-        var member = "_" + Camel(equality.By["state.".Length..]);
+        var member = RenderSemanticReference(equality.By, stateBindings);
+        var otherMember = "other." + member;
         rules.TryRenderDeterministicExpression(
             EqualityNode(equality, "equals"),
-            new Dictionary<string, string> { ["left"] = member, ["right"] = "other." + member },
+            new Dictionary<string, string> { ["left"] = member, ["right"] = otherMember },
             out var equalsExpression);
         rules.TryRenderDeterministicExpression(
             EqualityNode(equality, "hash"),
@@ -739,5 +760,5 @@ public static class CSharpLanguageLowerer
         value.Length == 0 ? value : char.ToLowerInvariant(value[0]) + value[1..];
 
     private static string Quote(string value) =>
-        "\"" + value.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        CSharpLiteral.String(value);
 }
