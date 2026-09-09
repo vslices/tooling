@@ -13,11 +13,15 @@ public static class DotNetTargetContextResolver
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<string>? namespaceIgnoredFolders = null)
     {
-        if (!string.IsNullOrWhiteSpace(namespaceOverride))
-            return (new(null, namespaceOverride), null);
-
         var directory = Path.GetDirectoryName(vsirPath)!;
         var project = FindProject(directory);
+
+        // An explicit namespace replaces namespace derivation, not the rest of the
+        // target context. Preserve a discoverable project so nominal type
+        // resolution and other target-native facts remain available.
+        if (!string.IsNullOrWhiteSpace(namespaceOverride))
+            return (new(project, namespaceOverride), null);
+
         if (project is null)
         {
             return (null, new(
