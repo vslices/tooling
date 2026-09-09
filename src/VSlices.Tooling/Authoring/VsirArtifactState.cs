@@ -74,17 +74,31 @@ internal sealed record VsirArtifactState(
                 []);
         }
 
-        // A progressively-authored document may fail canonical parsing because
-        // required decisions have not been made yet. Public discovery remains
-        // the authority for identifying those missing transitions; once no
-        // required transition is missing, parser diagnostics mean invalidity.
         if (missing.Length > 0)
         {
+            // Missing knowledge and invalid knowledge are independent facts.
+            // A partial artifact may legitimately produce parser diagnostics for
+            // assertions that have not been authored yet, but an assertion that
+            // is already present and invalid must never disappear behind the
+            // broader "incomplete" state.
+            var blocking = parsed.Diagnostics
+                .Where(diagnostic => !CanBeExplainedByMissingKnowledge(diagnostic, root))
+                .ToArray();
+
+            if (blocking.Length == 0)
+            {
+                return new(
+                    VsirProgressiveValidity.Valid,
+                    VsirConformanceState.Incomplete,
+                    missing,
+                    []);
+            }
+
             return new(
                 VsirProgressiveValidity.Valid,
-                VsirConformanceState.Incomplete,
+                VsirConformanceState.Invalid,
                 missing,
-                []);
+                blocking);
         }
 
         return new(
@@ -93,6 +107,38 @@ internal sealed record VsirArtifactState(
             [],
             parsed.Diagnostics);
     }
+
+    private static bool CanBeExplainedByMissingKnowledge(
+        VsirDiagnostic diagnostic,
+        YamlMappingNode root) =>
+        diagnostic.Code switch
+        {
+            "VSIR201" => !HasKey(root, "kind"),
+            "VSIR202" => !HasKey(root, "classification"),
+            "VSIR203" => !HasKey(root, "shape"),
+            "VSIR204" => !HasTrait(root, "transform"),
+            "VSIR205" => !HasKey(root, "state"),
+            "VSIR206" => !HasKey(root, "representation"),
+            "VSIR207" => !HasKey(root, "input"),
+            "VSIR209" => !HasKey(root, "input") || !HasKey(root, "construction"),
+            "VSIR210" => true, // representation source/mapping can be authored progressively
+            "VSIR216" => !HasKey(root, "equality"),
+            "VSIR223" => !HasKey(root, "refined-from"),
+            "VSIR224" => !HasKey(root, "input"),
+            "VSIR225" => !HasKey(root, "input"),
+            "VSIR229" => true, // refined state establishment can still be incomplete
+            _ => false
+        };
+
+    private static bool HasTrait(YamlMappingNode root, string trait) =>
+        root.Children.TryGetValue(new YamlScalarNode("traits"), out var traitsNode) &&
+        traitsNode is YamlSequenceNode traits &&
+        traits.Children
+            .OfType<YamlScalarNode>()
+            .Any(value => string.Equals(value.Value, trait, StringComparison.Ordinal));
+
+    private static bool HasKey(YamlMappingNode root, string key) =>
+        root.Children.ContainsKey(new YamlScalarNode(key));
 
     private static bool AssertionExists(YamlMappingNode root, string path)
     {
