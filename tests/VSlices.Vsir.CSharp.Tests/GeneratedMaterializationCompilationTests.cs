@@ -122,6 +122,7 @@ public sealed class GeneratedMaterializationCompilationTests
                   </PropertyGroup>
                   <ItemGroup>
                     <ProjectReference Include="{{frameworkProject}}" />
+                    <Using Include="VSlices.Arrows" />
                     <Using Include="VSlices.Domain.Traits" />
                   </ItemGroup>
                 </Project>
