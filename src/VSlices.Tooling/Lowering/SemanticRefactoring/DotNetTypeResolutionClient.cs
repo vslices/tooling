@@ -19,7 +19,15 @@ internal static class DotNetTypeResolutionClient
         DotNetTargetContext targetContext,
         CancellationToken cancellationToken)
     {
-        var typeNames = NominalTypeNames(document).ToArray();
+        var typeNames = VsirNominalTypeReferences.Enumerate(document)
+            .Where(type =>
+                !BuiltInTypes.Contains(type) &&
+                !string.Equals(type, document.Name, StringComparison.Ordinal) &&
+                IsSimpleIdentifier(type))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(type => type, StringComparer.Ordinal)
+            .ToArray();
+
         if (typeNames.Length == 0)
             return DotNetTypeResolutionResult.Success([]);
 
@@ -147,51 +155,6 @@ internal static class DotNetTypeResolutionClient
             Environment.NewLine,
             imports.OrderBy(x => x, StringComparer.Ordinal).Select(x => $"using {x};"));
         return header + Environment.NewLine + Environment.NewLine + source;
-    }
-
-    private static IEnumerable<string> NominalTypeNames(DomainTypeVsir document)
-    {
-        var names = new HashSet<string>(StringComparer.Ordinal);
-
-        void AddName(string? type)
-        {
-            if (string.IsNullOrWhiteSpace(type) ||
-                BuiltInTypes.Contains(type) ||
-                string.Equals(type, document.Name, StringComparison.Ordinal) ||
-                !IsSimpleIdentifier(type))
-            {
-                return;
-            }
-
-            names.Add(type);
-        }
-
-        void AddType(VsirType? type)
-        {
-            switch (type)
-            {
-                case NamedVsirType named:
-                    AddName(named.Name);
-                    break;
-                case UnaryVsirType unary:
-                    AddType(unary.Value);
-                    break;
-            }
-        }
-
-        AddName(document.RefinedFrom);
-        AddName(document.Equality?.Over);
-        foreach (var field in document.State.Fields)
-            AddType(field.Type);
-        foreach (var field in document.Representation.Fields)
-            AddType(field.Type);
-        if (document.Construction.Input.IsScalar)
-            AddType(document.Construction.Input.ScalarType);
-        else
-            foreach (var field in document.Construction.Input.Fields)
-                AddType(field.Type);
-
-        return names.OrderBy(x => x, StringComparer.Ordinal);
     }
 
     private static bool IsSimpleIdentifier(string value)
