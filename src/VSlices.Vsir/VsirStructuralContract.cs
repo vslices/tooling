@@ -170,9 +170,8 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        var key = path.Contains('.', StringComparison.Ordinal)
-            ? path[(path.LastIndexOf('.', StringComparison.Ordinal) + 1)..]
-            : path;
+        var separator = path.LastIndexOf('.');
+        var key = separator >= 0 ? path[(separator + 1)..] : path;
         if (!owner.Children.TryGetValue(new YamlScalarNode(key), out var constructionNode) ||
             constructionNode is not YamlSequenceNode construction)
             return;
