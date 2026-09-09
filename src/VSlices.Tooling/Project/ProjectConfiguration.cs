@@ -111,7 +111,7 @@ internal sealed record ProjectConfiguration(
         using var writer = new StringWriter();
         stream.Save(writer, assignAnchors: false);
 
-        await CommandInfrastructure.AtomicWrite(
+        await AtomicFile.WriteTextAsync(
             Path.Combine(vslicesDirectory, "config.yaml"),
             writer.ToString(),
             cancellationToken);
