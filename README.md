@@ -253,7 +253,11 @@ All canonical Domain Type forms enter through one public parser boundary:
   -> semantic validation
 ```
 
-Product, sum and maintained parsers remain specialized, but their common structural obligations are shared: malformed/non-scalar semantic keys, malformed explicit `from` references, and contradictory `from + mapping` declarations cannot be interpreted differently by each form.
+Product, sum and maintained parsers remain specialized, but their common structural obligations are shared. Non-scalar semantic keys fail closed; expanded field declarations reject unknown scalar keys; malformed explicit `from` references fail closed; adding `from` or `mapping` requires an explicit `type`; and contradictory `from + mapping` declarations cannot be interpreted differently by each form.
+
+Structural type shorthand remains valid syntax. When progressive authoring enriches a shorthand field with local source/projection metadata, Tooling first expands the existing semantic type under `type:` instead of persisting an invalid sibling-key layout.
+
+Specialized canonical parser/lowerer paths can still have witness-limited executable coverage. That is an implementation coverage boundary, not a separate meaning for the same VSIR operation; new corpus evidence should extend the relevant primitive rather than infer shape-specific semantics from an accidental implementation gap.
 
 Unknown semantics never disappear silently.
 
@@ -401,7 +405,7 @@ nearest unique .csproj
   -> namespace path policy
 ```
 
-An explicit `--namespace` overrides the derived namespace **without discarding an already discoverable project identity**. Project context remains available for nominal type resolution and other target-native facts.
+An explicit `--namespace` overrides the derived namespace **without discarding an already discoverable project identity**. Project context remains available for nominal type resolution and other target-native facts. The test suite exercises that composition end-to-end by resolving a referenced nominal type while an explicit namespace override is active.
 
 Namespace policy example:
 
@@ -489,9 +493,9 @@ The direct `rebase` command does **not** promise the same project-wide target-se
 Target realization now treats two details as explicit shared responsibilities rather than ad-hoc string concatenation:
 
 - semantic state references distinguish stored fields from derived state accessors;
-- C# string literals are encoded centrally, including newlines and other control characters.
+- C# string literals are encoded centrally, including newlines and other control characters across product, sum and maintained emitters that produce string literals.
 
-The test suite includes generated-materialization compilation witnesses so a lowerer result is not considered sufficiently evidenced merely because expected text fragments are present.
+The test suite includes a generated-materialization compilation witness so a lowerer result is not considered sufficiently evidenced merely because expected text fragments are present.
 
 ## Roslyn semantic refactoring
 
@@ -590,25 +594,26 @@ TicketCode
 
 Risk
   -> negative control for semantic admission vs target realization
-  -> project-owned extensions
 
 SrvIdentityId
-  -> identifier + refined composition
+  -> refined + identifier contracts
+  -> nominal target symbol resolution
 
 Location
-  -> structured state/representation + resolve/apply/refine
+  -> sequence types + derived state + representation composition
+  -> resolve/apply/refine
 
 StreetExtension
-  -> intrinsic refinement with named ordered outputs
+  -> intrinsic refine named bindings
 
 Name
-  -> sum lowering
+  -> sum canonical parse/lower witness
 
 IdentityType
-  -> maintained lowering
+  -> maintained canonical parse/lower witness
 
 SrvIdentity
-  -> aggregate-root sum
+  -> aggregate-root sum witness
 
 TicketTrayFilter
   -> structural optional types + explicit represent projections
@@ -619,54 +624,62 @@ The test layers are:
 
 ```text
 tests/VSlices.Vsir.CSharp.Tests
-  = canonical parsing/conservation, validation-context and C# lowering
-  = cross-form negative contracts
-  = generated-materialization compilation witnesses
+  -> parser/validation/lowering/target-context evidence
+  -> common malformed-structure negatives across canonical forms
+  -> generated C# compilation witness
 
 tests/VSlices.Tooling.Tests
-  = real CLI orchestration
-  = mutation persistence laws
-  = project outcome/exit-code contracts
-  = output destination contracts
-  = project-extension/ruleset lifecycle
-  = semantic-refactoring safety and installation health
+  -> authoring mutation laws
+  -> project context/extensions
+  -> project lowering outcomes and exit-code semantics
+  -> output destination/bootstrap contracts
+  -> Ruleset lifecycle and semantic-refactoring safety
+
+CI process smokes
+  -> actual CLI composition
+  -> Roslyn/MSBuildWorkspace
+  -> lineage/rebase
+  -> target context
+  -> extension/ruleset lifecycle
+  -> Native AOT packaging
 ```
 
-CI additionally exercises Roslyn/MSBuildWorkspace, non-destructive lineage bootstrap, subsequent rebase, .NET target context, Ruleset validation/replacement, complete managed companion packaging and Native AOT artifacts for supported release RIDs.
+The final TicketTrayFilter consumer evidence is pinned to:
 
-## Explicit v0.3.0+ follow-up surface
+```text
+atom-dev-serviu/access-management-product
+commit 7bae60d7e1af637cfcac6a802f867bc6979da444
+products/ticket-support-product/TicketSupport.Queries/Domain/Search/TicketTrayFilter.vsir
+```
 
-Recorded but deliberately not implemented as part of the v0.2.0 release hardening:
+The mutable `analysis/ticket-support-post-mortem` branch is useful for continued work, but the SHA above is the reproducible release witness.
 
-- public authoring parity for witnessed `sum`, `maintained`, entity/aggregate-root forms;
-- core normalization intrinsics beyond demonstrated evidence;
-- extension kinds beyond the observed constrained surface;
-- shorter ambiguous-symbol selection ergonomics such as an invocation-local numbered `--selection`;
-- lowering multiple explicitly selected artifacts in one invocation;
-- folder/scoped/batch lowering beyond the current whole-project and single-artifact subjects;
-- a stable CLI visual language for progress, success, warning and result emphasis before choosing spinner/color mechanisms;
-- namespace-pattern negation, precedence or regex semantics;
-- semantic refactoring kinds beyond the observed namespace move;
-- non-interactive semantic-refactoring approval policy;
-- generic compiler repair;
-- Roslyn workspace-scope optimization that could weaken blast-radius completeness;
-- stronger provenance across Tooling/Ruleset version changes or Git-history ancestry reconstruction;
+## Explicit future scope
+
+Recorded but not implemented in v0.2.0:
+
+- full public authoring parity for witnessed `sum`, `maintained`, entity/aggregate-root forms;
+- semantic vocabulary beyond current corpus evidence;
+- invocation-local numbered selection for ambiguous artifact symbols;
+- lowering multiple explicitly selected artifacts in one command invocation;
+- folder/scoped/batch lowering beyond whole-project subjects;
+- a stable CLI visual language before choosing canonical colors/spinners/progress semantics;
+- generic compiler repair or semantic-refactoring families beyond the observed namespace move;
+- stronger provenance/Git-history ancestry graphs;
 - aggregate updater ordering/recovery semantics;
 - interpretive lowering.
 
-These are not hidden release obligations. They are explicit future questions that require fresh evidence.
+These are starting points for later evidence, not incomplete promises of v0.2.0.
 
 ## Orientation
 
-Read [`AGENTS.md`](AGENTS.md) and [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md) before semantic or architectural changes.
+Start with:
 
-Useful current references:
-
-- [`docs/cli.md`](docs/cli.md) — CLI interaction contract;
-- [`docs/vsir-artifact-states.md`](docs/vsir-artifact-states.md) — progressive validity/conformance/lowerability;
-- [`docs/semantic-authoring-affordances.md`](docs/semantic-authoring-affordances.md) — progressive authoring model;
-- [`docs/rulesets.md`](docs/rulesets.md) — target knowledge and lifecycle;
-- [`docs/releases/v0.2.0-preview.md`](docs/releases/v0.2.0-preview.md) — release-line reconstruction;
-- [`docs/experiments/ticket-code-lowering.md`](docs/experiments/ticket-code-lowering.md) and [`docs/experiments/ticket-tray-filter-projection-relation.md`](docs/experiments/ticket-tray-filter-projection-relation.md) — consumer-driven experiments.
+1. [`AGENTS.md`](AGENTS.md) — repository operating rules;
+2. [`docs/ai-development-orientation.md`](docs/ai-development-orientation.md) — fresh-context development orientation;
+3. [`docs/releases/v0.2.0-preview.md`](docs/releases/v0.2.0-preview.md) — release-line reconstruction and final hardening;
+4. [`docs/experiments/ticket-tray-filter-projection-relation.md`](docs/experiments/ticket-tray-filter-projection-relation.md) — final experiment closure;
+5. [`docs/vsir-capability-matrix.md`](docs/vsir-capability-matrix.md) — executable/public-authoring evidence matrix;
+6. [`docs/semantic-authoring-affordances.md`](docs/semantic-authoring-affordances.md) — interaction contract.
 
 The repository prefers small evidence-driven extensions over speculative generalization. Material decisions must remain reconstructible from repository artifacts rather than conversation history.
