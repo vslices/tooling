@@ -118,7 +118,7 @@ public static class CSharpLanguageLowerer
         {
             for (var i = 0; i < pipeline.Count; i++)
                 source.AppendLine((i == 0 ? "        " : "        >> ") + pipeline[i]);
-            source.AppendLine("        * Instance;");
+            source.AppendLine($"        * (({inputType} input) => Instance(input));");
         }
 
         source.AppendLine();
