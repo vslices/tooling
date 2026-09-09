@@ -17,6 +17,14 @@ public static class VsirParser
         if (metadataDiagnostic is not null)
             return new(null, [VsirDiagnosticLocator.Attach(text, metadataDiagnostic)]);
 
+        var structuralDiagnostics = VsirStructuralContract.Validate(semanticText!);
+        if (structuralDiagnostics.Count > 0)
+        {
+            return VsirDiagnosticLocator.Attach(
+                text,
+                new VsirParseResult(null, structuralDiagnostics));
+        }
+
         VsirParseResult result;
         if (IsMaintainedDomainType(semanticText!))
             result = MaintainedDomainTypeLanguageParser.Parse(semanticText!);
