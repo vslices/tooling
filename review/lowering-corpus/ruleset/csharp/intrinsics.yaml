@@ -1,0 +1,146 @@
+rules:
+  - node: intrinsic.non-empty
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "!string.IsNullOrEmpty({value})"
+
+  - node: intrinsic.not-whitespace
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "!string.IsNullOrWhiteSpace({value})"
+
+  - node: intrinsic.length-at-most
+    mode: deterministic
+    renderer: expression
+    bindings: [value, max]
+    template: "{value}.Length <= {max}"
+
+  - node: intrinsic.length-between
+    mode: deterministic
+    renderer: expression
+    bindings: [value, min, max]
+    template: "{value}.Length >= {min} && {value}.Length <= {max}"
+
+  # Semantic concat-space is context-independent: representation mappings and
+  # construction condition arguments reach the same target realization.
+  - node: intrinsic.concat-space
+    mode: deterministic
+    renderer: expression
+    bindings: [values]
+    template: "string.Join(\" \", new[] { {values} })"
+
+  - node: intrinsic.trim
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.Trim()"
+
+  - node: refine.split-first-rest.condition
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries).Length > 1"
+
+  - node: refine.split-first-rest.output.Name
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries)[0]"
+
+  - node: refine.split-first-rest.output.Value
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "string.Join(\" \", {value}.Split(\" \", StringSplitOptions.RemoveEmptyEntries)[1..])"
+
+  - node: equality.ordinal-equals.equals
+    mode: deterministic
+    renderer: expression
+    bindings: [left, right]
+    template: "string.Equals({left}, {right}, StringComparison.Ordinal)"
+
+  - node: equality.ordinal-equals.hash
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "StringComparer.Ordinal.GetHashCode({value})"
+
+  - node: equality.over.equals
+    mode: deterministic
+    renderer: expression
+    bindings: [left, right]
+    template: "{left}.Equals({right})"
+
+  - node: equality.over.hash
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.GetHashCode()"
+
+  - node: identity.construct
+    mode: deterministic
+    renderer: expression
+    bindings: [type, value]
+    template: "{type}.New({value})"
+
+  - node: projection.stringify
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.ToString()"
+
+  - node: projection.represent
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "{value}.To()"
+
+  - node: projection.select
+    mode: deterministic
+    renderer: expression
+    bindings: [source, field]
+    template: "{source}.{field}"
+
+  - node: projection.map
+    mode: deterministic
+    renderer: expression
+    bindings: [source, bind, value]
+    template: "{source}.Map({bind} => {value})"
+
+  - node: construction.resolve.condition
+    mode: deterministic
+    renderer: expression
+    bindings: [source, id]
+    template: "exists(({source} value) => value.Id == {id})"
+
+  - node: construction.resolve.value
+    mode: deterministic
+    renderer: expression
+    bindings: [source, id]
+    template: "first(({source} value) => value.Id == {id})"
+
+  - node: construction.apply.input
+    mode: deterministic
+    renderer: expression
+    bindings: [over, arguments]
+    template: "new {over}.Input({arguments})"
+
+  - node: construction.apply.value
+    mode: deterministic
+    renderer: expression
+    bindings: [over, input]
+    template: "{over}.New({input})"
+
+  - node: construction.apply-sequence.input
+    mode: deterministic
+    renderer: expression
+    bindings: [source, bind, over, arguments]
+    template: "{source}.Map({bind} => new {over}.Input({arguments}))"
+
+  - node: construction.apply-sequence.value
+    mode: deterministic
+    renderer: expression
+    bindings: [over, input]
+    template: "{over}.New({input})"

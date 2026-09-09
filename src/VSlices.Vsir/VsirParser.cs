@@ -2,143 +2,126 @@ using YamlDotNet.RepresentationModel;
 
 namespace VSlices.Vsir;
 
+/// <summary>
+/// Canonical VSIR parser entry point.
+/// VSIR 0.1 has one admitted semantic grammar and no compatibility dispatch by historical document shape.
+/// Searchable artifact metadata such as tags is validated and removed before semantic parsing.
+/// </summary>
 public static class VsirParser
 {
-    public static VsirParseResult Parse(string text)
+    public static VsirParseResult Parse(
+        string text,
+        VsirValidationContext? validationContext = null)
     {
-        var diagnostics = new List<VsirDiagnostic>();
+        var semanticText = StripSearchMetadata(text, out var metadataDiagnostic);
+        if (metadataDiagnostic is not null)
+            return new(null, [VsirDiagnosticLocator.Attach(text, metadataDiagnostic)]);
 
+        var structuralDiagnostics = VsirStructuralContract.Validate(semanticText!);
+        if (structuralDiagnostics.Count > 0)
+        {
+            return VsirDiagnosticLocator.Attach(
+                text,
+                new VsirParseResult(null, structuralDiagnostics));
+        }
+
+        VsirParseResult result;
+        if (IsMaintainedDomainType(semanticText!))
+            result = MaintainedDomainTypeLanguageParser.Parse(semanticText!);
+        else if (IsSumDomainType(semanticText!))
+            result = SumDomainTypeLanguageParser.Parse(semanticText!, validationContext);
+        else
+            result = VsirLanguageParser.Parse(semanticText!, validationContext);
+
+        return VsirDiagnosticLocator.Attach(text, result);
+    }
+
+    private static bool IsMaintainedDomainType(string text) =>
+        MatchesDomainType(text, "classification", "maintained");
+
+    private static bool IsSumDomainType(string text) =>
+        MatchesDomainType(text, "shape", "sum");
+
+    private static bool MatchesDomainType(string text, string key, string expected)
+    {
         try
         {
             var yaml = new YamlStream();
             yaml.Load(new StringReader(text));
-
             if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
-                return Failure("VSIR001", "Expected one YAML mapping document.");
+                return false;
 
-            var version = Scalar(root, "vsir");
-            var kind = Scalar(root, "kind");
-            var name = Scalar(root, "name");
-            var classification = Scalar(root, "classification");
-            var shape = Scalar(root, "shape");
-            var traits = Sequence(root, "traits");
-            var state = Product(root, "state");
-            var representation = Product(root, "representation");
+            return root.Children.TryGetValue(new YamlScalarNode("kind"), out var kindNode) &&
+                   kindNode is YamlScalarNode kind &&
+                   string.Equals(kind.Value, "domain-type", StringComparison.Ordinal) &&
+                   root.Children.TryGetValue(new YamlScalarNode(key), out var valueNode) &&
+                   valueNode is YamlScalarNode value &&
+                   string.Equals(value.Value, expected, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 
-            if (!TryMapping(root, "construction", out var constructionNode))
-                return Failure("VSIR002", "Missing construction mapping.");
+    private static string? StripSearchMetadata(
+        string text,
+        out VsirDiagnostic? diagnostic)
+    {
+        diagnostic = null;
 
-            var input = Product(constructionNode, "input");
-            var steps = new List<ConstructionStep>();
+        YamlStream yaml;
+        YamlMappingNode root;
+        try
+        {
+            yaml = new YamlStream();
+            yaml.Load(new StringReader(text));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
+                return text;
+            root = mapping;
+        }
+        catch
+        {
+            return text;
+        }
 
-            if (TrySequence(constructionNode, "steps", out var stepNodes))
+        var tagsKey = new YamlScalarNode("tags");
+        if (!root.Children.TryGetValue(tagsKey, out var tagsNode))
+            return text;
+
+        if (tagsNode is not YamlSequenceNode tags)
+        {
+            diagnostic = new(
+                "VSIR150",
+                "Artifact metadata 'tags' must be a sequence of non-empty unique strings.");
+            return null;
+        }
+
+        var values = new List<string>(tags.Children.Count);
+        foreach (var child in tags.Children)
+        {
+            if (child is not YamlScalarNode scalar || string.IsNullOrWhiteSpace(scalar.Value))
             {
-                foreach (var stepNode in stepNodes.Children.OfType<YamlMappingNode>())
-                {
-                    if (!TryMapping(stepNode, "ensure", out var ensure))
-                    {
-                        diagnostics.Add(new("VSIR100", "Only construction step 'ensure' is supported by the experimental parser."));
-                        continue;
-                    }
-
-                    if (!TryMapping(ensure, "condition", out var conditionNode))
-                    {
-                        diagnostics.Add(new("VSIR101", "Ensure step requires condition."));
-                        continue;
-                    }
-
-                    var intrinsic = Scalar(conditionNode, "intrinsic");
-                    var value = Scalar(conditionNode, "value");
-                    Condition? condition = intrinsic switch
-                    {
-                        "non-empty" => new NonEmptyCondition(value),
-                        "length-at-most" => new LengthAtMostCondition(value, Int(conditionNode, "max")),
-                        _ => null
-                    };
-
-                    if (condition is null)
-                    {
-                        diagnostics.Add(new("VSIR102", $"Unsupported intrinsic '{intrinsic}'."));
-                        continue;
-                    }
-
-                    if (!TryMapping(ensure, "failure", out var failure))
-                    {
-                        diagnostics.Add(new("VSIR103", "Ensure step requires failure."));
-                        continue;
-                    }
-
-                    steps.Add(new EnsureStep(condition, Scalar(failure, "message")));
-                }
+                diagnostic = new(
+                    "VSIR150",
+                    "Artifact metadata 'tags' must be a sequence of non-empty unique strings.");
+                return null;
             }
 
-            var document = new DomainTypeVsir(
-                version,
-                kind,
-                name,
-                classification,
-                shape,
-                traits,
-                state,
-                representation,
-                new Construction(input, steps));
-
-            diagnostics.AddRange(DomainTypeValidator.Validate(document));
-            return new(document, diagnostics);
+            values.Add(scalar.Value!);
         }
-        catch (Exception ex)
+
+        if (values.Distinct(StringComparer.Ordinal).Count() != values.Count)
         {
-            return Failure("VSIR000", ex.Message);
-        }
-    }
-
-    private static VsirParseResult Failure(string code, string message) => new(null, [new(code, message)]);
-
-    private static string Scalar(YamlMappingNode node, string key) =>
-        node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlScalarNode scalar
-            ? scalar.Value ?? string.Empty
-            : string.Empty;
-
-    private static int Int(YamlMappingNode node, string key) => int.Parse(Scalar(node, key));
-
-    private static IReadOnlyList<string> Sequence(YamlMappingNode node, string key) =>
-        TrySequence(node, key, out var sequence)
-            ? sequence.Children.OfType<YamlScalarNode>().Select(x => x.Value ?? string.Empty).ToArray()
-            : [];
-
-    private static ProductShape Product(YamlMappingNode node, string key)
-    {
-        if (!TryMapping(node, key, out var map))
-            return new([]);
-
-        return new(map.Children
-            .Select(pair => new Field(
-                ((YamlScalarNode)pair.Key).Value ?? string.Empty,
-                ((YamlScalarNode)pair.Value).Value ?? string.Empty))
-            .ToArray());
-    }
-
-    private static bool TryMapping(YamlMappingNode node, string key, out YamlMappingNode mapping)
-    {
-        if (node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlMappingNode result)
-        {
-            mapping = result;
-            return true;
+            diagnostic = new(
+                "VSIR151",
+                "Artifact metadata 'tags' values must be unique.");
+            return null;
         }
 
-        mapping = null!;
-        return false;
-    }
-
-    private static bool TrySequence(YamlMappingNode node, string key, out YamlSequenceNode sequence)
-    {
-        if (node.Children.TryGetValue(new YamlScalarNode(key), out var value) && value is YamlSequenceNode result)
-        {
-            sequence = result;
-            return true;
-        }
-
-        sequence = null!;
-        return false;
+        root.Children.Remove(tagsKey);
+        using var writer = new StringWriter();
+        yaml.Save(writer, assignAnchors: false);
+        return writer.ToString();
     }
 }

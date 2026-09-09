@@ -1,0 +1,1213 @@
+using YamlDotNet.RepresentationModel;
+
+namespace VSlices.Tooling;
+
+internal sealed record VsirMutation(
+    VsirMutationKind Kind,
+    string Path,
+    string? Value);
+
+internal sealed record VsirMutationResult(
+    string? Source,
+    string? Error)
+{
+    public bool IsSuccess => Error is null;
+
+    public static VsirMutationResult Success(string source) => new(source, null);
+    public static VsirMutationResult Failure(string error) => new(null, error);
+}
+
+internal static class VsirMutationEngine
+{
+    public static VsirMutationResult Apply(
+        string source,
+        IReadOnlyList<VsirMutation> mutations)
+    {
+        if (mutations.Count == 0)
+            return VsirMutationResult.Failure("UPDATE001: At least one semantic mutation is required.");
+
+        YamlStream yaml;
+        YamlMappingNode root;
+        try
+        {
+            yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode mapping)
+                return VsirMutationResult.Failure("UPDATE002: Expected one YAML mapping VSIR document.");
+            root = mapping;
+        }
+        catch (Exception ex)
+        {
+            return VsirMutationResult.Failure($"UPDATE003: Could not parse VSIR artifact: {ex.Message}");
+        }
+
+        var identityError = ValidateIdentity(root);
+        if (identityError is not null)
+            return VsirMutationResult.Failure(identityError);
+
+        var contradiction = FindContradiction(mutations);
+        if (contradiction is not null)
+            return VsirMutationResult.Failure(contradiction);
+
+        foreach (var mutation in mutations)
+        {
+            var error = ApplyOne(root, mutation);
+            if (error is not null)
+                return VsirMutationResult.Failure(error);
+        }
+
+        var candidateError = ValidateCandidate(root);
+        if (candidateError is not null)
+            return VsirMutationResult.Failure(candidateError);
+
+        using var writer = new StringWriter();
+        yaml.Save(writer, assignAnchors: false);
+        return VsirMutationResult.Success(writer.ToString());
+    }
+
+    public static IReadOnlyList<VsirPathContract> Discover(string source, out string? error)
+    {
+        error = null;
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(source));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode root)
+            {
+                error = "DISC001: Expected one YAML mapping VSIR document.";
+                return [];
+            }
+
+            var identityError = ValidateIdentity(root);
+            if (identityError is not null)
+            {
+                error = identityError.Replace("UPDATE", "DISC", StringComparison.Ordinal);
+                return [];
+            }
+
+            var kind = Scalar(root, "kind");
+            var shape = Scalar(root, "shape");
+            var classification = Scalar(root, "classification");
+            var traits = Sequence(root, "traits");
+            return VsirAuthoringContract.Discover(
+                kind,
+                shape,
+                classification,
+                traits,
+                HasKey(root, "state"),
+                HasKey(root, "representation"),
+                HasKey(root, "input"),
+                HasKey(root, "construction"));
+        }
+        catch (Exception ex)
+        {
+            error = $"DISC002: Could not parse VSIR artifact: {ex.Message}";
+            return [];
+        }
+    }
+
+    private static string? ApplyOne(YamlMappingNode root, VsirMutation mutation)
+    {
+        if (TryChildPath(mutation.Path, "state", out var stateField, out var stateTail))
+        {
+            return stateTail switch
+            {
+                null => ApplyMapFieldMutation(root, "state", stateField, mutation),
+                "from" => ApplyStateFromMutation(root, stateField, mutation),
+                _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
+            };
+        }
+
+        if (TryChildPath(mutation.Path, "representation", out var representationField, out var representationTail))
+        {
+            return representationTail switch
+            {
+                null => ApplyMapFieldMutation(root, "representation", representationField, mutation),
+                "from" => ApplyRepresentationFromMutation(root, representationField, mutation),
+                _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
+            };
+        }
+
+        if (TryChildPath(mutation.Path, "input", out var inputField, out var inputTail))
+        {
+            if (inputTail is not null)
+                return $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+
+            return ApplyInputFieldMutation(root, inputField, mutation);
+        }
+
+        if (TryChildPath(mutation.Path, "variants", out var variantName, out var variantTail))
+        {
+            if (!string.Equals(Scalar(root, "shape"), "sum", StringComparison.Ordinal))
+                return "UPDATE036: 'variants' is writable only for shape 'sum'.";
+
+            return variantTail is null
+                ? ApplySumVariantDeclarationMutation(root, variantName, mutation)
+                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract; author the complete variant at 'variants.<variant>'.";
+        }
+
+        if (TryChildPath(mutation.Path, "values", out var maintainedMember, out var maintainedTail))
+        {
+            return maintainedTail is null
+                ? ApplyMaintainedValueMutation(root, maintainedMember, mutation)
+                : $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract.";
+        }
+
+        return mutation.Path switch
+        {
+            "traits" => ApplySetMutation(root, "traits", mutation),
+            "kind" => ApplyScalarMutation(root, "kind", mutation),
+            "shape" => ApplyScalarMutation(root, "shape", mutation),
+            "classification" => ApplyScalarMutation(root, "classification", mutation),
+            "refined-from" => ApplyRefinedFromMutation(root, mutation),
+            "state" => ApplyEmptySharedSumMapMutation(root, "state", mutation),
+            "representation" => ApplyEmptySharedSumMapMutation(root, "representation", mutation),
+            "input" => ApplyInputContractMutation(root, mutation),
+            "construction" => ApplyConstructionMutation(root, mutation),
+            "equality" => ApplyEqualityMutation(root, mutation),
+            _ => $"UPDATE004: Semantic path '{mutation.Path}' is not writable by the current authoring contract."
+        };
+    }
+
+    private static string? RequireTransform(YamlMappingNode root, string path)
+    {
+        var traits = Sequence(root, "traits");
+        return traits.Contains("transform", StringComparer.Ordinal)
+            ? null
+            : $"UPDATE039: Semantic path '{path}' is writable only when explicit trait 'transform' is established.";
+    }
+
+    private static string? ApplyInputFieldMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires an input property name.";
+
+        var inputKey = new YamlScalarNode("input");
+        if (root.Children.TryGetValue(inputKey, out var existingInput) && existingInput is not YamlMappingNode)
+            return "UPDATE040: Child input authoring requires structured product input; replace scalar input through '--set input=<type>' first if needed.";
+
+        return ApplyMapFieldMutation(root, "input", fieldName, mutation);
+    }
+
+    private static string? ApplyInputContractMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        var key = new YamlScalarNode("input");
+        var exists = root.Children.ContainsKey(key);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return "UPDATE021: Semantic property 'input' already exists; use 'set' to replace the complete input contract.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return "UPDATE023: Semantic property 'input' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            root.Children.Remove(key);
+            return null;
+        }
+
+        var parsed = ParseInputDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[key] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlNode? Declaration, string? Error) ParseInputDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'input' requires a scalar semantic type or product mapping declaration.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1)
+                return (null, "UPDATE040: Input must contain exactly one semantic declaration.");
+
+            var node = yaml.Documents[0].RootNode;
+            if (node is YamlScalarNode scalar && !string.IsNullOrWhiteSpace(scalar.Value))
+                return (scalar, null);
+
+            if (node is YamlMappingNode mapping && mapping.Children.Count > 0)
+                return (mapping, null);
+
+            return (null, "UPDATE040: Input must be a non-empty scalar semantic type or non-empty product mapping.");
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE040: Could not parse input declaration: {ex.Message}");
+        }
+    }
+
+    private static string? ApplyConstructionMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        var transformError = RequireTransform(root, mutation.Path);
+        if (transformError is not null)
+            return transformError;
+
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'construction' supports only 'set'.";
+
+        var parsed = ParseConstructionDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[new YamlScalarNode("construction")] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlSequenceNode? Declaration, string? Error) ParseConstructionDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'construction' requires an ordered sequence of semantic steps.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlSequenceNode sequence)
+                return (null, "UPDATE041: Construction must be a YAML sequence of semantic steps.");
+
+            if (sequence.Children.Count == 0)
+                return (null, "UPDATE041: Construction must contain at least one semantic step.");
+
+            var allowedSteps = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "normalize",
+                "ensure",
+                "resolve",
+                "apply",
+                "refine"
+            };
+
+            foreach (var stepNode in sequence.Children)
+            {
+                if (stepNode is not YamlMappingNode step || step.Children.Count != 1)
+                    return (null, "UPDATE041: Every construction item must declare exactly one semantic step.");
+
+                var stepKey = step.Children.Keys.SingleOrDefault() as YamlScalarNode;
+                if (stepKey is null || string.IsNullOrWhiteSpace(stepKey.Value) || !allowedSteps.Contains(stepKey.Value))
+                    return (null, $"UPDATE041: Unsupported construction step. Supported steps: {string.Join(", ", allowedSteps)}.");
+
+                if (step.Children.Values.Single() is not YamlMappingNode)
+                    return (null, $"UPDATE041: Construction step '{stepKey.Value}' must use a mapping declaration.");
+            }
+
+            return (sequence, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE041: Could not parse construction declaration: {ex.Message}");
+        }
+    }
+
+    private static string? ApplyMapFieldMutation(
+        YamlMappingNode root,
+        string mapPath,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (string.IsNullOrWhiteSpace(fieldName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires a property name.";
+
+        var mapKey = new YamlScalarNode(mapPath);
+        YamlMappingNode map;
+        if (root.Children.TryGetValue(mapKey, out var existingMapNode))
+        {
+            if (existingMapNode is not YamlMappingNode existingMap)
+                return $"UPDATE025: Semantic path '{mapPath}' must be a mapping before its properties can be mutated.";
+            map = existingMap;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return $"UPDATE022: Semantic property '{mapPath}.{fieldName}' does not exist; use 'add' to establish it.";
+            map = new YamlMappingNode();
+            root.Children[mapKey] = map;
+        }
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        var exists = map.Children.ContainsKey(fieldKey);
+
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add when exists:
+                return $"UPDATE021: Semantic property '{mapPath}.{fieldName}' already exists; use 'set' to change it.";
+
+            case VsirMutationKind.Set when !exists:
+                return $"UPDATE022: Semantic property '{mapPath}.{fieldName}' does not exist; use 'add' to establish it.";
+
+            case VsirMutationKind.Remove when !exists:
+                return $"UPDATE023: Semantic property '{mapPath}.{fieldName}' does not exist and cannot be removed.";
+        }
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            if (map.Children.Count == 1 && RequiredMapMustRemainNonEmpty(root, mapPath))
+                return $"UPDATE024: Cannot remove the last property from required semantic map '{mapPath}'.";
+
+            map.Children.Remove(fieldKey);
+            if (map.Children.Count == 0 && !RequiredMapMayBeEmpty(root, mapPath))
+                root.Children.Remove(mapKey);
+            return null;
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
+            return $"UPDATE013: Semantic property '{mapPath}.{fieldName}' requires a non-empty single-line type declaration.";
+
+        map.Children[fieldKey] = new YamlScalarNode(value);
+        return null;
+    }
+
+    private static string? ApplyEmptySharedSumMapMutation(
+        YamlMappingNode root,
+        string mapPath,
+        VsirMutation mutation)
+    {
+        if (!string.Equals(Scalar(root, "shape"), "sum", StringComparison.Ordinal))
+            return $"UPDATE037: Top-level '{mapPath}' authoring is available only to establish an empty shared map for shape 'sum'; use '{mapPath}.<property>' for product-shaped state or representation.";
+
+        if (mutation.Kind != VsirMutationKind.Set)
+            return $"UPDATE012: Semantic path '{mapPath}' supports only 'set' when establishing an empty shared sum map.";
+
+        if (!IsEmptyMappingDeclaration(mutation.Value))
+            return $"UPDATE037: Semantic path '{mapPath}' accepts only '{{}}' at the top level for shape 'sum'; shared fields are authored through '{mapPath}.<property>'.";
+
+        root.Children[new YamlScalarNode(mapPath)] = new YamlMappingNode();
+        return null;
+    }
+
+    private static string? ApplySumVariantDeclarationMutation(
+        YamlMappingNode root,
+        string variantName,
+        VsirMutation mutation)
+    {
+        if (string.IsNullOrWhiteSpace(variantName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires a sum variant name.";
+
+        var variantsKey = new YamlScalarNode("variants");
+        YamlMappingNode variants;
+        if (root.Children.TryGetValue(variantsKey, out var existingVariantsNode))
+        {
+            if (existingVariantsNode is not YamlMappingNode existingVariants)
+                return "UPDATE025: Semantic path 'variants' must be a mapping before sum variants can be mutated.";
+            variants = existingVariants;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return $"UPDATE022: Sum variant 'variants.{variantName}' does not exist; use 'add' to establish it.";
+            variants = new YamlMappingNode();
+            root.Children[variantsKey] = variants;
+        }
+
+        var variantKey = new YamlScalarNode(variantName);
+        var exists = variants.Children.ContainsKey(variantKey);
+
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add when exists:
+                return $"UPDATE021: Sum variant 'variants.{variantName}' already exists; use 'set' to change it.";
+            case VsirMutationKind.Set when !exists:
+                return $"UPDATE022: Sum variant 'variants.{variantName}' does not exist; use 'add' to establish it.";
+            case VsirMutationKind.Remove when !exists:
+                return $"UPDATE023: Sum variant 'variants.{variantName}' does not exist and cannot be removed.";
+        }
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            if (variants.Children.Count == 1)
+                return "UPDATE024: Cannot remove the last variant from required semantic map 'variants'.";
+
+            variants.Children.Remove(variantKey);
+            return null;
+        }
+
+        var parsed = ParseSumVariantDeclaration(mutation.Value, mutation.Path);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        variants.Children[variantKey] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseSumVariantDeclaration(
+        string? value,
+        string path)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, $"UPDATE013: Sum variant '{path}' requires a mapping declaration such as {{state: {{Value: string}}}} or {{}}.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+                return (null, $"UPDATE038: Sum variant '{path}' must use a mapping declaration.");
+
+            var error = ValidateVariantDeclaration(path, declaration);
+            return error is null ? (declaration, null) : (null, error);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE038: Could not parse sum variant '{path}': {ex.Message}");
+        }
+    }
+
+    private static string? ValidateVariantDeclaration(string path, YamlMappingNode declaration)
+    {
+        var allowedKeys = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "state",
+            "representation",
+            "traits",
+            "input",
+            "construction"
+        };
+
+        foreach (var keyNode in declaration.Children.Keys)
+        {
+            if (keyNode is not YamlScalarNode key || string.IsNullOrWhiteSpace(key.Value))
+                return $"UPDATE038: Sum variant '{path}' contains an invalid declaration key.";
+            if (!allowedKeys.Contains(key.Value))
+                return $"UPDATE038: Sum variant '{path}' does not admit '{key.Value}'. Supported fields: {string.Join(", ", allowedKeys)}.";
+        }
+
+        if (declaration.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) &&
+            stateNode is not YamlMappingNode)
+            return $"UPDATE038: Sum variant '{path}.state' must be a product mapping.";
+
+        if (declaration.Children.TryGetValue(new YamlScalarNode("representation"), out var representationNode) &&
+            representationNode is not YamlMappingNode)
+            return $"UPDATE038: Sum variant '{path}.representation' must be a mapping.";
+
+        var traits = VariantTraits(declaration);
+        if (declaration.Children.TryGetValue(new YamlScalarNode("traits"), out var traitsNode) &&
+            traitsNode is not YamlSequenceNode)
+            return $"UPDATE038: Sum variant '{path}.traits' must be a sequence.";
+
+        var unsupportedTrait = traits.FirstOrDefault(
+            trait => !VsirAuthoringContract.ExplicitDomainTypeTraits.Contains(trait, StringComparer.Ordinal));
+        if (unsupportedTrait is not null)
+        {
+            return $"UPDATE038: Trait '{unsupportedTrait}' is not currently available for explicit sum-variant authoring. " +
+                   $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
+        }
+
+        var hasInput = declaration.Children.TryGetValue(new YamlScalarNode("input"), out var inputNode);
+        if (hasInput && inputNode is not (YamlMappingNode or YamlScalarNode))
+            return $"UPDATE038: Sum variant '{path}.input' must be a product mapping or scalar semantic type.";
+
+        var hasConstruction = declaration.Children.TryGetValue(new YamlScalarNode("construction"), out var constructionNode);
+        if (hasConstruction && constructionNode is not YamlSequenceNode)
+            return $"UPDATE038: Sum variant '{path}.construction' must be a sequence of semantic steps.";
+
+        if (traits.Contains("transform", StringComparer.Ordinal) && (!hasInput || !hasConstruction))
+            return $"UPDATE038: Sum variant '{path}' with trait 'transform' requires both 'input' and 'construction'.";
+
+        if (!traits.Contains("transform", StringComparer.Ordinal) && (hasInput || hasConstruction))
+            return $"UPDATE038: Sum variant '{path}' may declare 'input' or 'construction' only when trait 'transform' is effective for that variant.";
+
+        return null;
+    }
+
+    private static IReadOnlyList<string> VariantTraits(YamlMappingNode declaration)
+    {
+        if (!declaration.Children.TryGetValue(new YamlScalarNode("traits"), out var node) || node is not YamlSequenceNode sequence)
+            return [];
+
+        return sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(child => child.Value ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+    }
+
+    private static string? ApplyMaintainedValueMutation(
+        YamlMappingNode root,
+        string memberName,
+        VsirMutation mutation)
+    {
+        if (string.IsNullOrWhiteSpace(memberName))
+            return $"UPDATE020: Semantic path '{mutation.Path}' requires a maintained member name.";
+
+        var valuesKey = new YamlScalarNode("values");
+        YamlMappingNode values;
+        if (root.Children.TryGetValue(valuesKey, out var existingValuesNode))
+        {
+            if (existingValuesNode is not YamlMappingNode existingValues)
+                return "UPDATE025: Semantic path 'values' must be a mapping before its members can be mutated.";
+            values = existingValues;
+        }
+        else
+        {
+            if (mutation.Kind != VsirMutationKind.Add)
+                return $"UPDATE022: Maintained member 'values.{memberName}' does not exist; use 'add' to establish it.";
+            values = new YamlMappingNode();
+            root.Children[valuesKey] = values;
+        }
+
+        var memberKey = new YamlScalarNode(memberName);
+        var exists = values.Children.ContainsKey(memberKey);
+
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add when exists:
+                return $"UPDATE021: Maintained member 'values.{memberName}' already exists; use 'set' to change it.";
+
+            case VsirMutationKind.Set when !exists:
+                return $"UPDATE022: Maintained member 'values.{memberName}' does not exist; use 'add' to establish it.";
+
+            case VsirMutationKind.Remove when !exists:
+                return $"UPDATE023: Maintained member 'values.{memberName}' does not exist and cannot be removed.";
+        }
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            if (values.Children.Count == 1 &&
+                string.Equals(Scalar(root, "classification"), "maintained", StringComparison.Ordinal))
+            {
+                return "UPDATE024: Cannot remove the last member from required semantic map 'values'.";
+            }
+
+            values.Children.Remove(memberKey);
+            if (values.Children.Count == 0)
+                root.Children.Remove(valuesKey);
+            return null;
+        }
+
+        var parsed = ParseMaintainedValueDeclaration(mutation.Value, mutation.Path);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        values.Children[memberKey] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseMaintainedValueDeclaration(
+        string? value,
+        string path)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, $"UPDATE013: Maintained member '{path}' requires a declaration value.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+            {
+                return (null,
+                    $"UPDATE028: Maintained member '{path}' must use an inline mapping declaration such as {{state: {{Name: Natural}}}}.");
+            }
+
+            if (declaration.Children.Count != 1 ||
+                !declaration.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) ||
+                stateNode is not YamlMappingNode state ||
+                state.Children.Count == 0)
+            {
+                return (null,
+                    $"UPDATE028: Maintained member '{path}' must declare exactly one non-empty 'state' mapping.");
+            }
+
+            return (declaration, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE028: Could not parse maintained member '{path}': {ex.Message}");
+        }
+    }
+
+    private static string? ApplyStateFromMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (!TryMapping(root, "state", out var state))
+            return $"UPDATE022: Semantic property 'state.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        if (!state.Children.TryGetValue(fieldKey, out var fieldNode))
+            return $"UPDATE022: Semantic property 'state.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        YamlMappingNode declaration;
+        if (fieldNode is YamlScalarNode scalar)
+        {
+            if (string.IsNullOrWhiteSpace(scalar.Value))
+                return $"UPDATE025: Semantic property 'state.{fieldName}' has no type declaration.";
+
+            declaration = new YamlMappingNode
+            {
+                { "type", scalar.Value }
+            };
+        }
+        else if (fieldNode is YamlMappingNode mapping)
+        {
+            declaration = mapping;
+        }
+        else
+        {
+            return $"UPDATE025: Semantic property 'state.{fieldName}' has an unsupported declaration shape.";
+        }
+
+        var fromKey = new YamlScalarNode("from");
+        var exists = declaration.Children.ContainsKey(fromKey);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return $"UPDATE021: Semantic property 'state.{fieldName}.from' already exists; use 'set' to change it.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return $"UPDATE023: Semantic property 'state.{fieldName}.from' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            declaration.Children.Remove(fromKey);
+            if (declaration.Children.Count == 1 &&
+                declaration.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode) &&
+                typeNode is YamlScalarNode typeScalar)
+            {
+                state.Children[fieldKey] = new YamlScalarNode(typeScalar.Value);
+            }
+            else
+            {
+                state.Children[fieldKey] = declaration;
+            }
+            return null;
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (!IsStateReference(value))
+            return $"UPDATE029: Semantic property 'state.{fieldName}.from' requires a direct state reference such as 'state.Commune.InProvince'.";
+
+        declaration.Children[fromKey] = new YamlScalarNode(value);
+        state.Children[fieldKey] = declaration;
+        return null;
+    }
+
+    private static string? ApplyRepresentationFromMutation(
+        YamlMappingNode root,
+        string fieldName,
+        VsirMutation mutation)
+    {
+        if (!TryMapping(root, "representation", out var representation))
+            return $"UPDATE022: Semantic property 'representation.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        var fieldKey = new YamlScalarNode(fieldName);
+        if (!representation.Children.TryGetValue(fieldKey, out var fieldNode))
+            return $"UPDATE022: Semantic property 'representation.{fieldName}' does not exist; establish it before declaring 'from'.";
+
+        YamlMappingNode declaration;
+        if (fieldNode is YamlScalarNode scalar)
+        {
+            if (string.IsNullOrWhiteSpace(scalar.Value))
+                return $"UPDATE025: Semantic property 'representation.{fieldName}' has no type declaration.";
+
+            declaration = new YamlMappingNode
+            {
+                { "type", scalar.Value }
+            };
+        }
+        else if (fieldNode is YamlMappingNode mapping)
+        {
+            declaration = mapping;
+        }
+        else
+        {
+            return $"UPDATE025: Semantic property 'representation.{fieldName}' has an unsupported declaration shape.";
+        }
+
+        var fromKey = new YamlScalarNode("from");
+        var exists = declaration.Children.ContainsKey(fromKey);
+
+        if (mutation.Kind == VsirMutationKind.Add && exists)
+            return $"UPDATE021: Semantic property 'representation.{fieldName}.from' already exists; use 'set' to change it.";
+        if (mutation.Kind == VsirMutationKind.Remove && !exists)
+            return $"UPDATE023: Semantic property 'representation.{fieldName}.from' does not exist and cannot be removed.";
+
+        if (mutation.Kind == VsirMutationKind.Remove)
+        {
+            declaration.Children.Remove(fromKey);
+            if (declaration.Children.Count == 1 &&
+                declaration.Children.TryGetValue(new YamlScalarNode("type"), out var typeNode) &&
+                typeNode is YamlScalarNode typeScalar)
+            {
+                representation.Children[fieldKey] = new YamlScalarNode(typeScalar.Value);
+            }
+            else
+            {
+                representation.Children[fieldKey] = declaration;
+            }
+            return null;
+        }
+
+        if (declaration.Children.ContainsKey(new YamlScalarNode("mapping")))
+        {
+            return $"UPDATE030: Semantic property 'representation.{fieldName}' already has a 'mapping' source; 'from' and 'mapping' are mutually exclusive.";
+        }
+
+        var value = mutation.Value ?? string.Empty;
+        if (!IsStateReference(value))
+            return $"UPDATE029: Semantic property 'representation.{fieldName}.from' requires a direct state reference such as 'state.Name'.";
+
+        declaration.Children[fromKey] = new YamlScalarNode(value);
+        representation.Children[fieldKey] = declaration;
+        return null;
+    }
+
+    private static string? ApplyRefinedFromMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'refined-from' supports only 'set'.";
+
+        if (!Sequence(root, "traits").Contains("refined", StringComparer.Ordinal))
+            return "UPDATE048: 'refined-from' authoring requires explicit trait 'refined'.";
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value) || ContainsLineBreak(value))
+            return "UPDATE049: Semantic path 'refined-from' requires a non-empty single-line semantic type.";
+
+        root.Children[new YamlScalarNode("refined-from")] = new YamlScalarNode(value);
+        return null;
+    }
+
+    private static string? ApplyEqualityMutation(
+        YamlMappingNode root,
+        VsirMutation mutation)
+    {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return "UPDATE012: Semantic path 'equality' supports only 'set'.";
+
+        var classification = Scalar(root, "classification");
+        var traits = Sequence(root, "traits");
+        if (!string.Equals(classification, "identifier", StringComparison.Ordinal) &&
+            !traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            return "UPDATE031: 'equality' authoring requires identifier classification or explicit trait 'identifier'.";
+        }
+
+        var parsed = ParseEqualityDeclaration(mutation.Value);
+        if (parsed.Error is not null)
+            return parsed.Error;
+
+        root.Children[new YamlScalarNode("equality")] = parsed.Declaration!;
+        return null;
+    }
+
+    private static (YamlMappingNode? Declaration, string? Error) ParseEqualityDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return (null, "UPDATE013: Semantic path 'equality' requires a strategy declaration.");
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            if (yaml.Documents.Count != 1 || yaml.Documents[0].RootNode is not YamlMappingNode declaration)
+            {
+                return (null,
+                    "UPDATE032: Equality must use a mapping declaration such as {intrinsic: ordinal-equals, by: state.Name}.");
+            }
+
+            var hasIntrinsic = declaration.Children.TryGetValue(new YamlScalarNode("intrinsic"), out var intrinsicNode);
+            var hasOver = declaration.Children.TryGetValue(new YamlScalarNode("over"), out var overNode);
+            var hasBy = declaration.Children.TryGetValue(new YamlScalarNode("by"), out var byNode);
+
+            if (hasIntrinsic == hasOver || !hasBy || declaration.Children.Count != 2)
+            {
+                return (null,
+                    "UPDATE032: Equality must declare exactly one strategy ('intrinsic' or 'over') plus one 'by' state reference.");
+            }
+
+            var strategyNode = hasIntrinsic ? intrinsicNode : overNode;
+            if (strategyNode is not YamlScalarNode strategy || string.IsNullOrWhiteSpace(strategy.Value))
+                return (null, "UPDATE032: Equality strategy must be a non-empty scalar value.");
+
+            if (byNode is not YamlScalarNode by || string.IsNullOrWhiteSpace(by.Value) || !IsStateReference(by.Value))
+                return (null, "UPDATE032: Equality 'by' must be a direct state reference such as 'state.Name'.");
+
+            return (declaration, null);
+        }
+        catch (Exception ex)
+        {
+            return (null, $"UPDATE032: Could not parse equality declaration: {ex.Message}");
+        }
+    }
+
+    private static string? ApplyScalarMutation(
+        YamlMappingNode root,
+        string path,
+        VsirMutation mutation)
+    {
+        if (mutation.Kind != VsirMutationKind.Set)
+            return $"UPDATE012: Semantic path '{path}' supports only 'set'.";
+
+        var value = mutation.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+            return $"UPDATE005: Value for semantic path '{path}' must not be empty.";
+
+        root.Children[new YamlScalarNode(path)] = new YamlScalarNode(value);
+        return null;
+    }
+
+    private static string? ApplySetMutation(
+        YamlMappingNode root,
+        string path,
+        VsirMutation mutation)
+    {
+        var requested = ParseSetValues(mutation.Value);
+        if (requested.Error is not null)
+            return requested.Error.Replace("VALUE", path, StringComparison.Ordinal);
+
+        var current = Sequence(root, path).ToList();
+        switch (mutation.Kind)
+        {
+            case VsirMutationKind.Add:
+                foreach (var value in requested.Values!)
+                {
+                    if (!current.Contains(value, StringComparer.Ordinal))
+                        current.Add(value);
+                }
+                break;
+
+            case VsirMutationKind.Remove:
+                current.RemoveAll(value => requested.Values!.Contains(value, StringComparer.Ordinal));
+                break;
+
+            case VsirMutationKind.Set:
+                current = requested.Values!.ToList();
+                break;
+        }
+
+        if (current.Count == 0)
+        {
+            root.Children.Remove(new YamlScalarNode(path));
+            return null;
+        }
+
+        root.Children[new YamlScalarNode(path)] =
+            new YamlSequenceNode(current.Select(value => new YamlScalarNode(value)))
+            {
+                Style = YamlDotNet.Core.Events.SequenceStyle.Flow
+            };
+        return null;
+    }
+
+    private static (IReadOnlyList<string>? Values, string? Error) ParseSetValues(string? value)
+    {
+        if (value is null)
+            return (null, "UPDATE013: VALUE mutation requires a value.");
+
+        var values = value
+            .Split(',', StringSplitOptions.TrimEntries)
+            .ToArray();
+
+        if (values.Length == 0 || values.Any(string.IsNullOrWhiteSpace))
+            return (null, "UPDATE013: VALUE values must be non-empty.");
+
+        if (values.Distinct(StringComparer.Ordinal).Count() != values.Length)
+            return (null, "UPDATE014: VALUE values must be unique.");
+
+        if (values.Any(ContainsLineBreak))
+            return (null, "UPDATE013: VALUE values must be single-line.");
+
+        return (values, null);
+    }
+
+    private static string? ValidateCandidate(YamlMappingNode root)
+    {
+        var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
+        var classification = Scalar(root, "classification");
+        var traits = Sequence(root, "traits");
+
+        if (!string.IsNullOrWhiteSpace(kind))
+        {
+            var error = VsirAuthoringContract.ValidateScalar("kind", kind, kind);
+            if (error is not null)
+                return error;
+        }
+
+        if (!string.IsNullOrWhiteSpace(shape))
+        {
+            var error = VsirAuthoringContract.ValidateScalar("shape", shape, kind);
+            if (error is not null)
+                return error;
+        }
+
+        if (!string.IsNullOrWhiteSpace(classification))
+        {
+            var error = VsirAuthoringContract.ValidateScalar("classification", classification, kind);
+            if (error is not null)
+                return error;
+        }
+
+        if (HasKey(root, "variants"))
+        {
+            if (!string.Equals(shape, "sum", StringComparison.Ordinal))
+                return "UPDATE036: 'variants' is valid only for shape 'sum'.";
+
+            var variantsError = ValidateSumVariants(root);
+            if (variantsError is not null)
+                return variantsError;
+        }
+
+        if (traits.Count > 0 && !string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal))
+            return "UPDATE011: 'traits' requires kind 'domain-type'.";
+
+        var unsupportedTrait = traits.FirstOrDefault(
+            trait => !VsirAuthoringContract.ExplicitDomainTypeTraits.Contains(trait, StringComparer.Ordinal));
+        if (unsupportedTrait is not null)
+        {
+            return $"UPDATE026: Trait '{unsupportedTrait}' is not currently available for explicit authoring. " +
+                   $"Supported explicit traits: {string.Join(", ", VsirAuthoringContract.ExplicitDomainTypeTraits)}.";
+        }
+
+        if ((HasKey(root, "input") || HasKey(root, "construction")) &&
+            !traits.Contains("transform", StringComparer.Ordinal))
+        {
+            return "UPDATE039: Root 'input' and 'construction' are valid only when explicit trait 'transform' is established.";
+        }
+
+        if (HasKey(root, "input"))
+        {
+            var inputNode = root.Children[new YamlScalarNode("input")];
+            if (inputNode is YamlScalarNode scalar && string.IsNullOrWhiteSpace(scalar.Value))
+                return "UPDATE040: Input scalar semantic type must not be empty.";
+            if (inputNode is YamlMappingNode mapping && mapping.Children.Count == 0)
+                return "UPDATE040: Structured transform input must contain at least one property.";
+            if (inputNode is not (YamlScalarNode or YamlMappingNode))
+                return "UPDATE040: Input must be a scalar semantic type or product mapping.";
+        }
+
+        if (HasKey(root, "construction") && root.Children[new YamlScalarNode("construction")] is not YamlSequenceNode)
+            return "UPDATE041: Construction must be a sequence of semantic steps.";
+
+        if (HasKey(root, "values") && !string.Equals(classification, "maintained", StringComparison.Ordinal))
+            return "UPDATE027: 'values' is writable only for classification 'maintained'.";
+
+        if (HasKey(root, "equality") &&
+            !string.Equals(classification, "identifier", StringComparison.Ordinal) &&
+            !traits.Contains("identifier", StringComparer.Ordinal))
+        {
+            return "UPDATE031: 'equality' authoring requires identifier classification or explicit trait 'identifier'.";
+        }
+
+        if (HasKey(root, "refined-from") && !traits.Contains("refined", StringComparer.Ordinal))
+            return "UPDATE048: 'refined-from' authoring requires explicit trait 'refined'.";
+
+        var representationSourceError = ValidateRepresentationSources(root);
+        if (representationSourceError is not null)
+            return representationSourceError;
+
+        return null;
+    }
+
+    private static string? ValidateSumVariants(YamlMappingNode root)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode("variants"), out var variantsNode))
+            return null;
+
+        if (variantsNode is not YamlMappingNode variants)
+            return "UPDATE038: Sum-shaped Domain Type 'variants' must be a mapping of variant names to declarations.";
+
+        if (variants.Children.Count == 0)
+            return "UPDATE038: Sum-shaped Domain Type 'variants' must contain at least one variant when declared.";
+
+        foreach (var (variantNode, declarationNode) in variants.Children)
+        {
+            if (variantNode is not YamlScalarNode variant || string.IsNullOrWhiteSpace(variant.Value))
+                return "UPDATE038: Sum-shaped Domain Type variants require non-empty scalar names.";
+
+            if (declarationNode is not YamlMappingNode declaration)
+                return $"UPDATE038: Sum variant 'variants.{variant.Value}' must use a mapping declaration.";
+
+            var error = ValidateVariantDeclaration($"variants.{variant.Value}", declaration);
+            if (error is not null)
+                return error;
+        }
+
+        return null;
+    }
+
+    private static string? ValidateRepresentationSources(YamlMappingNode root)
+    {
+        if (!TryMapping(root, "representation", out var representation))
+            return null;
+
+        foreach (var (fieldNode, declarationNode) in representation.Children)
+        {
+            if (fieldNode is not YamlScalarNode field || declarationNode is not YamlMappingNode declaration)
+                continue;
+
+            var hasFrom = declaration.Children.ContainsKey(new YamlScalarNode("from"));
+            var hasMapping = declaration.Children.ContainsKey(new YamlScalarNode("mapping"));
+            if (hasFrom && hasMapping)
+            {
+                return $"UPDATE030: Semantic property 'representation.{field.Value}' declares both 'from' and 'mapping'; representation fields require exactly one semantic source.";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? ValidateIdentity(YamlMappingNode root)
+    {
+        var version = Scalar(root, "vsir");
+        var name = Scalar(root, "name");
+        if (string.IsNullOrWhiteSpace(version))
+            return "UPDATE016: Progressive VSIR artifact requires 'vsir'.";
+        if (string.IsNullOrWhiteSpace(name))
+            return "UPDATE017: Progressive VSIR artifact requires 'name'.";
+        return null;
+    }
+
+    private static string? FindContradiction(IReadOnlyList<VsirMutation> mutations)
+    {
+        foreach (var group in mutations.GroupBy(mutation => mutation.Path, StringComparer.Ordinal))
+        {
+            if (group.Any(mutation => mutation.Kind == VsirMutationKind.Set) && group.Count() > 1)
+                return $"UPDATE018: Semantic path '{group.Key}' cannot combine 'set' with another mutation in the same transaction.";
+
+            var adds = group
+                .Where(mutation => mutation.Kind == VsirMutationKind.Add)
+                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
+                .ToHashSet(StringComparer.Ordinal);
+            var removes = group
+                .Where(mutation => mutation.Kind == VsirMutationKind.Remove)
+                .SelectMany(mutation => ParseSetValues(mutation.Value).Values ?? [])
+                .ToHashSet(StringComparer.Ordinal);
+            var overlap = adds.FirstOrDefault(removes.Contains);
+            if (overlap is not null)
+                return $"UPDATE019: Value '{overlap}' is both added to and removed from semantic path '{group.Key}' in the same transaction.";
+
+            if (group.Key != "traits" && group.Count() > 1)
+                return $"UPDATE018: Semantic path '{group.Key}' cannot be set more than once in the same transaction.";
+        }
+
+        return null;
+    }
+
+    private static bool TryChildPath(
+        string path,
+        string rootPath,
+        out string fieldName,
+        out string? tail)
+    {
+        fieldName = string.Empty;
+        tail = null;
+
+        var prefix = rootPath + ".";
+        if (!path.StartsWith(prefix, StringComparison.Ordinal))
+            return false;
+
+        var remainder = path[prefix.Length..];
+        var separator = remainder.IndexOf('.');
+        if (separator < 0)
+        {
+            fieldName = remainder;
+            return true;
+        }
+
+        fieldName = remainder[..separator];
+        tail = remainder[(separator + 1)..];
+        return true;
+    }
+
+    private static bool RequiredMapMustRemainNonEmpty(YamlMappingNode root, string mapPath)
+    {
+        var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
+        return mapPath is "state" or "representation" &&
+               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal) &&
+               !string.Equals(shape, "sum", StringComparison.Ordinal);
+    }
+
+    private static bool RequiredMapMayBeEmpty(YamlMappingNode root, string mapPath)
+    {
+        var kind = Scalar(root, "kind");
+        var shape = Scalar(root, "shape");
+        return mapPath is "state" or "representation" &&
+               string.Equals(kind, VsirAuthoringContract.DomainTypeKind, StringComparison.Ordinal) &&
+               string.Equals(shape, "sum", StringComparison.Ordinal);
+    }
+
+    private static bool IsEmptyMappingDeclaration(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        try
+        {
+            var yaml = new YamlStream();
+            yaml.Load(new StringReader(value));
+            return yaml.Documents.Count == 1 &&
+                   yaml.Documents[0].RootNode is YamlMappingNode mapping &&
+                   mapping.Children.Count == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string? Scalar(YamlMappingNode root, string key) =>
+        root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlScalarNode scalar
+            ? scalar.Value
+            : null;
+
+    private static bool HasKey(YamlMappingNode root, string key) =>
+        root.Children.ContainsKey(new YamlScalarNode(key));
+
+    private static bool TryMapping(YamlMappingNode root, string key, out YamlMappingNode mapping)
+    {
+        if (root.Children.TryGetValue(new YamlScalarNode(key), out var node) && node is YamlMappingNode value)
+        {
+            mapping = value;
+            return true;
+        }
+
+        mapping = null!;
+        return false;
+    }
+
+    private static IReadOnlyList<string> Sequence(YamlMappingNode root, string key)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode(key), out var node))
+            return [];
+
+        if (node is not YamlSequenceNode sequence)
+            return [];
+
+        return sequence.Children
+            .OfType<YamlScalarNode>()
+            .Select(child => child.Value ?? string.Empty)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToArray();
+    }
+
+    private static bool IsStateReference(string value) =>
+        !ContainsLineBreak(value) &&
+        value.StartsWith("state.", StringComparison.Ordinal) &&
+        value.Length > "state.".Length;
+
+    private static bool ContainsLineBreak(string value) =>
+        value.Contains('\r') || value.Contains('\n');
+}

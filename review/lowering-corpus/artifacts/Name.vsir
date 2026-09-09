@@ -1,0 +1,88 @@
+vsir: 0.1
+kind: domain-type
+name: Name
+shape: sum
+classification: value-object
+
+state: {}
+representation: {}
+
+variants:
+  FullName:
+    traits: [transform]
+    state:
+      Names: string
+      FirstSurname: string
+      SecondSurname:
+        optional: string
+    representation:
+      Names: string
+      FirstSurname: string
+      SecondSurname:
+        optional: string
+    input:
+      Names: string
+      FirstSurname: string
+      SecondSurname:
+        optional: string
+    construction:
+      - ensure:
+          condition:
+            intrinsic: non-empty
+            args:
+              value: input.Names
+          failure:
+            message: Debes especificar al menos un nombre
+      - ensure:
+          condition:
+            intrinsic: non-empty
+            args:
+              value: input.FirstSurname
+          failure:
+            message: Debes especificar el primer apellido
+      - ensure:
+          condition:
+            intrinsic: length-at-most
+            args:
+              value:
+                intrinsic: concat-space
+                values:
+                  - input.Names
+                  - input.FirstSurname
+                  - input.SecondSurname
+              max: 92
+          failure:
+            message: El nombre debe tener 92 caracteres o menos
+      - refine:
+          state:
+            Names: input.Names
+            FirstSurname: input.FirstSurname
+            SecondSurname: input.SecondSurname
+
+  CompanyName:
+    traits: [transform]
+    state:
+      Value: string
+    representation:
+      Value: string
+    input:
+      Value: string
+    construction:
+      - ensure:
+          condition:
+            intrinsic: non-empty
+            args:
+              value: input.Value
+          failure:
+            message: Debes especificar el nombre de la empresa
+      - ensure:
+          condition:
+            intrinsic: length-at-most
+            args:
+              value: input.Value
+              max: 92
+          failure:
+            message: El nombre debe tener 92 caracteres o menos
+      - refine:
+          state:
+            Value: input.Value

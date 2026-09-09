@@ -2,9 +2,17 @@ rules:
   - node: intrinsic.non-empty
     mode: deterministic
     renderer: expression
+    bindings: [value]
     template: "!string.IsNullOrEmpty({value})"
+
+  - node: intrinsic.not-whitespace
+    mode: deterministic
+    renderer: expression
+    bindings: [value]
+    template: "!string.IsNullOrWhiteSpace({value})"
 
   - node: intrinsic.length-at-most
     mode: deterministic
     renderer: expression
+    bindings: [value, max]
     template: "{value}.Length <= {max}"

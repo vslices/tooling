@@ -1,0 +1,35 @@
+vsir: 0.1
+kind: domain-type
+name: StreetName
+shape: product
+classification: value-object
+traits: [transform]
+
+state:
+  Value: string
+
+representation:
+  Value: string
+
+input:
+  Value: string
+
+construction:
+  - ensure:
+      condition:
+        intrinsic: non-empty
+        args:
+          value: input.Value
+      failure:
+        message: Debes especificar una calle
+  - ensure:
+      condition:
+        intrinsic: length-at-most
+        args:
+          value: input.Value
+          max: 30
+      failure:
+        message: Debe tener 30 caracteres o menos (Enviados {length})
+  - refine:
+      state:
+        Value: input.Value
