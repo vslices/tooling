@@ -89,6 +89,10 @@ internal static class VsirStructuralContract
             var fieldPath = $"{mapPath}.{fieldName.Value}";
             RejectNonScalarKeys(declaration, fieldPath, diagnostics);
 
+            // Expanded field declarations are one of the shared field laws that
+            // already belonged to this preflight before recursive key conservation.
+            // Keep their scalar-key grammar here; deeper semantic grammars remain
+            // owned by their specialized parsers.
             var allowed = new HashSet<string>(StringComparer.Ordinal) { "type" };
             if (allowFrom)
                 allowed.Add("from");
@@ -96,10 +100,6 @@ internal static class VsirStructuralContract
                 allowed.Add("mapping");
             RejectUnknownScalarKeys(declaration, allowed, fieldPath, diagnostics);
 
-            // Once source/projection metadata is present this is an expanded field
-            // declaration, not a type-constructor shorthand. Keeping `type`
-            // mandatory prevents forms such as `from: state.Value` from being
-            // accidentally interpreted as a unary semantic type by one parser.
             if (!hasType && (hasFrom || hasMapping))
             {
                 diagnostics.Add(new(
@@ -158,11 +158,11 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        if (!owner.Children.TryGetValue(new YamlScalarNode("equality"), out var equalityNode) ||
-            equalityNode is not YamlMappingNode equality)
-            return;
-
-        ValidateFixedMapping(equality, ["intrinsic", "over", "by"], path, diagnostics);
+        if (owner.Children.TryGetValue(new YamlScalarNode("equality"), out var equalityNode) &&
+            equalityNode is YamlMappingNode equality)
+        {
+            RejectNonScalarKeys(equality, path, diagnostics);
+        }
     }
 
     private static void ValidateConstruction(
@@ -178,19 +178,22 @@ internal static class VsirStructuralContract
 
         for (var index = 0; index < construction.Children.Count; index++)
         {
-            if (construction.Children[index] is not YamlMappingNode step || step.Children.Count != 1 ||
-                step.Children.Keys.Single() is not YamlScalarNode operation ||
+            if (construction.Children[index] is not YamlMappingNode step || step.Children.Count != 1)
+                continue;
+
+            RejectNonScalarKeys(step, $"{path}[{index}]", diagnostics);
+
+            if (step.Children.Keys.Single() is not YamlScalarNode operation ||
                 step.Children.Values.Single() is not YamlMappingNode payload)
             {
                 continue;
             }
 
             var stepPath = $"{path}[{index}].{operation.Value}";
+            RejectNonScalarKeys(payload, stepPath, diagnostics);
+
             switch (operation.Value)
             {
-                case "normalize":
-                    ValidateFixedMapping(payload, ["target", "intrinsic"], stepPath, diagnostics);
-                    break;
                 case "ensure":
                     ValidateEnsure(payload, stepPath, diagnostics);
                     break;
@@ -212,54 +215,27 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        ValidateFixedMapping(ensure, ["condition", "failure"], path, diagnostics);
-
         if (ensure.Children.TryGetValue(new YamlScalarNode("condition"), out var conditionNode) &&
             conditionNode is YamlMappingNode condition)
         {
             var conditionPath = path + ".condition";
-            ValidateFixedMapping(condition, ["intrinsic", "args"], conditionPath, diagnostics);
+            RejectNonScalarKeys(condition, conditionPath, diagnostics);
 
             if (condition.Children.TryGetValue(new YamlScalarNode("args"), out var argsNode) &&
                 argsNode is YamlMappingNode args)
             {
-                ValidateConditionArgs(condition, args, conditionPath + ".args", diagnostics);
+                var argsPath = conditionPath + ".args";
+                RejectNonScalarKeys(args, argsPath, diagnostics);
+                if (args.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
+                    ValidateSemanticExpression(valueNode, argsPath + ".value", diagnostics);
             }
         }
 
         if (ensure.Children.TryGetValue(new YamlScalarNode("failure"), out var failureNode) &&
             failureNode is YamlMappingNode failure)
         {
-            ValidateFixedMapping(failure, ["message"], path + ".failure", diagnostics);
+            RejectNonScalarKeys(failure, path + ".failure", diagnostics);
         }
-    }
-
-    private static void ValidateConditionArgs(
-        YamlMappingNode condition,
-        YamlMappingNode args,
-        string path,
-        ICollection<VsirDiagnostic> diagnostics)
-    {
-        var intrinsic = condition.Children.TryGetValue(new YamlScalarNode("intrinsic"), out var intrinsicNode) &&
-                        intrinsicNode is YamlScalarNode scalar
-            ? scalar.Value
-            : null;
-
-        IReadOnlySet<string>? allowed = intrinsic switch
-        {
-            "non-empty" or "not-whitespace" => new HashSet<string>(["value"], StringComparer.Ordinal),
-            "length-at-most" => new HashSet<string>(["value", "max"], StringComparer.Ordinal),
-            "length-between" => new HashSet<string>(["value", "min", "max"], StringComparer.Ordinal),
-            _ => null
-        };
-
-        if (allowed is null)
-            RejectNonScalarKeys(args, path, diagnostics);
-        else
-            ValidateFixedMapping(args, allowed, path, diagnostics);
-
-        if (args.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
-            ValidateSemanticExpression(valueNode, path + ".value", diagnostics);
     }
 
     private static void ValidateSemanticExpression(
@@ -273,10 +249,6 @@ internal static class VsirStructuralContract
             return;
 
         RejectNonScalarKeys(mapping, path, diagnostics);
-        if (!mapping.Children.ContainsKey(new YamlScalarNode("intrinsic")))
-            return;
-
-        ValidateFixedMapping(mapping, ["intrinsic", "values"], path, diagnostics);
         if (mapping.Children.TryGetValue(new YamlScalarNode("values"), out var valuesNode) &&
             valuesNode is YamlSequenceNode values)
         {
@@ -290,11 +262,10 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        ValidateFixedMapping(resolve, ["source", "id", "as", "failure"], path, diagnostics);
         if (resolve.Children.TryGetValue(new YamlScalarNode("failure"), out var failureNode) &&
             failureNode is YamlMappingNode failure)
         {
-            ValidateFixedMapping(failure, ["message"], path + ".failure", diagnostics);
+            RejectNonScalarKeys(failure, path + ".failure", diagnostics);
         }
     }
 
@@ -303,29 +274,19 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        ValidateFixedMapping(apply, ["over", "input", "as"], path, diagnostics);
         if (!apply.Children.TryGetValue(new YamlScalarNode("input"), out var inputNode) ||
             inputNode is not YamlMappingNode input)
             return;
 
         var inputPath = path + ".input";
-        var hasSource = input.Children.ContainsKey(new YamlScalarNode("source"));
-        var hasMap = input.Children.ContainsKey(new YamlScalarNode("map"));
-        if (hasSource || hasMap)
+        RejectNonScalarKeys(input, inputPath, diagnostics);
+
+        if (input.Children.TryGetValue(new YamlScalarNode("map"), out var mapNode) &&
+            mapNode is YamlMappingNode map)
         {
-            ValidateFixedMapping(input, ["source", "map"], inputPath, diagnostics);
-            if (input.Children.TryGetValue(new YamlScalarNode("map"), out var mapNode) &&
-                mapNode is YamlMappingNode map)
-            {
-                // Mapped apply field names are semantic data, but they still must
-                // be scalar names rather than YAML structures.
-                RejectNonScalarKeys(map, inputPath + ".map", diagnostics);
-            }
-        }
-        else
-        {
-            // Direct apply input is also a variable-key semantic data map.
-            RejectNonScalarKeys(input, inputPath, diagnostics);
+            // Mapped apply field names are semantic data. Arbitrary scalar names
+            // remain valid data; structured YAML keys are never silently ignored.
+            RejectNonScalarKeys(map, inputPath + ".map", diagnostics);
         }
     }
 
@@ -334,31 +295,23 @@ internal static class VsirStructuralContract
         string path,
         ICollection<VsirDiagnostic> diagnostics)
     {
-        if (refine.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode))
+        if (refine.Children.TryGetValue(new YamlScalarNode("state"), out var stateNode) &&
+            stateNode is YamlMappingNode state)
         {
-            ValidateFixedMapping(refine, ["state"], path, diagnostics);
-            if (stateNode is YamlMappingNode state)
-                RejectNonScalarKeys(state, path + ".state", diagnostics);
-            return;
+            RejectNonScalarKeys(state, path + ".state", diagnostics);
         }
 
-        if (refine.Children.ContainsKey(new YamlScalarNode("intrinsic")))
+        if (refine.Children.TryGetValue(new YamlScalarNode("as"), out var asNode) &&
+            asNode is YamlMappingNode outputs)
         {
-            ValidateFixedMapping(refine, ["intrinsic", "value", "as", "failure"], path, diagnostics);
-            if (refine.Children.TryGetValue(new YamlScalarNode("as"), out var asNode) &&
-                asNode is YamlMappingNode outputs)
-            {
-                RejectNonScalarKeys(outputs, path + ".as", diagnostics);
-            }
-            if (refine.Children.TryGetValue(new YamlScalarNode("failure"), out var failureNode) &&
-                failureNode is YamlMappingNode failure)
-            {
-                ValidateFixedMapping(failure, ["message"], path + ".failure", diagnostics);
-            }
-            return;
+            RejectNonScalarKeys(outputs, path + ".as", diagnostics);
         }
 
-        ValidateFixedMapping(refine, ["value", "as"], path, diagnostics);
+        if (refine.Children.TryGetValue(new YamlScalarNode("failure"), out var failureNode) &&
+            failureNode is YamlMappingNode failure)
+        {
+            RejectNonScalarKeys(failure, path + ".failure", diagnostics);
+        }
     }
 
     private static void ValidateProjection(
@@ -373,65 +326,37 @@ internal static class VsirStructuralContract
 
         RejectNonScalarKeys(mapping, path, diagnostics);
 
-        if (mapping.Children.ContainsKey(new YamlScalarNode("stringify")))
-        {
-            ValidateFixedMapping(mapping, ["stringify"], path, diagnostics);
-            return;
-        }
-
         if (mapping.Children.TryGetValue(new YamlScalarNode("represent"), out var represented))
         {
-            ValidateFixedMapping(mapping, ["represent"], path, diagnostics);
             ValidateProjection(represented, path + ".represent", diagnostics);
-            return;
         }
 
         if (mapping.Children.TryGetValue(new YamlScalarNode("select"), out var selectNode) &&
             selectNode is YamlMappingNode select)
         {
-            ValidateFixedMapping(mapping, ["select"], path, diagnostics);
-            ValidateFixedMapping(select, ["source", "field"], path + ".select", diagnostics);
+            var selectPath = path + ".select";
+            RejectNonScalarKeys(select, selectPath, diagnostics);
             if (select.Children.TryGetValue(new YamlScalarNode("source"), out var sourceNode))
-                ValidateProjection(sourceNode, path + ".select.source", diagnostics);
-            return;
+                ValidateProjection(sourceNode, selectPath + ".source", diagnostics);
         }
 
         if (mapping.Children.TryGetValue(new YamlScalarNode("map"), out var mapNode) &&
             mapNode is YamlMappingNode map)
         {
-            ValidateFixedMapping(mapping, ["map"], path, diagnostics);
-            ValidateFixedMapping(map, ["source", "bind", "value"], path + ".map", diagnostics);
+            var mapPath = path + ".map";
+            RejectNonScalarKeys(map, mapPath, diagnostics);
             if (map.Children.TryGetValue(new YamlScalarNode("source"), out var sourceNode))
-                ValidateProjection(sourceNode, path + ".map.source", diagnostics);
+                ValidateProjection(sourceNode, mapPath + ".source", diagnostics);
             if (map.Children.TryGetValue(new YamlScalarNode("value"), out var valueNode))
-                ValidateProjection(valueNode, path + ".map.value", diagnostics);
-            return;
+                ValidateProjection(valueNode, mapPath + ".value", diagnostics);
         }
 
-        if (mapping.Children.ContainsKey(new YamlScalarNode("intrinsic")))
+        if (mapping.Children.TryGetValue(new YamlScalarNode("values"), out var valuesNode) &&
+            valuesNode is YamlSequenceNode values)
         {
-            ValidateFixedMapping(mapping, ["intrinsic", "values"], path, diagnostics);
-            if (mapping.Children.TryGetValue(new YamlScalarNode("values"), out var valuesNode) &&
-                valuesNode is YamlSequenceNode values)
-            {
-                for (var index = 0; index < values.Children.Count; index++)
-                    ValidateProjection(values.Children[index], $"{path}.values[{index}]", diagnostics);
-            }
+            for (var index = 0; index < values.Children.Count; index++)
+                ValidateProjection(values.Children[index], $"{path}.values[{index}]", diagnostics);
         }
-    }
-
-    private static void ValidateFixedMapping(
-        YamlMappingNode mapping,
-        IEnumerable<string> allowed,
-        string path,
-        ICollection<VsirDiagnostic> diagnostics)
-    {
-        RejectNonScalarKeys(mapping, path, diagnostics);
-        RejectUnknownScalarKeys(
-            mapping,
-            allowed.ToHashSet(StringComparer.Ordinal),
-            path,
-            diagnostics);
     }
 
     private static void RejectUnknownScalarKeys(
