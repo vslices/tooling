@@ -40,6 +40,24 @@ public sealed class VsirUpdateCandidateTests
     }
 
     [Fact]
+    public async Task Adding_direct_source_to_structural_type_shorthand_expands_type_without_losing_it()
+    {
+        using var project = new ToolingTestProject();
+        var path = WriteProduct(project.Root, "ProbeSequenceSource", "sequence: string", "sequence: string");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "vsir", path,
+            "--set", "representation.Value.from=state.Value");
+
+        Assert.Equal(0, result.ExitCode);
+        var source = File.ReadAllText(path).Replace("\r\n", "\n");
+        Assert.Contains("Value:\n    type:\n      sequence: string\n    from: state.Value", source, StringComparison.Ordinal);
+        var parsed = VsirParser.Parse(source);
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics.Select(d => $"{d.Code}: {d.Message}")));
+    }
+
+    [Fact]
     public async Task Legitimately_incomplete_progressive_artifact_remains_writable()
     {
         using var project = new ToolingTestProject();
