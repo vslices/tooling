@@ -145,7 +145,7 @@ internal static class SelfUpdater
         if (checkOnly)
         {
             TerminalOutput.Info(needsCompanionRepair
-                ? "→ The current VSlices version is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                ? "→ The current VSlices version is missing its semantic-refactoring companion and can be repaired with 'vslices update self'."
                 : $"→ {release.TagName} is available");
             return 0;
         }
@@ -220,7 +220,7 @@ internal static class SelfUpdater
         if (checkOnly)
         {
             TerminalOutput.Info(needsCompanionRepair
-                ? "→ The current PR build is missing its semantic-refactoring companion and can be repaired with 'vslices update --self'."
+                ? "→ The current PR build is missing its semantic-refactoring companion and can be repaired with 'vslices update self'."
                 : $"→ {buildIdentity} is available");
             return 0;
         }
