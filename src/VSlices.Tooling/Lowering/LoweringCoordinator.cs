@@ -1,9 +1,24 @@
+using VSlices.Vsir;
 using VSlices.Vsir.CSharp;
 
 namespace VSlices.Tooling;
 
 internal static class LoweringCoordinator
 {
+    private enum ArtifactOutcome
+    {
+        Lowered,
+        Unsupported,
+        Failed
+    }
+
+    private sealed record ArtifactExecution(int ExitCode, ArtifactOutcome Outcome)
+    {
+        public static ArtifactExecution Lowered() => new(0, ArtifactOutcome.Lowered);
+        public static ArtifactExecution Unsupported(int exitCode = 1) => new(exitCode, ArtifactOutcome.Unsupported);
+        public static ArtifactExecution Failed(int exitCode = 1) => new(exitCode, ArtifactOutcome.Failed);
+    }
+
     public static async Task<int> Execute(
         string subject,
         string? target,
@@ -38,7 +53,7 @@ internal static class LoweringCoordinator
                 cancellationToken);
         }
 
-        return await ExecuteArtifact(
+        var execution = await ExecuteArtifact(
             resolved.Subject.Path,
             target,
             from,
@@ -49,6 +64,7 @@ internal static class LoweringCoordinator
             resolution,
             diagnosticVerbosity,
             cancellationToken);
+        return execution.ExitCode;
     }
 
     private static async Task<int> ExecuteProject(
@@ -100,7 +116,7 @@ internal static class LoweringCoordinator
         foreach (var artifact in artifacts)
         {
             var relative = Path.GetRelativePath(Path.GetDirectoryName(projectPath)!, artifact);
-            var exitCode = await ExecuteArtifact(
+            var execution = await ExecuteArtifact(
                 artifact,
                 target,
                 from: null,
@@ -113,25 +129,30 @@ internal static class LoweringCoordinator
                 cancellationToken,
                 prepared.Environment);
 
-            if (exitCode == 0)
+            switch (execution.Outcome)
             {
-                succeeded++;
-                Console.WriteLine($"  ✓ {relative}");
-            }
-            else
-            {
-                unsupported++;
-                Console.WriteLine($"  - {relative} (not lowered)");
+                case ArtifactOutcome.Lowered:
+                    succeeded++;
+                    Console.WriteLine($"  ✓ {relative}");
+                    break;
+                case ArtifactOutcome.Unsupported:
+                    unsupported++;
+                    Console.WriteLine($"  - {relative} (not lowered: unsupported semantic/target surface)");
+                    break;
+                case ArtifactOutcome.Failed:
+                    failed++;
+                    Console.WriteLine($"  ! {relative} (lowering failed)");
+                    break;
             }
         }
 
         Console.WriteLine();
-        Console.WriteLine($"Project lowering: {succeeded} succeeded, {unsupported} not lowered, {failed} unexpected failures.");
+        Console.WriteLine($"Project lowering: {succeeded} succeeded, {unsupported} unsupported, {failed} failures.");
 
         return failed > 0 ? 1 : 0;
     }
 
-    private static async Task<int> ExecuteArtifact(
+    private static async Task<ArtifactExecution> ExecuteArtifact(
         string subject,
         string? target,
         string? from,
@@ -150,7 +171,7 @@ internal static class LoweringCoordinator
         if (!next.IsSuccess)
         {
             CommandInfrastructure.WriteDiagnostics(next.Diagnostics, diagnosticVerbosity);
-            return 1;
+            return FromDiagnostics(next.Diagnostics);
         }
 
         var project = next.Project!;
@@ -181,7 +202,7 @@ internal static class LoweringCoordinator
                     cancellationToken);
             }
 
-            return exitCode;
+            return exitCode == 0 ? ArtifactExecution.Lowered() : ArtifactExecution.Failed(exitCode);
         }
 
         RebaseResult rebased;
@@ -216,8 +237,13 @@ internal static class LoweringCoordinator
                         next.Source!,
                         cancellationToken);
 
-                    Console.WriteLine($"Established lowering lineage for '{existing}'.");
-                    return 0;
+                    return await CompleteBootstrapOutput(
+                        human,
+                        existing,
+                        output,
+                        stdout,
+                        exactDeterministic: true,
+                        cancellationToken);
                 }
 
                 if (!LoweringLineageBootstrap.IsConfiguredFor(
@@ -228,7 +254,7 @@ internal static class LoweringCoordinator
                 {
                     Console.Error.WriteLine(
                         "LOWER001: No trustworthy deterministic baseline could be inferred. Configure lineage.bootstrap.convention for the conventional materialization, or run once with --from <previous-vsir> to establish lineage explicitly.");
-                    return 1;
+                    return ArtifactExecution.Failed();
                 }
 
                 await LoweringLineageStore.TryWrite(
@@ -238,11 +264,13 @@ internal static class LoweringCoordinator
                     next.Source!,
                     cancellationToken);
 
-                TerminalOutput.Detail(
-                    "Lineage bootstrap",
-                    ProjectConfiguration.DefaultLineageBootstrapConvention);
-                TerminalOutput.Success("✓ Lowering lineage established without modifying the existing materialization");
-                return 0;
+                return await CompleteBootstrapOutput(
+                    human,
+                    existing,
+                    output,
+                    stdout,
+                    exactDeterministic: false,
+                    cancellationToken);
             }
 
             rebased = await RebaseOperation.ExecuteDeterministic(
@@ -256,7 +284,7 @@ internal static class LoweringCoordinator
         if (!rebased.IsSuccess)
         {
             CommandInfrastructure.WriteDiagnostics(rebased.Diagnostics, diagnosticVerbosity);
-            return 1;
+            return ArtifactExecution.Failed();
         }
 
         var humanBefore = await File.ReadAllTextAsync(rebased.SourcePath!, cancellationToken);
@@ -269,7 +297,7 @@ internal static class LoweringCoordinator
             stdout,
             cancellationToken);
         if (semantic.Handled)
-            return semantic.ExitCode;
+            return semantic.ExitCode == 0 ? ArtifactExecution.Lowered() : ArtifactExecution.Failed(semantic.ExitCode);
 
         var writeExitCode = await CommandInfrastructure.WriteResult(
             rebased.Source!,
@@ -290,7 +318,64 @@ internal static class LoweringCoordinator
                 cancellationToken);
         }
 
-        return writeExitCode;
+        return writeExitCode == 0 ? ArtifactExecution.Lowered() : ArtifactExecution.Failed(writeExitCode);
+    }
+
+    private static ArtifactExecution FromDiagnostics(IReadOnlyList<VsirDiagnostic> diagnostics)
+    {
+        // Project lowering intentionally continues past forms/semantic target
+        // capabilities the current release does not lower. Environment, toolchain,
+        // IO and orchestration failures are different: they must make the project
+        // invocation fail even though subsequent artifacts may still be attempted.
+        var unsupported = diagnostics.Count > 0 && diagnostics.All(diagnostic =>
+            diagnostic.Code.StartsWith("VSIR", StringComparison.Ordinal) ||
+            diagnostic.Code.StartsWith("CSL", StringComparison.Ordinal) ||
+            diagnostic.Code == "CLI020" ||
+            diagnostic.Code == "CLI024");
+
+        return unsupported ? ArtifactExecution.Unsupported() : ArtifactExecution.Failed();
+    }
+
+    private static async Task<ArtifactExecution> CompleteBootstrapOutput(
+        string materialization,
+        string existing,
+        string? output,
+        bool stdout,
+        bool exactDeterministic,
+        CancellationToken cancellationToken)
+    {
+        if (stdout)
+        {
+            Console.Error.WriteLine(exactDeterministic
+                ? $"Established lowering lineage for '{existing}'."
+                : $"Lineage bootstrap: {ProjectConfiguration.DefaultLineageBootstrapConvention}. Existing materialization preserved.");
+        }
+        else if (exactDeterministic)
+        {
+            Console.WriteLine($"Established lowering lineage for '{existing}'.");
+        }
+        else
+        {
+            TerminalOutput.Detail(
+                "Lineage bootstrap",
+                ProjectConfiguration.DefaultLineageBootstrapConvention);
+            TerminalOutput.Success("✓ Lowering lineage established without modifying the existing materialization");
+        }
+
+        // Bootstrap establishes operational ancestry even in stdout mode, but the
+        // requested content destination is still honored. The returned content is
+        // the human materialization that bootstrap deliberately preserved.
+        if (!stdout && string.IsNullOrWhiteSpace(output))
+            return ArtifactExecution.Lowered();
+
+        var exitCode = await CommandInfrastructure.WriteResult(
+            materialization,
+            existing,
+            output,
+            stdout,
+            overwrite: true,
+            cancellationToken);
+        return exitCode == 0 ? ArtifactExecution.Lowered() : ArtifactExecution.Failed(exitCode);
     }
 
     private static bool TryResolveWrittenPath(
