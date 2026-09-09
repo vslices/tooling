@@ -7,9 +7,9 @@ namespace VSlices.Vsir.CSharp.Tests;
 public sealed class GeneratedMaterializationCompilationTests
 {
     [Fact]
-    public async Task Derived_state_projection_and_multiline_failure_compile_as_one_generated_witness()
+    public async Task Product_and_sum_generated_pipelines_compile_against_pinned_framework()
     {
-        const string source = """
+        const string productSource = """
             vsir: 0.1
             kind: domain-type
             name: ReviewProbe
@@ -41,27 +41,63 @@ public sealed class GeneratedMaterializationCompilationTests
                       Second line
             """;
 
-        var parsed = VsirParser.Parse(source);
-        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        const string sumSource = """
+            vsir: 0.1
+            kind: domain-type
+            name: ReviewChoice
+            shape: sum
+            classification: value-object
+
+            state: {}
+            representation: {}
+
+            variants:
+              NamedChoice:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value: string
+                input:
+                  Value: string
+                construction:
+                  - ensure:
+                      condition:
+                        intrinsic: non-empty
+                        args:
+                          value: input.Value
+                      failure:
+                        message: A choice value is required
+            """;
 
         var loaded = CSharpLoweringRuleSet.Load(
             Path.Combine(AppContext.BaseDirectory, "Fixtures", "Ruleset"));
         Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-        var lowered = CSharpLanguageLowerer.Lower(
-            parsed.Document!,
+        var parsedProduct = VsirParser.Parse(productSource);
+        Assert.True(parsedProduct.IsSuccess, string.Join(Environment.NewLine, parsedProduct.Diagnostics));
+        var loweredProduct = CSharpLanguageLowerer.Lower(
+            parsedProduct.Document!,
             new CSharpLoweringContext("Generated.Review", loaded.RuleSet!));
-        Assert.True(lowered.IsSuccess, string.Join(Environment.NewLine, lowered.Diagnostics));
-        Assert.Contains("public int Length =>", lowered.Source, StringComparison.Ordinal);
-        Assert.Contains("new(Length)", lowered.Source, StringComparison.Ordinal);
+        Assert.True(loweredProduct.IsSuccess, string.Join(Environment.NewLine, loweredProduct.Diagnostics));
+        Assert.Contains("public int Length =>", loweredProduct.Source, StringComparison.Ordinal);
+        Assert.Contains("new(Length)", loweredProduct.Source, StringComparison.Ordinal);
 
         // The exact YAML chomp result (whether the final line break is retained)
         // is not the target contract. What matters is that an embedded line break
         // is encoded inside a valid ordinary C# string literal rather than copied
         // into the generated source as a raw newline.
-        Assert.Contains("First line\\nSecond line", lowered.Source, StringComparison.Ordinal);
-        Assert.DoesNotContain("First line\nSecond line", lowered.Source, StringComparison.Ordinal);
-        Assert.DoesNotContain("new(_length)", lowered.Source, StringComparison.Ordinal);
+        Assert.Contains("First line\\nSecond line", loweredProduct.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("First line\nSecond line", loweredProduct.Source, StringComparison.Ordinal);
+        Assert.DoesNotContain("new(_length)", loweredProduct.Source, StringComparison.Ordinal);
+
+        var parsedSum = VsirParser.Parse(sumSource);
+        Assert.True(parsedSum.IsSuccess, string.Join(Environment.NewLine, parsedSum.Diagnostics));
+        var loweredSum = CSharpSumDomainTypeLowerer.Lower(
+            parsedSum.Document!,
+            new CSharpLoweringContext("Generated.Review", loaded.RuleSet!));
+        Assert.True(loweredSum.IsSuccess, string.Join(Environment.NewLine, loweredSum.Diagnostics));
+        Assert.Contains("public sealed class NamedChoice", loweredSum.Source, StringComparison.Ordinal);
 
         var root = Path.Combine(Path.GetTempPath(), "vslices-generated-compile-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
@@ -73,7 +109,8 @@ public sealed class GeneratedMaterializationCompilationTests
                 "src", "framework", "src", "VSlices.Domain", "VSlices.Domain.csproj");
             Assert.True(File.Exists(frameworkProject), $"Expected pinned Framework project at '{frameworkProject}'.");
 
-            await File.WriteAllTextAsync(Path.Combine(root, "Generated.cs"), lowered.Source!);
+            await File.WriteAllTextAsync(Path.Combine(root, "GeneratedProduct.cs"), loweredProduct.Source!);
+            await File.WriteAllTextAsync(Path.Combine(root, "GeneratedSum.cs"), loweredSum.Source!);
             await File.WriteAllTextAsync(
                 Path.Combine(root, "GeneratedWitness.csproj"),
                 $$"""
@@ -90,10 +127,22 @@ public sealed class GeneratedMaterializationCompilationTests
                 </Project>
                 """);
 
-            var build = await RunDotNet(root, "build", "GeneratedWitness.csproj", "--nologo", "--verbosity", "minimal");
+            // The outer solution build already produces the pinned Framework in
+            // Release. Building the generated witness in the same configuration
+            // preserves the real ProjectReference contract without paying for a
+            // second Debug build of the entire Framework graph.
+            var build = await RunDotNet(
+                root,
+                "build",
+                "GeneratedWitness.csproj",
+                "--configuration",
+                "Release",
+                "--nologo",
+                "--verbosity",
+                "minimal");
             Assert.True(
                 build.ExitCode == 0,
-                $"Generated materialization did not compile.{Environment.NewLine}{build.StandardOutput}{Environment.NewLine}{build.StandardError}{Environment.NewLine}{lowered.Source}");
+                $"Generated materialization did not compile.{Environment.NewLine}{build.StandardOutput}{Environment.NewLine}{build.StandardError}{Environment.NewLine}PRODUCT:{Environment.NewLine}{loweredProduct.Source}{Environment.NewLine}SUM:{Environment.NewLine}{loweredSum.Source}");
         }
         finally
         {
