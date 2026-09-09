@@ -75,7 +75,7 @@ internal static class VsirStructuralContract
             if (declarationNode is not YamlMappingNode declaration)
                 continue;
 
-            // A one-key mapping without declaration keys is a structural semantic type
+            // A mapping without declaration keys is a structural semantic type
             // shorthand (for example: sequence: string), not an expanded field declaration.
             var hasType = declaration.Children.ContainsKey(new YamlScalarNode("type"));
             var hasFrom = declaration.Children.ContainsKey(new YamlScalarNode("from"));
@@ -85,6 +85,25 @@ internal static class VsirStructuralContract
 
             var fieldPath = $"{mapPath}.{fieldName.Value}";
             RejectNonScalarKeys(declaration, fieldPath, diagnostics);
+
+            var allowed = new HashSet<string>(StringComparer.Ordinal) { "type" };
+            if (allowFrom)
+                allowed.Add("from");
+            if (allowMapping)
+                allowed.Add("mapping");
+            RejectUnknownScalarKeys(declaration, allowed, fieldPath, diagnostics);
+
+            // Once source/projection metadata is present this is an expanded field
+            // declaration, not a type-constructor shorthand. Keeping `type`
+            // mandatory prevents forms such as `from: state.Value` from being
+            // accidentally interpreted as a unary semantic type by one parser.
+            if (!hasType && (hasFrom || hasMapping))
+            {
+                diagnostics.Add(new(
+                    "VSIR156",
+                    $"Expanded semantic property '{fieldPath}' requires 'type' when declaring 'from' or 'mapping'.",
+                    SemanticPath: fieldPath));
+            }
 
             if (hasFrom)
             {
@@ -120,6 +139,24 @@ internal static class VsirStructuralContract
                     $"Semantic property '{fieldPath}' declares both 'from' and 'mapping'; a representation coordinate must have exactly one semantic source.",
                     SemanticPath: fieldPath));
             }
+        }
+    }
+
+    private static void RejectUnknownScalarKeys(
+        YamlMappingNode mapping,
+        IReadOnlySet<string> allowed,
+        string path,
+        ICollection<VsirDiagnostic> diagnostics)
+    {
+        foreach (var keyNode in mapping.Children.Keys.OfType<YamlScalarNode>())
+        {
+            if (string.IsNullOrWhiteSpace(keyNode.Value) || allowed.Contains(keyNode.Value!))
+                continue;
+
+            diagnostics.Add(new(
+                "VSIR104",
+                $"Unsupported semantic '{keyNode.Value}' under {path}.",
+                SemanticPath: path + "." + keyNode.Value));
         }
     }
 
