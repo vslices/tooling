@@ -55,36 +55,14 @@ internal static class DiscoveryCommands
         var inspectedSource = source;
         if (projections.Count > 0)
         {
-            var metadataProjections = projections
-                .Where(mutation => mutation.Path == VsirMetadataAuthoring.TagsPath)
-                .ToArray();
-            var semanticProjections = projections
-                .Where(mutation => mutation.Path != VsirMetadataAuthoring.TagsPath)
-                .ToArray();
-
-            if (semanticProjections.Length > 0)
+            var projected = VsirMutationCandidate.Build(inspectedSource, projections);
+            if (!projected.IsSuccess)
             {
-                var projected = VsirMutationPipeline.Apply(inspectedSource, semanticProjections);
-                if (!projected.IsSuccess)
-                {
-                    TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
-                    return 2;
-                }
-
-                inspectedSource = projected.Source!;
+                TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
+                return 2;
             }
 
-            if (metadataProjections.Length > 0)
-            {
-                var projected = VsirMetadataAuthoring.Apply(inspectedSource, metadataProjections);
-                if (!projected.IsSuccess)
-                {
-                    TerminalOutput.Error(projected.Error!.Replace("UPDATE", "DISC", StringComparison.Ordinal));
-                    return 2;
-                }
-
-                inspectedSource = projected.Source!;
-            }
+            inspectedSource = projected.Source!;
         }
 
         var frontier = VsirMutationPipeline.Discover(inspectedSource, out var error).ToList();
