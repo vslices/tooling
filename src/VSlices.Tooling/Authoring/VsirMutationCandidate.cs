@@ -14,17 +14,14 @@ internal static class VsirMutationCandidate
         string source,
         IReadOnlyList<VsirMutation> semanticMutations)
     {
-        var mappingTargets = semanticMutations
-            .Where(mutation =>
-                mutation.Kind == VsirMutationKind.Set &&
-                mutation.Path.StartsWith("representation.", StringComparison.Ordinal) &&
-                mutation.Path.EndsWith(".mapping", StringComparison.Ordinal))
-            .Select(mutation => mutation.Path["representation.".Length..^".mapping".Length])
+        var declarationTargets = semanticMutations
+            .Where(mutation => mutation.Kind == VsirMutationKind.Set)
+            .Select(mutation => RepresentationDeclarationTarget(mutation.Path))
             .Where(name => !string.IsNullOrWhiteSpace(name) && !name.Contains('.', StringComparison.Ordinal))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
 
-        if (mappingTargets.Length == 0)
+        if (declarationTargets.Length == 0)
             return VsirMutationResult.Success(source);
 
         YamlStream yaml;
@@ -47,7 +44,7 @@ internal static class VsirMutationCandidate
             return VsirMutationResult.Success(source);
 
         var changed = false;
-        foreach (var fieldName in mappingTargets)
+        foreach (var fieldName in declarationTargets)
         {
             var fieldKey = new YamlScalarNode(fieldName);
             if (!representation.Children.TryGetValue(fieldKey, out var fieldNode) ||
@@ -66,7 +63,11 @@ internal static class VsirMutationCandidate
             //   Value:
             //     type:
             //       sequence: string
-            //     mapping: ...
+            //     from|mapping: ...
+            //
+            // The transformation is syntax-preserving: the semantic type itself
+            // is moved intact under `type` before the requested assertion is
+            // applied by the normal mutation pipeline.
             var type = new YamlMappingNode();
             foreach (var pair in shorthand.Children)
                 type.Children.Add(pair.Key, pair.Value);
@@ -105,5 +106,22 @@ internal static class VsirMutationCandidate
         return diagnostic is null
             ? "UPDATE050: Candidate VSIR is structurally invalid."
             : $"UPDATE050: Candidate VSIR assertion is invalid ({diagnostic.Code}): {diagnostic.Message}";
+    }
+
+    private static string? RepresentationDeclarationTarget(string path)
+    {
+        const string prefix = "representation.";
+        if (!path.StartsWith(prefix, StringComparison.Ordinal))
+            return null;
+
+        var suffixLength = path.EndsWith(".mapping", StringComparison.Ordinal)
+            ? ".mapping".Length
+            : path.EndsWith(".from", StringComparison.Ordinal)
+                ? ".from".Length
+                : 0;
+        if (suffixLength == 0)
+            return null;
+
+        return path[prefix.Length..^suffixLength];
     }
 }
