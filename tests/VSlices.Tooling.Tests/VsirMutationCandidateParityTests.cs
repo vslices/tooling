@@ -31,9 +31,6 @@ public sealed class VsirMutationCandidateParityTests
         File.WriteAllText(path, source);
 
         const string decision = "representation.Value.mapping={map: {source: state.Value, bind: item, value: item}}";
-        var mutation = new VsirMutation(VsirMutationKind.Set, "representation.Value.mapping", "{map: {source: state.Value, bind: item, value: item}}");
-        var projectedCandidate = VsirMutationCandidate.Build(source, [mutation]);
-        Assert.True(projectedCandidate.IsSuccess, projectedCandidate.Error);
 
         var projectedDiscovery = await project.Run(
             project.Root,
@@ -43,6 +40,7 @@ public sealed class VsirMutationCandidateParityTests
         Assert.Equal(0, projectedDiscovery.ExitCode);
         Assert.Contains("conformance: conforming", projectedDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("VSIR118", projectedDiscovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Equal(source, File.ReadAllText(path));
 
         var updated = await project.Run(
             project.Root,
@@ -51,15 +49,19 @@ public sealed class VsirMutationCandidateParityTests
 
         Assert.Equal(0, updated.ExitCode);
         var persisted = File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
-        var expected = VsirSourceFormatter
-            .FormatAfterMutation(projectedCandidate.Source!)
-            .Replace("\r\n", "\n", StringComparison.Ordinal);
-        Assert.Equal(expected, persisted);
         Assert.Contains("type:\n      sequence: string", persisted, StringComparison.Ordinal);
         Assert.Contains("mapping:\n      map:", persisted, StringComparison.Ordinal);
 
         var persistedDiscovery = await project.Run(project.Root, "discovery", "vsir", path);
         Assert.Equal(0, persistedDiscovery.ExitCode);
         Assert.Contains("conformance: conforming", persistedDiscovery.StandardOutput, StringComparison.Ordinal);
+
+        static string NormalizeFrontierHeader(string value) => value
+            .Replace("Projected immediate frontier:", "Immediate frontier:", StringComparison.Ordinal)
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
+
+        Assert.Equal(
+            NormalizeFrontierHeader(projectedDiscovery.StandardOutput),
+            NormalizeFrontierHeader(persistedDiscovery.StandardOutput));
     }
 }
