@@ -20,6 +20,16 @@ public sealed class VsirCanonicalStructuralContractTests
     }
 
     [Theory]
+    [MemberData(nameof(NestedFixedMappingsWithNonScalarKeys))]
+    public void Canonical_forms_reject_non_scalar_keys_in_nested_fixed_mappings(string source)
+    {
+        var parsed = VsirParser.Parse(source);
+
+        Assert.False(parsed.IsSuccess);
+        Assert.Contains(parsed.Diagnostics, diagnostic => diagnostic.Code == "VSIR104");
+    }
+
+    [Theory]
     [MemberData(nameof(ExpandedFormsWithUnknownDeclarationKey))]
     public void Canonical_forms_share_unknown_expanded_field_key_rejection(string source)
     {
@@ -111,6 +121,116 @@ public sealed class VsirCanonicalStructuralContractTests
         yield return [ProductSource];
         yield return [SumSource];
         yield return [MaintainedSource];
+    }
+
+    public static IEnumerable<object[]> NestedFixedMappingsWithNonScalarKeys()
+    {
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeMaintained
+            shape: product
+            classification: maintained
+            state:
+              Name: string
+            representation:
+              Value:
+                type: string
+                from: state.Name
+            values:
+              One:
+                state:
+                  Name: One
+            equality:
+              intrinsic: ordinal-equals
+              by: state.Name
+              ? [unknown, key]
+              : true
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: Probe
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value: string
+            input:
+              Value: string
+            construction:
+              - ensure:
+                  condition:
+                    intrinsic: non-empty
+                    args:
+                      value: input.Value
+                    ? [unknown, key]
+                    : true
+                  failure:
+                    message: required
+              - refine:
+                  state:
+                    Value: input.Value
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: ProbeSum
+            shape: sum
+            classification: value-object
+            state: {}
+            representation: {}
+            variants:
+              ProbeValue:
+                traits: [transform]
+                state:
+                  Value: string
+                representation:
+                  Value: string
+                input:
+                  Value: string
+                construction:
+                  - ensure:
+                      condition:
+                        intrinsic: non-empty
+                        args:
+                          value: input.Value
+                      failure:
+                        message: required
+                        ? [unknown, key]
+                        : true
+                  - refine:
+                      state:
+                        Value: input.Value
+            """];
+
+        yield return ["""
+            vsir: 0.1
+            kind: domain-type
+            name: Probe
+            shape: product
+            classification: value-object
+            traits: [transform]
+            state:
+              Value: string
+            representation:
+              Value:
+                type: string
+                mapping:
+                  stringify: state.Value
+                  ? [unknown, key]
+                  : true
+            input:
+              Value: string
+            construction:
+              - refine:
+                  state:
+                    Value: input.Value
+            """];
     }
 
     public static IEnumerable<object[]> ExpandedFormsWithUnknownDeclarationKey()
