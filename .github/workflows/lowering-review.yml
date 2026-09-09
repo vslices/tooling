@@ -11,6 +11,8 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    env:
+      VSLICES_REVIEW_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:

@@ -106,7 +106,14 @@ Copy-Item $rulesetRoot (Join-Path $outputPath 'ruleset') -Recurse
 Copy-Item (Join-Path $root 'ReviewCorpus.csproj') $context
 Copy-Item (Join-Path $root 'NominalTypes.cs') $context
 
-$sourceHead = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) { 'local-worktree' } else { $env:GITHUB_SHA }
+$sourceHead = if (-not [string]::IsNullOrWhiteSpace($env:VSLICES_REVIEW_SOURCE_SHA)) {
+    $env:VSLICES_REVIEW_SOURCE_SHA
+} elseif (-not [string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) {
+    $env:GITHUB_SHA
+} else {
+    'local-worktree'
+}
+$workflowCheckout = if ([string]::IsNullOrWhiteSpace($env:GITHUB_SHA)) { 'local-worktree' } else { $env:GITHUB_SHA }
 $generatedAt = [DateTimeOffset]::UtcNow.ToString('O')
 $entries = Import-Csv -Path $corpusPath -Delimiter "`t"
 
@@ -115,6 +122,7 @@ $entries = Import-Csv -Path $corpusPath -Delimiter "`t"
 
 - Tooling CLI version: $toolingVersion
 - Tooling source HEAD: $sourceHead
+- Workflow checkout SHA: $workflowCheckout
 - Ruleset: vslices/ruleset@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
 - Generated at UTC: $generatedAt
 - Corpus entries: $($entries.Count)
