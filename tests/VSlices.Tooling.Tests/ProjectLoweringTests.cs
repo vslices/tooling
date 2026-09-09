@@ -13,7 +13,7 @@ public sealed class ProjectLoweringTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("Lowering project 'Identities.Domain' (2 VSIR artifacts)", result.StandardOutput);
-        Assert.Contains("Project lowering: 2 succeeded, 0 not lowered", result.StandardOutput);
+        Assert.Contains("Project lowering: 2 succeeded, 0 unsupported, 0 failures", result.StandardOutput);
         Assert.True(File.Exists(Path.Combine(project.Root, "ValueObjects", "StreetName.vsir.cs")));
         Assert.True(File.Exists(Path.Combine(project.Root, "EmailAddress.vsir.cs")));
     }
@@ -80,8 +80,41 @@ public sealed class ProjectLoweringTests
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.Root, "StreetName.vsir.cs")));
         Assert.False(File.Exists(Path.Combine(project.Root, "Future.vsir.cs")));
-        Assert.Contains("1 succeeded, 1 not lowered", result.StandardOutput);
+        Assert.Contains("1 succeeded, 1 unsupported, 0 failures", result.StandardOutput);
         Assert.Contains("VSIR", result.StandardError);
+    }
+
+    [Fact]
+    public async Task Project_lowering_returns_failure_when_target_toolchain_fails_even_if_processing_can_continue()
+    {
+        if (OperatingSystem.IsWindows())
+            return; // Linux CI carries the executable PATH fault-injection witness.
+
+        using var project = CreateProject("Identities.Domain");
+        project.WriteStreetName();
+
+        var fakeBin = Path.Combine(project.Root, "fake-bin");
+        Directory.CreateDirectory(fakeBin);
+        var fakeDotNet = Path.Combine(fakeBin, "dotnet");
+        File.WriteAllText(fakeDotNet, "#!/bin/sh\necho review-injected-MSBuild-failure >&2\nexit 42\n");
+        File.SetUnixFileMode(
+            fakeDotNet,
+            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+
+        var environment = new Dictionary<string, string?>
+        {
+            ["PATH"] = fakeBin + Path.PathSeparator + (Environment.GetEnvironmentVariable("PATH") ?? string.Empty)
+        };
+
+        var result = await project.Run(
+            project.Root,
+            environment,
+            "lower", "Identities.Domain");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOTNET002", result.StandardError);
+        Assert.Contains("review-injected-MSBuild-failure", result.StandardError);
+        Assert.Contains("Project lowering: 0 succeeded, 0 unsupported, 1 failures", result.StandardOutput);
     }
 
     private static ToolingTestProject CreateProject(string name)
