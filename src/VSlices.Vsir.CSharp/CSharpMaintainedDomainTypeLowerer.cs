@@ -75,7 +75,7 @@ public static class CSharpMaintainedDomainTypeLowerer
 
         source.AppendLine();
         source.AppendLine("    public Repr To() =>");
-        source.AppendLine($"        new({string.Join(", ", document.Representation.Fields.Select(RenderRepresentationExpression))});
+        source.AppendLine($"        new({string.Join(", ", document.Representation.Fields.Select(RenderRepresentationExpression))});");
         source.AppendLine("}");
 
         return new(source.ToString(), []);
