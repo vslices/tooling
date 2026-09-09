@@ -121,29 +121,11 @@ internal static class CommandInfrastructure
         return 0;
     }
 
-    public static async Task AtomicWrite(
+    public static Task AtomicWrite(
         string path,
         string content,
-        CancellationToken cancellationToken)
-    {
-        var directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-
-        var temporary = Path.Combine(
-            directory,
-            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
-
-        try
-        {
-            await File.WriteAllTextAsync(temporary, content, cancellationToken);
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-                File.Delete(temporary);
-        }
-    }
+        CancellationToken cancellationToken) =>
+        AtomicFile.WriteTextAsync(path, content, cancellationToken);
 
     public static DiagnosticVerbosity ResolveDiagnosticVerbosity(bool verbose, bool trace) =>
         trace ? DiagnosticVerbosity.Trace : verbose ? DiagnosticVerbosity.Verbose : DiagnosticVerbosity.Normal;
