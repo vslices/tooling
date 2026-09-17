@@ -1,0 +1,25 @@
+vsir: 0.1
+kind: domain-type
+name: IdentityType
+shape: product
+classification: maintained
+
+state:
+  Name: string
+
+representation:
+  Value:
+    type: string
+    from: state.Name
+
+values:
+  Natural:
+    state:
+      Name: Natural
+  Juridical:
+    state:
+      Name: Juridica
+
+equality:
+  intrinsic: ordinal-equals
+  by: state.Name

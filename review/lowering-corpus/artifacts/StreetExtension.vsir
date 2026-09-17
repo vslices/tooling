@@ -1,0 +1,52 @@
+vsir: 0.1
+kind: domain-type
+name: StreetExtension
+shape: product
+classification: value-object
+traits: [transform]
+
+state:
+  Name: string
+  Value: string
+
+representation:
+  Value:
+    type: string
+    mapping:
+      intrinsic: concat-space
+      values:
+        - state.Name
+        - state.Value
+
+input:
+  Value: string
+
+construction:
+  - ensure:
+      condition:
+        intrinsic: not-whitespace
+        args:
+          value: input.Value
+      failure:
+        message: Debes especificar la extensión
+  - ensure:
+      condition:
+        intrinsic: length-between
+        args:
+          value: input.Value
+          min: 3
+          max: 16
+      failure:
+        message: Debe tener entre 3 y 16 caracteres
+  - refine:
+      intrinsic: split-first-rest
+      value: input.Value
+      as:
+        Name: name
+        Value: value
+      failure:
+        message: Debes especificar un nombre y un valor, separados por espacio
+  - refine:
+      state:
+        Name: name
+        Value: value

@@ -1,0 +1,77 @@
+vsir: 0.1
+kind: domain-type
+name: SrvIdentity
+shape: sum
+classification: aggregate-root
+
+identity:
+  type: SrvIdentityId
+  from: state.Document
+
+state:
+  Document: Rut
+  Address:
+    optional: Location
+
+representation:
+  Id:
+    type: string
+    mapping:
+      stringify: identity
+  Location:
+    type:
+      optional: Location.Repr
+    mapping:
+      map:
+        source: state.Address
+        bind: location
+        value:
+          represent: location
+
+variants:
+  NaturalIdentity:
+    traits: [transform]
+    state:
+      Name: FullName
+    representation:
+      Names:
+        type: string
+        from: state.Name.Names
+      FirstSurname:
+        type: string
+        from: state.Name.FirstSurname
+      SecondSurname:
+        type:
+          optional: string
+        from: state.Name.SecondSurname
+    input:
+      Document: Rut
+      Name: FullName
+      Address:
+        optional: Location
+    construction:
+      - refine:
+          state:
+            Document: input.Document
+            Address: input.Address
+            Name: input.Name
+
+  LegalIdentity:
+    traits: [transform]
+    state:
+      Name: CompanyName
+    representation:
+      Name:
+        type: string
+        from: state.Name.Value
+    input:
+      Document: Rut
+      Name: CompanyName
+      Address:
+        optional: Location
+    construction:
+      - refine:
+          state:
+            Document: input.Document
+            Address: input.Address
+            Name: input.Name

@@ -1,0 +1,19 @@
+vsir: 0.1
+kind: domain-type
+name: TicketId
+classification: identifier
+shape: product
+traits: [transform]
+
+state:
+  Value: string
+
+representation:
+  Value: string
+
+input:
+  Value: string
+
+equality:
+  intrinsic: ordinal-equals
+  by: state.Value

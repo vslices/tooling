@@ -1,0 +1,56 @@
+name: Lowering Review Corpus
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: lowering-review-${{ github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.pull_requests[0].base.ref == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    runs-on: ubuntu-latest
+    env:
+      VSLICES_REVIEW_SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      VSLICES_REVIEW_CHECKOUT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build Tooling and target-context companion
+        run: dotnet build tooling.slnx --configuration Release
+
+      - name: Generate review corpus through the CLI
+        shell: pwsh
+        run: |
+          ./review/lowering-corpus/Generate.ps1 `
+            -Vslices ./src/VSlices.Tooling/bin/Release/net10.0/vslices.dll `
+            -Output ./lowering-review-artifact
+
+      - name: Upload lowering review corpus
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lowering-review-${{ github.run_number }}
+          path: lowering-review-artifact/**
+          if-no-files-found: error
+          retention-days: 30

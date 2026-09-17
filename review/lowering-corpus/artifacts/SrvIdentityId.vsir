@@ -1,0 +1,27 @@
+vsir: 0.1
+kind: domain-type
+name: SrvIdentityId
+classification: identifier
+shape: product
+traits: [refined, transform]
+refined-from: Rut
+
+state:
+  Value: Rut
+
+representation:
+  Value:
+    type: string
+    mapping:
+      stringify: state.Value
+
+input: Rut
+
+construction:
+  - refine:
+      value: input
+      as: state.Value
+
+equality:
+  over: Rut
+  by: state.Value

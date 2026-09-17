@@ -2,6 +2,12 @@ using VSlices.Vsir;
 
 namespace VSlices.Vsir.CSharp;
 
+public enum CSharpRebaseResolution
+{
+    None,
+    Deterministic
+}
+
 public sealed record CSharpRebaseResult(
     string? Source,
     IReadOnlyList<VsirDiagnostic> Diagnostics)
@@ -14,7 +20,8 @@ public static class CSharpRebaser
     public static CSharpRebaseResult Rebase(
         string previousDeterministicSource,
         string humanSource,
-        string nextDeterministicSource)
+        string nextDeterministicSource,
+        CSharpRebaseResolution resolution = CSharpRebaseResolution.None)
     {
         if (previousDeterministicSource == nextDeterministicSource)
             return new(humanSource, []);
@@ -28,35 +35,473 @@ public static class CSharpRebaser
 
         if (previousChanged.Length == 0)
         {
-            var anchor = suffixLength > 0 ? previousDeterministicSource[^suffixLength..] : string.Empty;
-            if (anchor.Length == 0)
-                return new(null, [new("REB003", "Cannot establish a deterministic insertion anchor.")]);
+            if (!TryLocateInsertionSlot(
+                    previousDeterministicSource,
+                    humanSource,
+                    prefixLength,
+                    out var humanInsertionStart,
+                    out var humanInsertionLength))
+            {
+                return new(null, [new(
+                    "REB002",
+                    "The deterministic insertion point is missing or ambiguous in the human projection. " +
+                    "VSlices could not establish a unique surrounding context, so no automatic edit was attempted.")]);
+            }
 
-            var anchorIndex = humanSource.IndexOf(anchor, StringComparison.Ordinal);
-            if (anchorIndex < 0 || humanSource.IndexOf(anchor, anchorIndex + 1, StringComparison.Ordinal) >= 0)
-                return new(null, [new("REB002", "Deterministic insertion anchor is missing or ambiguous in the human projection.")]);
+            var humanInserted = humanSource.Substring(humanInsertionStart, humanInsertionLength);
 
-            return new(humanSource.Insert(anchorIndex, nextChanged), []);
+            if (string.Equals(humanInserted, nextChanged, StringComparison.Ordinal))
+                return new(humanSource, []);
+
+            if (humanInserted.Length == 0)
+                return new(humanSource.Insert(humanInsertionStart, nextChanged), []);
+
+            if (resolution == CSharpRebaseResolution.Deterministic)
+            {
+                var resolved = humanSource
+                    .Remove(humanInsertionStart, humanInsertionLength)
+                    .Insert(humanInsertionStart, nextChanged);
+                return new(resolved, []);
+            }
+
+            const string resolutionGuidance =
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only this conflicting insertion with the deterministic change while preserving unrelated human edits.";
+
+            return new(null, [CreateConflictDiagnostic(
+                "REB004",
+                "Human and deterministic projections both changed the same insertion point.",
+                $"Baseline insertion:{Environment.NewLine}{DisplayFull(string.Empty)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Human insertion:{Environment.NewLine}{DisplayFull(humanInserted)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic insertion:{Environment.NewLine}{DisplayFull(nextChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                resolutionGuidance,
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged,
+                    humanInsertionStart,
+                    humanInsertionLength),
+                $"  Baseline insertion: {DisplaySnippet(string.Empty)}" + Environment.NewLine +
+                $"  Human insertion: {DisplaySnippet(humanInserted)}" + Environment.NewLine +
+                $"  Next deterministic insertion: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
+                resolutionGuidance)]);
         }
 
-        var index = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
-        if (index < 0)
+        var directIndex = humanSource.IndexOf(previousChanged, StringComparison.Ordinal);
+        if (directIndex < 0)
         {
-            return new(null, [new(
+            if (resolution == CSharpRebaseResolution.Deterministic &&
+                TryLocateReplacementSlot(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    previousChanged.Length,
+                    out var humanChangedStart,
+                    out var humanChangedLength,
+                    out var deterministicReplacement))
+            {
+                var resolved = humanSource
+                    .Remove(humanChangedStart, humanChangedLength)
+                    .Insert(humanChangedStart, deterministicReplacement);
+                return new(resolved, []);
+            }
+
+            const string resolutionGuidance =
+                "Resolve the human projection manually and rerun, or pass '--resolve deterministic' " +
+                "to replace only the uniquely bounded conflicting region with the deterministic change while preserving unrelated human edits.";
+
+            return new(null, [CreateConflictDiagnostic(
                 "REB001",
-                "The VSIR-generated region changed by the developer and cannot be rebased deterministically.")]);
+                "The VSIR-generated region changed in the human projection and cannot be rebased deterministically.",
+                $"Previous deterministic region:{Environment.NewLine}{DisplayFull(previousChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                resolutionGuidance,
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged),
+                $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
+                $"  Next deterministic region: {DisplaySnippet(nextChanged)}" + Environment.NewLine +
+                resolutionGuidance)]);
         }
 
-        if (humanSource.IndexOf(previousChanged, index + previousChanged.Length, StringComparison.Ordinal) >= 0)
+        if (humanSource.IndexOf(previousChanged, directIndex + previousChanged.Length, StringComparison.Ordinal) < 0)
         {
-            return new(null, [new(
-                "REB002",
-                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically.")]);
+            var rebasedDirectly = humanSource
+                .Remove(directIndex, previousChanged.Length)
+                .Insert(directIndex, nextChanged);
+            return new(rebasedDirectly, []);
         }
 
-        var rebased = humanSource.Remove(index, previousChanged.Length).Insert(index, nextChanged);
+        if (!TryLocateWithDeterministicContext(
+                previousDeterministicSource,
+                humanSource,
+                prefixLength,
+                previousChanged.Length,
+                out var contextualIndex))
+        {
+            return new(null, [CreateConflictDiagnostic(
+                "REB002",
+                "The VSIR-generated region is ambiguous in the human projection and cannot be rebased deterministically.",
+                $"Previous deterministic region:{Environment.NewLine}{DisplayFull(previousChanged)}{Environment.NewLine}{Environment.NewLine}" +
+                $"Next deterministic region:{Environment.NewLine}{DisplayFull(nextChanged)}",
+                BuildTrace(
+                    previousDeterministicSource,
+                    humanSource,
+                    nextDeterministicSource,
+                    prefixLength,
+                    suffixLength,
+                    previousChanged,
+                    nextChanged),
+                $"  Previous deterministic region: {DisplaySnippet(previousChanged)}" + Environment.NewLine +
+                $"  Next deterministic region: {DisplaySnippet(nextChanged)}")]);
+        }
+
+        var rebased = humanSource
+            .Remove(contextualIndex, previousChanged.Length)
+            .Insert(contextualIndex, nextChanged);
         return new(rebased, []);
     }
+
+    private static VsirDiagnostic CreateConflictDiagnostic(
+        string code,
+        string message,
+        string details,
+        string trace,
+        string compactDetails) =>
+        new(code, message + Environment.NewLine + compactDetails, details, trace);
+
+    private static string BuildTrace(
+        string previousDeterministicSource,
+        string humanSource,
+        string nextDeterministicSource,
+        int prefixLength,
+        int suffixLength,
+        string previousChanged,
+        string nextChanged,
+        int? humanInsertionStart = null,
+        int? humanInsertionLength = null)
+    {
+        var insertion = humanInsertionStart is null
+            ? string.Empty
+            : Environment.NewLine +
+              $"Human insertion start: {humanInsertionStart}{Environment.NewLine}" +
+              $"Human insertion length: {humanInsertionLength}";
+
+        return
+            $"Common prefix length: {prefixLength}{Environment.NewLine}" +
+            $"Common suffix length: {suffixLength}{Environment.NewLine}" +
+            $"Previous changed length: {previousChanged.Length}{Environment.NewLine}" +
+            $"Next changed length: {nextChanged.Length}" + insertion + Environment.NewLine + Environment.NewLine +
+            $"Previous deterministic source:{Environment.NewLine}{DisplayFull(previousDeterministicSource)}{Environment.NewLine}{Environment.NewLine}" +
+            $"Human source:{Environment.NewLine}{DisplayFull(humanSource)}{Environment.NewLine}{Environment.NewLine}" +
+            $"Next deterministic source:{Environment.NewLine}{DisplayFull(nextDeterministicSource)}";
+    }
+
+    private static bool TryLocateInsertionSlot(
+        string previousDeterministicSource,
+        string humanSource,
+        int insertionIndex,
+        out int humanInsertionStart,
+        out int humanInsertionLength)
+    {
+        humanInsertionStart = -1;
+        humanInsertionLength = 0;
+
+        var leftAvailable = insertionIndex;
+        var rightAvailable = previousDeterministicSource.Length - insertionIndex;
+        var maxContext = Math.Max(leftAvailable, rightAvailable);
+
+        for (var context = 1; context <= maxContext; context++)
+        {
+            var leftLength = Math.Min(context, leftAvailable);
+            var rightLength = Math.Min(context, rightAvailable);
+
+            var leftAnchor = leftLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(insertionIndex - leftLength, leftLength);
+            var rightAnchor = rightLength == 0
+                ? string.Empty
+                : previousDeterministicSource.Substring(insertionIndex, rightLength);
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    leftAnchor,
+                    insertionIndex - leftLength,
+                    out var humanLeftStart))
+            {
+                continue;
+            }
+
+            if (!TryLocateExpectedUniqueAnchor(
+                    previousDeterministicSource,
+                    humanSource,
+                    rightAnchor,
+                    insertionIndex,
+                    out var humanRightStart))
+            {
+                continue;
+            }
+
+            var leftEnd = leftAnchor.Length == 0
+                ? 0
+                : humanLeftStart + leftAnchor.Length;
+            var rightStart = rightAnchor.Length == 0
+                ? humanSource.Length
+                : humanRightStart;
+
+            if (rightStart < leftEnd)
+                continue;
+
+            humanInsertionStart = leftEnd;
+            humanInsertionLength = rightStart - leftEnd;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateReplacementSlot(
+        string previousDeterministicSource,
+        string humanSource,
+        string nextDeterministicSource,
+        int changedStart,
+        int changedLength,
+        out int humanChangedStart,
+        out int humanChangedLength,
+        out string deterministicReplacement)
+    {
+        humanChangedStart = -1;
+        humanChangedLength = 0;
+        deterministicReplacement = string.Empty;
+
+        var changedEnd = changedStart + changedLength;
+
+        if (!TryLocateNearestLeftAnchor(
+                previousDeterministicSource,
+                humanSource,
+                changedStart,
+                out var previousLeftEnd,
+                out var humanLeftEnd))
+        {
+            return false;
+        }
+
+        if (!TryLocateNearestRightAnchor(
+                previousDeterministicSource,
+                humanSource,
+                changedEnd,
+                out var previousRightStart,
+                out var humanRightStart))
+        {
+            return false;
+        }
+
+        if (humanRightStart < humanLeftEnd)
+            return false;
+
+        var suffixLengthFromRightAnchor = previousDeterministicSource.Length - previousRightStart;
+        var nextRightStart = nextDeterministicSource.Length - suffixLengthFromRightAnchor;
+
+        if (nextRightStart < previousLeftEnd || nextRightStart > nextDeterministicSource.Length)
+            return false;
+
+        humanChangedStart = humanLeftEnd;
+        humanChangedLength = humanRightStart - humanLeftEnd;
+        deterministicReplacement = nextDeterministicSource.Substring(
+            previousLeftEnd,
+            nextRightStart - previousLeftEnd);
+        return true;
+    }
+
+    private static bool TryLocateNearestLeftAnchor(
+        string deterministicSource,
+        string humanSource,
+        int boundary,
+        out int deterministicAnchorEnd,
+        out int humanAnchorEnd)
+    {
+        deterministicAnchorEnd = -1;
+        humanAnchorEnd = -1;
+
+        if (boundary == 0)
+        {
+            deterministicAnchorEnd = 0;
+            humanAnchorEnd = 0;
+            return true;
+        }
+
+        const int maximumAnchorLength = 96;
+        for (var end = boundary; end > 0; end--)
+        {
+            var maximum = Math.Min(maximumAnchorLength, end);
+            for (var length = maximum; length >= 1; length--)
+            {
+                var start = end - length;
+                var anchor = deterministicSource.Substring(start, length);
+                if (!TryLocateExpectedUniqueAnchor(
+                        deterministicSource,
+                        humanSource,
+                        anchor,
+                        start,
+                        out var humanStart))
+                {
+                    continue;
+                }
+
+                deterministicAnchorEnd = end;
+                humanAnchorEnd = humanStart + length;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateNearestRightAnchor(
+        string deterministicSource,
+        string humanSource,
+        int boundary,
+        out int deterministicAnchorStart,
+        out int humanAnchorStart)
+    {
+        deterministicAnchorStart = -1;
+        humanAnchorStart = -1;
+
+        if (boundary == deterministicSource.Length)
+        {
+            deterministicAnchorStart = deterministicSource.Length;
+            humanAnchorStart = humanSource.Length;
+            return true;
+        }
+
+        const int maximumAnchorLength = 96;
+        for (var start = boundary; start < deterministicSource.Length; start++)
+        {
+            var maximum = Math.Min(maximumAnchorLength, deterministicSource.Length - start);
+            for (var length = maximum; length >= 1; length--)
+            {
+                var anchor = deterministicSource.Substring(start, length);
+                if (!TryLocateExpectedUniqueAnchor(
+                        deterministicSource,
+                        humanSource,
+                        anchor,
+                        start,
+                        out var humanStart))
+                {
+                    continue;
+                }
+
+                deterministicAnchorStart = start;
+                humanAnchorStart = humanStart;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryLocateExpectedUniqueAnchor(
+        string deterministicSource,
+        string humanSource,
+        string anchor,
+        int expectedDeterministicIndex,
+        out int humanIndex)
+    {
+        humanIndex = -1;
+        if (anchor.Length == 0)
+            return true;
+
+        if (!HasSingleOccurrence(deterministicSource, anchor, out var deterministicIndex) ||
+            deterministicIndex != expectedDeterministicIndex)
+        {
+            return false;
+        }
+
+        return HasSingleOccurrence(humanSource, anchor, out humanIndex);
+    }
+
+    private static bool TryLocateWithDeterministicContext(
+        string previousDeterministicSource,
+        string humanSource,
+        int changedStart,
+        int changedLength,
+        out int humanChangedStart)
+    {
+        humanChangedStart = -1;
+
+        var changedEnd = changedStart + changedLength;
+        var maxContext = Math.Max(changedStart, previousDeterministicSource.Length - changedEnd);
+
+        for (var context = 1; context <= maxContext; context = NextContextSize(context, maxContext))
+        {
+            var windowStart = Math.Max(0, changedStart - context);
+            var windowEnd = Math.Min(previousDeterministicSource.Length, changedEnd + context);
+            var window = previousDeterministicSource[windowStart..windowEnd];
+
+            if (!HasSingleOccurrence(previousDeterministicSource, window, out var deterministicIndex) ||
+                deterministicIndex != windowStart)
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            if (!HasSingleOccurrence(humanSource, window, out var humanWindowStart))
+            {
+                if (context == maxContext)
+                    break;
+                continue;
+            }
+
+            humanChangedStart = humanWindowStart + (changedStart - windowStart);
+            return true;
+        }
+
+        return false;
+    }
+
+    private static int NextContextSize(int current, int max) =>
+        current >= max
+            ? max + 1
+            : Math.Min(max, current < 16 ? current + 1 : current * 2);
+
+    private static bool HasSingleOccurrence(string source, string value, out int index)
+    {
+        index = source.IndexOf(value, StringComparison.Ordinal);
+        if (index < 0)
+            return false;
+
+        return source.IndexOf(value, index + 1, StringComparison.Ordinal) < 0;
+    }
+
+    private static string DisplaySnippet(string value)
+    {
+        if (value.Length == 0)
+            return "<empty>";
+
+        var escaped = value
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
+        const int maximum = 160;
+        if (escaped.Length > maximum)
+            escaped = escaped[..maximum] + "...";
+
+        return $"'{escaped}'";
+    }
+
+    private static string DisplayFull(string value) =>
+        value.Length == 0 ? "<empty>" : value;
 
     private static int CommonPrefixLength(string left, string right)
     {

@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +26,74 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - run: dotnet build tooling.slnx --configuration Release
-      - run: dotnet test tooling.slnx --configuration Release --no-build
+      - name: Build
+        run: dotnet build tooling.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test tooling.slnx --configuration Release --no-build
+
+      - name: Smoke test Roslyn semantic namespace blast radius
+        shell: bash
+        run: |
+          mkdir -p semantic-refactor-context/Demo
+          cat > semantic-refactor-context/Demo/Demo.csproj <<'EOF'
+          <Project Sdk="Microsoft.NET.Sdk">
+            <PropertyGroup>
+              <TargetFramework>net10.0</TargetFramework>
+            </PropertyGroup>
+          </Project>
+          EOF
+          cat > semantic-refactor-context/Demo/TicketCode.cs <<'EOF'
+          namespace Demo.Domain;
+
+          public sealed class TicketCode
+          {
+              public sealed class Input;
+          }
+          EOF
+          cat > semantic-refactor-context/Demo/Consumer.cs <<'EOF'
+          using static Demo.Domain.TicketCode;
+
+          namespace Demo.Consumer;
+
+          public sealed class Consumer
+          {
+              private readonly Demo.Domain.TicketCode _code = new();
+              private readonly Input _input = new();
+          }
+          EOF
+          cat > semantic-refactor-context/TicketCode.candidate.cs <<'EOF'
+          namespace Demo.Domain.Aggregates;
+
+          public sealed class TicketCode
+          {
+              public sealed class Input;
+          }
+          EOF
+          dotnet new sln --format slnx -n SemanticRefactor -o semantic-refactor-context
+          dotnet sln semantic-refactor-context/SemanticRefactor.slnx add semantic-refactor-context/Demo/Demo.csproj
+          dotnet build semantic-refactor-context/SemanticRefactor.slnx --configuration Release
+
+          BEFORE_TICKET="$(sha256sum semantic-refactor-context/Demo/TicketCode.cs | awk '{print $1}')"
+          BEFORE_CONSUMER="$(sha256sum semantic-refactor-context/Demo/Consumer.cs | awk '{print $1}')"
+          mkdir -p semantic-refactor-context/staged
+          dotnet src/VSlices.Targets.DotNet.Refactor/bin/Release/net10.0/VSlices.Targets.DotNet.Refactor.dll \
+            --project semantic-refactor-context/Demo/Demo.csproj \
+            --document semantic-refactor-context/Demo/TicketCode.cs \
+            --candidate semantic-refactor-context/TicketCode.candidate.cs \
+            --symbol TicketCode \
+            --staging semantic-refactor-context/staged \
+            --manifest semantic-refactor-context/manifest.json
+
+          jq -e '.Success == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.NamespaceChanged == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.RequiresAuthorization == true' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.ReferenceCount >= 2' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.PreviousSymbol == "Demo.Domain.TicketCode"' semantic-refactor-context/manifest.json >/dev/null
+          jq -e '.NextSymbol == "Demo.Domain.Aggregates.TicketCode"' semantic-refactor-context/manifest.json >/dev/null
+          grep -R -q 'global::Demo.Domain.Aggregates.TicketCode' semantic-refactor-context/staged
+          test "$BEFORE_TICKET" = "$(sha256sum semantic-refactor-context/Demo/TicketCode.cs | awk '{print $1}')"
+          test "$BEFORE_CONSUMER" = "$(sha256sum semantic-refactor-context/Demo/Consumer.cs | awk '{print $1}')"
 
       - name: Validate Windows bootstrap script syntax
         shell: pwsh
@@ -69,6 +135,37 @@ jobs:
             --namespace Identities.Domain.ValueObjects
           grep -q "human detail" rebase-context/StreetName.vsir.cs
 
+      - name: Smoke test ruleset update validates before swap
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p ruleset-update-context
+          cd ruleset-update-context
+          $VSLICES init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/ruleset/csharp/intrinsics.yaml
+          rm .vslices/ruleset/csharp/intrinsics.yaml
+          $VSLICES update ruleset
+          test -f .vslices/ruleset/csharp/intrinsics.yaml
+          test -z "$(find .vslices -maxdepth 1 \( -name '.ruleset-update-*' -o -name '.ruleset-backup-*' \) -print -quit)"
+
+      - name: Smoke test lineage bootstrap and subsequent automatic rebase
+        run: |
+          VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
+          mkdir -p lineage-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir lineage-context/StreetName.vsir
+          cd lineage-context
+          $VSLICES init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          $VSLICES transpile StreetName.vsir --namespace Identities.Domain.ValueObjects
+          printf '\n// human detail\n' >> StreetName.vsir.cs
+          BEFORE="$(sha256sum StreetName.vsir.cs | awk '{print $1}')"
+          $VSLICES lower StreetName.vsir --namespace Identities.Domain.ValueObjects
+          AFTER="$(sha256sum StreetName.vsir.cs | awk '{print $1}')"
+          test "$BEFORE" = "$AFTER"
+          test -f .vslices/lineage/csharp/StreetName.vsir.cs.baseline
+          sed -i 's/max: 30/max: 31/' StreetName.vsir
+          $VSLICES lower StreetName.vsir --namespace Identities.Domain.ValueObjects
+          grep -q '<= 31' StreetName.vsir.cs
+          grep -q 'human detail' StreetName.vsir.cs
+
       - name: Smoke test artifact discovery ignores
         run: |
           VSLICES="dotnet run --project $GITHUB_WORKSPACE/src/VSlices.Tooling --configuration Release --no-build --"
@@ -86,7 +183,7 @@ jobs:
           test -f many/folders/StreetName.vsir.cs
           grep -q "sealed class StreetName" many/folders/StreetName.vsir.cs
 
-      - name: Smoke test .NET target context delegation
+      - name: Smoke test .NET target context derivation
         run: |
           mkdir -p target-context/ValueObjects
           cat > target-context/Demo.Identity.csproj <<'EOF'
@@ -103,10 +200,20 @@ jobs:
             transpile target-context/ValueObjects/StreetName.vsir \
             --stdout \
             > delegated.cs
-          grep -q "namespace Demo.Identity" delegated.cs
-          test -z "$(find target-context -name '__VSlicesNamespaceProbe_*.cs' -print -quit)"
+          grep -q "namespace Demo.Identity.ValueObjects" delegated.cs
 
-      - name: Publish Native AOT CLI
+  linux-native-aot:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish linux-x64 Native AOT CLI
         shell: bash
         run: |
           VERSION_ARGS=()
@@ -118,10 +225,13 @@ jobs:
             --runtime linux-x64 \
             "${VERSION_ARGS[@]}"
 
-      - name: Smoke test Native AOT executable, version, init, and config
+      - name: Smoke test linux-x64 executable, version, init, config, and companion helper
         shell: bash
         run: |
-          VSLICES="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices"
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish"
+          VSLICES="$PUBLISH/vslices"
+          test -x "$VSLICES"
+          test -f "$PUBLISH/refactor/VSlices.Targets.DotNet.Refactor.dll"
           "$VSLICES" --help | grep -q "init"
           "$VSLICES" --help | grep -q "lower"
           "$VSLICES" --help | grep -q "transpile"
@@ -160,7 +270,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p pr-build/linux-x64
-          zip -j pr-build/linux-x64/vslices-linux-x64.zip src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish/vslices
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/linux-x64/publish"
+          (
+            cd "$PUBLISH"
+            zip -r "$GITHUB_WORKSPACE/pr-build/linux-x64/vslices-linux-x64.zip" vslices refactor
+          )
           sha256sum pr-build/linux-x64/vslices-linux-x64.zip | awk '{print $1}' > pr-build/linux-x64/vslices-linux-x64.zip.sha256
 
       - name: Upload linux-x64 PR build
@@ -172,7 +286,9 @@ jobs:
           if-no-files-found: error
 
   windows-native-aot:
+    needs: validate
     strategy:
+      fail-fast: false
       matrix:
         rid: [win-x64, win-arm64]
     runs-on: windows-latest
@@ -183,6 +299,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
       - name: Publish ${{ matrix.rid }} Native AOT CLI
         shell: pwsh
         run: |
@@ -195,6 +312,20 @@ jobs:
             --runtime ${{ matrix.rid }} `
             @versionArgs
 
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/${{ matrix.rid }}/publish"
+          if (-not (Test-Path "$publish/refactor/VSlices.Targets.DotNet.Refactor.dll")) {
+            throw 'Roslyn semantic-refactoring companion helper was not published.'
+          }
+
+      - name: Smoke test win-x64 executable
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/win-x64/publish"
+          $vslices = "$publish/vslices.exe"
+          & $vslices --version
+          if ($LASTEXITCODE -ne 0) { throw 'win-x64 executable smoke test failed.' }
+
       - name: Package ${{ matrix.rid }} PR build
         if: github.event_name == 'pull_request'
         shell: pwsh
@@ -203,8 +334,9 @@ jobs:
           $directory = "pr-build/$rid"
           New-Item -ItemType Directory -Force $directory | Out-Null
           $archive = "$directory/vslices-$rid.zip"
+          $publish = "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish"
           Compress-Archive `
-            -Path "src/VSlices.Tooling/bin/Release/net10.0/$rid/publish/vslices.exe" `
+            -Path "$publish/vslices.exe", "$publish/refactor" `
             -DestinationPath $archive
           (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() |
             Set-Content -NoNewline "$archive.sha256"
@@ -217,9 +349,97 @@ jobs:
           path: pr-build/${{ matrix.rid }}/*
           if-no-files-found: error
 
+  macos-native-aot:
+    needs: validate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Verify Apple Silicon runner
+        shell: bash
+        run: test "$(uname -m)" = "arm64"
+
+      - name: Publish osx-arm64 Native AOT CLI
+        shell: bash
+        run: |
+          VERSION_ARGS=()
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            VERSION_ARGS=(-p:Version="0.0.0-build.${{ github.event.pull_request.number }}.${{ github.run_number }}")
+          fi
+          dotnet publish src/VSlices.Tooling \
+            --configuration Release \
+            --runtime osx-arm64 \
+            "${VERSION_ARGS[@]}"
+
+      - name: Smoke test osx-arm64 executable and companion helper
+        shell: bash
+        run: |
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/osx-arm64/publish"
+          VSLICES="$PUBLISH/vslices"
+          test -x "$VSLICES"
+          test -f "$PUBLISH/refactor/VSlices.Targets.DotNet.Refactor.dll"
+          "$VSLICES" --help | grep -q "init"
+          "$VSLICES" --help | grep -q "lower"
+          "$VSLICES" --help | grep -q "transpile"
+          "$VSLICES" --help | grep -q "rebase"
+          "$VSLICES" --help | grep -q "update"
+
+          LONG_VERSION="$("$VSLICES" --version)"
+          SHORT_VERSION="$("$VSLICES" -v)"
+          test -n "$LONG_VERSION"
+          test "$LONG_VERSION" = "$SHORT_VERSION"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            test "$LONG_VERSION" = "build${{ github.event.pull_request.number }}.${{ github.run_number }}"
+          fi
+
+          mkdir -p native-aot-context
+          cp tests/VSlices.Vsir.CSharp.Tests/Fixtures/StreetName.vsir native-aot-context/StreetName.vsir
+          cd native-aot-context
+
+          "$VSLICES" init --from "$GITHUB_WORKSPACE/.vslices/ruleset" --target C#
+          test -f .vslices/config.yaml
+          test -f .vslices/.ignore
+          test -f .vslices/ruleset/manifest.yaml
+          test -d .vslices/ruleset/csharp
+
+          "$VSLICES" transpile StreetName.vsir \
+            --namespace Identities.Domain.ValueObjects \
+            --stdout \
+            > native-transpiled.cs
+          grep -q "sealed class StreetName" native-transpiled.cs
+          grep -q "namespace Identities.Domain.ValueObjects" native-transpiled.cs
+
+      - name: Package osx-arm64 PR build
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          mkdir -p pr-build/osx-arm64
+          PUBLISH="$GITHUB_WORKSPACE/src/VSlices.Tooling/bin/Release/net10.0/osx-arm64/publish"
+          (
+            cd "$PUBLISH"
+            zip -r "$GITHUB_WORKSPACE/pr-build/osx-arm64/vslices-osx-arm64.zip" vslices refactor
+          )
+          shasum -a 256 pr-build/osx-arm64/vslices-osx-arm64.zip | awk '{print $1}' > pr-build/osx-arm64/vslices-osx-arm64.zip.sha256
+
+      - name: Upload osx-arm64 PR build
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build${{ github.event.pull_request.number }}.${{ github.run_number }}-osx-arm64
+          path: pr-build/osx-arm64/*
+          if-no-files-found: error
+
   pr-build-summary:
     if: github.event_name == 'pull_request'
-    needs: [test, windows-native-aot]
+    needs:
+      - linux-native-aot
+      - windows-native-aot
+      - macos-native-aot
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -248,5 +468,6 @@ jobs:
             done <<< "$ARTIFACTS"
 
             echo
-            echo "After bootstrapping one PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update --self\` can follow later successful builds automatically."
+            echo "Artifacts now contain the Native AOT CLI plus its managed Roslyn refactoring companion under \`refactor/\`."
+            echo "After bootstrapping one helper-aware PR build, configure \`updates.channel: build\` and \`updates.pull-request: ${{ github.event.pull_request.number }}\` so \`vslices update self\` can follow later successful builds automatically."
           } >> "$GITHUB_STEP_SUMMARY"

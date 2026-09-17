@@ -2,6 +2,13 @@ using VSlices.Vsir;
 
 namespace VSlices.Tooling;
 
+internal enum DiagnosticVerbosity
+{
+    Normal,
+    Verbose,
+    Trace
+}
+
 internal static class CommandInfrastructure
 {
     public static (string? Path, VsirDiagnostic? Diagnostic) ResolveVsir(string value, string cwd)
@@ -20,14 +27,16 @@ internal static class CommandInfrastructure
         var symbol = Path.GetFileNameWithoutExtension(value);
         var policy = ArtifactDiscoveryPolicy.Load(cwd);
         var matches = EnumerateVsirFiles(cwd, symbol + ".vsir", policy)
-            .Take(3)
+            .OrderBy(path => Path.GetRelativePath(cwd, path), StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
         return matches.Length switch
         {
             1 => (matches[0], null),
             0 => (null, new("CLI001", $"Could not resolve VSIR symbol or path '{value}'.")),
-            _ => (null, new("CLI002", $"VSIR symbol '{symbol}' is ambiguous. Use a path to disambiguate."))
+            _ => (null, new(
+                "CLI002",
+                AmbiguousVsirMessage(symbol, cwd, matches)))
         };
     }
 
@@ -40,26 +49,25 @@ internal static class CommandInfrastructure
 
     public static (string? Target, VsirDiagnostic? Diagnostic) ResolveTarget(
         string? requested,
-        string rulesetRoot)
+        VSlicesProjectContext project)
     {
         if (!string.IsNullOrWhiteSpace(requested))
-            return ValidateTarget(requested, rulesetRoot);
+            return ValidateTarget(requested, project.RulesetRoot);
 
-        var configuration = ProjectConfiguration.LoadFromRulesetRoot(rulesetRoot);
-        if (!string.IsNullOrWhiteSpace(configuration?.DefaultTarget))
+        if (!string.IsNullOrWhiteSpace(project.Configuration.DefaultTarget))
         {
-            var configured = ValidateTarget(configuration.DefaultTarget, rulesetRoot);
+            var configured = ValidateTarget(project.Configuration.DefaultTarget, project.RulesetRoot);
             if (configured.Diagnostic is not null)
             {
                 return (null, new(
                     "CLI023",
-                    $"Configured default target '{configuration.DefaultTarget}' is not available in the project-local ruleset."));
+                    $"Configured default target '{project.Configuration.DefaultTarget}' is not available in the project-local ruleset."));
             }
 
             return configured;
         }
 
-        var installed = InstalledTargets(rulesetRoot);
+        var installed = InstalledTargets(project.RulesetRoot);
         return installed.Count switch
         {
             1 => (installed[0], null),
@@ -77,6 +85,9 @@ internal static class CommandInfrastructure
             ? "csharp"
             : target.Trim().ToLowerInvariant();
 
+    public static bool IsStdoutDestination(string? output, bool stdout) =>
+        stdout || output == "-";
+
     public static async Task<int> WriteResult(
         string content,
         string defaultPath,
@@ -91,7 +102,7 @@ internal static class CommandInfrastructure
             return 2;
         }
 
-        if (stdout || output == "-")
+        if (IsStdoutDestination(output, stdout))
         {
             Console.Write(content);
             return 0;
@@ -113,34 +124,60 @@ internal static class CommandInfrastructure
         return 0;
     }
 
-    public static async Task AtomicWrite(
+    public static Task AtomicWrite(
         string path,
         string content,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        AtomicFile.WriteTextAsync(path, content, cancellationToken);
+
+    public static DiagnosticVerbosity ResolveDiagnosticVerbosity(bool verbose, bool trace) =>
+        trace ? DiagnosticVerbosity.Trace : verbose ? DiagnosticVerbosity.Verbose : DiagnosticVerbosity.Normal;
+
+    public static void WriteDiagnostics(
+        IEnumerable<VsirDiagnostic> diagnostics,
+        DiagnosticVerbosity verbosity = DiagnosticVerbosity.Normal)
     {
-        var directory = Path.GetDirectoryName(path)!;
-        Directory.CreateDirectory(directory);
-
-        var temporary = Path.Combine(
-            directory,
-            $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
-
-        try
+        foreach (var diagnostic in diagnostics)
         {
-            await File.WriteAllTextAsync(temporary, content, cancellationToken);
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-                File.Delete(temporary);
+            TerminalOutput.DiagnosticError(DiagnosticHeader(diagnostic), diagnostic.Message);
+
+            if (verbosity >= DiagnosticVerbosity.Verbose &&
+                !string.IsNullOrWhiteSpace(diagnostic.Details))
+            {
+                TerminalOutput.DiagnosticSection("Details", diagnostic.Details);
+            }
+
+            if (verbosity >= DiagnosticVerbosity.Trace &&
+                !string.IsNullOrWhiteSpace(diagnostic.Trace))
+            {
+                TerminalOutput.DiagnosticSection("Trace", diagnostic.Trace);
+            }
         }
     }
 
-    public static void WriteDiagnostics(IEnumerable<VsirDiagnostic> diagnostics)
+    internal static string DiagnosticHeader(VsirDiagnostic diagnostic)
     {
-        foreach (var diagnostic in diagnostics)
-            Console.Error.WriteLine($"{diagnostic.Code}: {diagnostic.Message}");
+        if (diagnostic.Source is not null && !string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+        {
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath} @ {diagnostic.Source.Line}:{diagnostic.Source.Column}]";
+        }
+
+        if (!string.IsNullOrWhiteSpace(diagnostic.SemanticPath))
+            return $"{diagnostic.Code} [{diagnostic.SemanticPath}]";
+
+        return diagnostic.Code;
+    }
+
+    private static string AmbiguousVsirMessage(
+        string symbol,
+        string cwd,
+        IReadOnlyList<string> matches)
+    {
+        var candidates = string.Join(
+            Environment.NewLine,
+            matches.Select(path => $"  - {Path.GetRelativePath(cwd, path)}"));
+
+        return $"VSIR symbol '{symbol}' is ambiguous. Use one of these paths:{Environment.NewLine}{candidates}";
     }
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(

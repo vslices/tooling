@@ -30,11 +30,12 @@ public sealed class StreetNameLoweringTests
     public async Task StreetName_lowering_is_deterministic()
     {
         var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
         var rules = LoadRules();
         var context = new CSharpLoweringContext("Identities.Domain.ValueObjects", rules);
 
-        var first = CSharpLowerer.Lower(parsed.Document!, context);
-        var second = CSharpLowerer.Lower(parsed.Document!, context);
+        var first = CSharpLanguageLowerer.Lower(parsed.Document!, context);
+        var second = CSharpLanguageLowerer.Lower(parsed.Document!, context);
 
         Assert.True(first.IsSuccess, string.Join(Environment.NewLine, first.Diagnostics));
         Assert.Equal(first.Source, second.Source);
@@ -44,7 +45,8 @@ public sealed class StreetNameLoweringTests
     public async Task StreetName_lowering_preserves_the_current_semantic_contract()
     {
         var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
-        var result = CSharpLowerer.Lower(
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
+        var result = CSharpLanguageLowerer.Lower(
             parsed.Document!,
             new("Identities.Domain.ValueObjects", LoadRules()));
 
@@ -63,6 +65,7 @@ public sealed class StreetNameLoweringTests
     public async Task Missing_lowering_rule_is_rejected_instead_of_guessed()
     {
         var parsed = VsirParser.Parse(await File.ReadAllTextAsync(FixturePath));
+        Assert.True(parsed.IsSuccess, string.Join(Environment.NewLine, parsed.Diagnostics));
         var emptyRulesRoot = Path.Combine(Path.GetTempPath(), "vslices-rules-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(emptyRulesRoot, "csharp"));
 
@@ -78,7 +81,7 @@ public sealed class StreetNameLoweringTests
             var loaded = CSharpLoweringRuleSet.Load(emptyRulesRoot);
             Assert.True(loaded.IsSuccess, string.Join(Environment.NewLine, loaded.Diagnostics));
 
-            var lowered = CSharpLowerer.Lower(
+            var lowered = CSharpLanguageLowerer.Lower(
                 parsed.Document!,
                 new("Identities.Domain.ValueObjects", loaded.RuleSet!));
 
@@ -105,16 +108,16 @@ public sealed class StreetNameLoweringTests
               Value: string
             representation:
               Value: string
+            input:
+              Value: string
             construction:
-              input:
-                Value: string
-              steps:
-                - ensure:
-                    condition:
-                      intrinsic: probably-valid
+              - ensure:
+                  condition:
+                    intrinsic: probably-valid
+                    args:
                       value: input.Value
-                    failure:
-                      message: no
+                  failure:
+                    message: no
             """;
 
         var parsed = VsirParser.Parse(source);
@@ -137,10 +140,9 @@ public sealed class StreetNameLoweringTests
               Name: string
             representation:
               Name: string
-            construction:
-              input:
-                Value: string
-              steps: []
+            input:
+              Value: string
+            construction: []
             """;
 
         var parsed = VsirParser.Parse(source);

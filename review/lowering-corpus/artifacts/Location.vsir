@@ -1,0 +1,74 @@
+vsir: 0.1
+kind: domain-type
+name: Location
+shape: product
+classification: value-object
+traits: [transform]
+
+state:
+  Commune: Commune
+  Street: StreetName
+  Extensions:
+    sequence: StreetExtension
+  Region:
+    type: Region
+    from: state.Commune.InProvince.InRegion
+  Province:
+    type: Province
+    from: state.Commune.InProvince
+
+representation:
+  CommuneId:
+    type: string
+    mapping:
+      select:
+        source: { represent: state.Commune }
+        field: Id
+  Street:
+    type: string
+    mapping:
+      select:
+        source: { represent: state.Street }
+        field: Value
+  Ext:
+    type:
+      sequence: string
+    mapping:
+      map:
+        source: state.Extensions
+        bind: extension
+        value:
+          select:
+            source: { represent: extension }
+            field: Value
+
+input:
+  CommuneId: CommuneId
+  Street: string
+  Ext:
+    sequence: string
+
+construction:
+  - resolve:
+      source: Commune
+      id: input.CommuneId
+      as: commune
+      failure:
+        message: Debes especificar una comuna existente
+  - apply:
+      over: StreetName
+      input:
+        Value: input.Street
+      as: street
+  - apply:
+      over: StreetExtension
+      input:
+        source: input.Ext
+        map:
+          Value: item
+      as: extensions
+  - refine:
+      state:
+        Commune: commune
+        Street: street
+        Extensions: extensions

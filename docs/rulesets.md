@@ -1,126 +1,232 @@
-# External lowering rulesets
+# Rulesets and project semantic extensions
 
-VSlices Tooling keeps lowering knowledge outside the executable so target mappings can evolve without republishing the CLI.
-
-The official ruleset repository is `vslices/ruleset`.
-
-A project consumes a local snapshot under:
-
-```text
-.vslices/
-  ruleset/
-    manifest.yaml
-    manifest.schema.json
-    csharp/
-      intrinsics.yaml
-```
-
-The project-local ruleset is editable and intended to be version-controlled. Its manifest schema is also external; the executable does not embed the concrete manifest schema or concrete lowering rules.
-
-## Architectural boundary
-
-The intended separation is:
+VSlices separates revisable upstream target knowledge from project-owned semantic extensions.
 
 ```text
 VSIR
-  = semantic source
+  = semantic document
 
 vslices/ruleset
-  = official, revisable lowering knowledge
+  = official revisable lowering knowledge
 
 project/.vslices/ruleset
-  = local ruleset snapshot
+  = installed source-owned snapshot
 
-vslices executable
-  = discovery, execution and orchestration mechanisms
+project/.vslices/extensions
+  = project-owned semantic extension overlay
+
+vslices/tooling
+  = source acquisition, validation, execution mechanisms, coordination and safety
 ```
 
-A useful working rule is:
+A missing rule means unsupported/unresolved lowering. It never authorizes an embedded fallback or semantic invention.
 
-- when a new operational capability is required, `vslices/tooling` may need to change;
-- when new lowering knowledge is discovered for semantic structures the tooling can already execute, `vslices/ruleset` should normally change instead.
+## Ownership and lifecycle
 
-The executable may know how to execute supported classes of rule, but concrete target mappings should remain external whenever possible.
+`.vslices/ruleset` and `.vslices/extensions` intentionally have different lifecycle owners.
 
-No rule means unsupported or unresolved lowering. It does not authorize fallback knowledge embedded in the CLI and it does not authorize an interpreter to invent semantics.
+```text
+.vslices/ruleset
+  source-owned
+  replaceable by init --force / update --ruleset
 
-For cross-repository analysis and the decision procedure used to choose between consumer-project, ruleset, and tooling changes, see [`ai-development-orientation.md`](ai-development-orientation.md).
+.vslices/extensions
+  project-owned
+  preserved by init --force / update --ruleset
+```
 
-## Manifest and discovery
+This prevents a Ruleset refresh from deleting project semantics while keeping installed Ruleset knowledge reproducible from its configured source.
 
-The current bootstrap contract is intentionally small: tooling discovers `.vslices/ruleset/manifest.yaml`, and a target lowerer loads the rule files declared for that target.
-
-The current manifest starts with:
+Project extensions are explicitly referenced from their own manifest:
 
 ```yaml
-$schema: ./manifest.schema.json
-kind: vslices-ruleset
+# .vslices/extensions/manifest.yaml
 version: 0.1
-
-targets:
-  csharp:
-    rules:
-      - csharp/intrinsics.yaml
+catalogs:
+  - ticketing.yaml
 ```
 
-Both `manifest.yaml` and `manifest.schema.json` live outside the executable so their structure can evolve independently while the CLI remains small.
-
-## Initialization
-
-`vslices init` initializes `.vslices/ruleset` from external state.
-
-Plain `vslices init` uses the official `vslices/ruleset` archive as the normal bootstrap source. In an interactive terminal it may prompt for the official or a custom source; redirected/non-interactive initialization defaults to the official source.
-
-The implementation also accepts an explicit local ruleset directory or HTTP(S) ZIP archive:
-
-```text
-vslices init --from ../my-ruleset
-vslices init --from https://example.invalid/vslices-ruleset.zip
-```
-
-The source can additionally be supplied through `VSLICES_RULESET_SOURCE`.
-
-`--force` replaces an existing project-local ruleset while preserving the project's existing update policy, including a configured build channel and pull-request number.
-
-Once initialized, lowering operates from project-local state and does not require network access.
-
-## Current rule execution surface
-
-The first executable rule shape is deliberately narrow:
+A catalog may co-locate semantic admission and target realization:
 
 ```yaml
-rules:
-  - node: intrinsic.non-empty
-    mode: deterministic
-    renderer: expression
-    template: "!string.IsNullOrEmpty({value})"
+# .vslices/extensions/ticketing.yaml
+extensions:
+  - node: intrinsic.normalize-rut
+    semantic:
+      kind: normalize
+    targets:
+      csharp:
+        mode: deterministic
+        renderer: expression
+        bindings: [value]
+        template: "Rut.Normalize({value})"
 ```
 
-The C# lowerer resolves the semantic node and supplies its named bindings. The target expression comes from the local ruleset.
-
-The initial official C# rules were introduced from `StreetName.vsir`; the ruleset is expected to expand only as concrete VSIR examples require additional deterministic lowering knowledge.
-
-If a required deterministic rule is absent, lowering stops with a diagnostic instead of falling back to an embedded implementation.
-
-This is an exploratory boundary, not a commitment that every future lowering decision should be expressible as an expression template. New execution primitives should be added only when concrete VSIR nodes require them.
-
-## Validation properties
-
-Ruleset support should increasingly prove the following properties:
+The two blocks have different authority:
 
 ```text
-same VSIR
-+ same ruleset
-+ same target context
-= deterministic output
+semantic.kind
+  -> admits an operation into the project validation context
+
+targets.csharp
+  -> realizes that already-admitted operation for C#
 ```
 
-It should also demonstrate that:
+A target renderer alone cannot create semantic validity.
 
-- removing a required rule makes lowering explicitly unsupported;
-- changing an external rule can alter target materialization without recompiling the CLI;
-- different authorized rulesets can produce different valid materializations of the same VSIR;
-- initialized projects can lower offline;
-- ruleset changes are visible and reviewable as ordinary version-controlled changes.
+## Renderer binding contracts
 
-These properties are part of the evidence that lowering knowledge is genuinely external rather than merely duplicated outside the executable.
+Each target rule declares the values its renderer expects independently of the concrete template text:
+
+```yaml
+- node: projection.map
+  mode: deterministic
+  renderer: expression
+  bindings: [source, bind, value]
+  template: "{source}.Map({bind} => {value})"
+```
+
+`bindings` is target realization knowledge owned alongside the rule. Tooling does not hardcode a global `node -> bindings` vocabulary.
+
+The current binding-placeholder lexical contract is exact and shared by Tooling and the official Ruleset CI:
+
+```regex
+[A-Za-z][A-Za-z0-9_-]*
+```
+
+Therefore:
+
+```text
+value         valid
+source-value  valid
+source_value  valid
+_value        invalid
+```
+
+The same grammar is used to recognize `{placeholder}` names in templates. This is deliberately one cross-repository contract: a catalog must not pass the Ruleset CI with a placeholder name that Tooling cannot recognize, or vice versa.
+
+The loader validates the contract before a Ruleset becomes active:
+
+```text
+bindings must be scalar, non-empty and unique
+all template placeholders must be declared bindings
+all declared bindings must be used by the template
+render calls must supply exactly the declared binding set
+```
+
+Consequently a typo such as `{banana}` is an invalid Ruleset at load/update time rather than a malformed expression discovered later during materialization or compilation. Names outside the placeholder grammar similarly cannot form a valid used binding.
+
+A constant renderer can explicitly declare `bindings: []`.
+
+## Shared Ruleset acquisition pipeline
+
+`vslices init` and `vslices update --ruleset` share the same lower-level Ruleset mechanisms:
+
+```text
+RulesetSourceMaterializer
+  -> materialize source
+
+RulesetSnapshotInstaller.Prepare
+  -> copy root files + selected target
+  -> validate prepared snapshot
+
+RulesetSnapshotInstaller.Replace
+  -> atomic move of .vslices/ruleset
+  -> backup / rollback on failure
+```
+
+The project extension overlay does not participate in this replacement.
+
+`init` owns initialization policy. `update --ruleset` owns update policy. Source materialization and snapshot installation are shared mechanism rather than duplicated command behavior.
+
+## Source and ref semantics
+
+Current Ruleset source forms:
+
+- existing local directory;
+- direct HTTP(S) ZIP archive;
+- supported GitHub repository URL.
+
+For GitHub repository sources, `ruleset.ref` is resolved as a Git reference candidate by trying:
+
+```text
+branch
+-> tag
+-> direct archive/commit reference
+```
+
+Branch-first resolution preserves the normal experiment workflow. If a branch and tag have the same name, the branch currently wins; this ordering is explicit rather than accidental.
+
+A local directory with `ref` is rejected. A generic direct ZIP with `ref` is also rejected. Tooling does not call a property `ref` while secretly assuming every value means `refs/heads/...`.
+
+## Validate before swap
+
+A candidate Ruleset must be consumable by the target loader **before** replacing the active snapshot.
+
+For C# this means running the real equivalent of:
+
+```text
+CSharpLoweringRuleSet.Load(preparedSnapshot)
+```
+
+Validation rejects, among other current cases:
+
+- missing manifest;
+- missing selected target;
+- declared rule file missing;
+- path escaping the Ruleset root;
+- non-scalar rule-file references;
+- non-mapping rule entries;
+- rule without node;
+- duplicate rule node;
+- unsupported mode;
+- unsupported renderer;
+- empty template;
+- malformed or duplicate binding declarations;
+- undeclared template placeholders;
+- declared bindings unused by their template;
+- Ruleset manifests attempting to own project `extensions`.
+
+Only a fully validated prepared snapshot reaches replacement. Failure preserves the previous `.vslices/ruleset` and never mutates `.vslices/extensions`.
+
+## Project extension loading
+
+Project extension catalogs are loaded once from `.vslices/extensions` as one project-owned model. That loader is responsible for:
+
+```text
+extension manifest
+referenced catalog graph
+path containment
+semantic declarations
+target realizations
+renderer binding contracts
+structural validation
+collision input
+```
+
+Malformed YAML is fail-closed. A non-scalar catalog reference, non-mapping extension entry, missing catalog, unsupported semantic kind or structurally invalid target realization is a diagnostic rather than silently disappearing from the model.
+
+The loaded model then provides two views of the same declaration:
+
+```text
+VsirValidationContext
+  <- semantic admission
+
+CSharpLoweringRuleSet additional rules
+  <- C# realization
+```
+
+This keeps physical co-location convenient without making the renderer semantic authority.
+
+## Rule execution boundary
+
+The first executable rule class remains deterministic expression rendering. For example, ordinal equality target expressions live in Ruleset nodes such as:
+
+```text
+equality.ordinal-equals.equals
+equality.ordinal-equals.hash
+```
+
+Tooling owns the structural obligation to emit equality members when VSIR requires them; the concrete C# comparison/hash expressions remain external Ruleset knowledge.
+
+The current extension experiment only admits project-owned `normalize` semantics. Do not infer a universal plugin framework from this surface.

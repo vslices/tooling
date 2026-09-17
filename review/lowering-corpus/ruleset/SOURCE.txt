@@ -1,0 +1,9 @@
+Repository: https://github.com/vslices/ruleset
+Commit: e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
+Meaning: merge commit of vslices/ruleset#4 used as the production Ruleset review cut for Tooling 0.2.0.
+
+Copied files:
+- manifest.yaml (Git blob 546a2b63de0bd0c2a533d276f54c30fb9ebb6ac3)
+- manifest.schema.json (Git blob e9bde117d82873e1a9ffeabfb840acc01b065544)
+- csharp/intrinsics.yaml (Git blob ab44f78b7b03da9cbc8c32e537a41b93eec4924a)
+- csharp/types.yaml (Git blob 5d16f3d54c7821e77d8ef6b4df1caf68a1140e06)

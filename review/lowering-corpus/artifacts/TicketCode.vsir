@@ -1,0 +1,31 @@
+vsir: 0.1
+kind: domain-type
+name: TicketCode
+classification: value-object
+shape: product
+traits: [transform, identifier]
+
+state:
+  Value: string
+
+representation:
+  Value: string
+
+input:
+  Value: string
+
+construction:
+  - normalize:
+      target: input.Value
+      intrinsic: trim
+  - ensure:
+      condition:
+        intrinsic: non-empty
+        args:
+          value: input.Value
+      failure:
+        message: Debes especificar el correlativo de la solicitud
+
+equality:
+  intrinsic: ordinal-equals
+  by: state.Value

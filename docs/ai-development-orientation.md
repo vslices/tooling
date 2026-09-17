@@ -1,198 +1,190 @@
 # AI development orientation
 
-This document is the shortest reconstructible path for an AI-assisted development session that needs to analyze a VSlices-enabled project and decide whether a discovered need belongs in the consumer project, `vslices/tooling`, or `vslices/ruleset`.
+This is the shortest reconstructible path for an AI-assisted session working on VSlices Tooling.
 
-It is not a substitute for repository evidence. It is a reading order and authority map intended to prevent a future session from rebuilding the current model from conversation history.
+Read current repository evidence before relying on chat history. Suggested order:
 
-## Start here
+1. `README.md`
+2. `AGENTS.md`
+3. `docs/releases/v0.2.0-preview.md`
+4. `docs/context.vslices-tooling.md`
+5. `docs/rulesets.md`
+6. `docs/configuration.md`
+7. `src/VSlices.Vsir/README.md` when work touches VSIR semantics, parsing or validation.
+8. the current VSIR language specification in `vslices/intermediate-representation/SPECIFICATION.md` when language semantics are involved.
+9. implementation/tests for the concrete case.
 
-Before changing VSlices behavior, inspect current repository state rather than relying on remembered conclusions.
-
-For `vslices/tooling`, read in this order:
-
-1. `README.md` — current product surface and authority boundaries.
-2. `AGENTS.md` — repository-local editing constraints and project ownership.
-3. `docs/releases/v0.2.0-preview.md` — current evolutionary direction.
-4. `docs/context.vslices-tooling.md` — architectural context and long-lived responsibilities.
-5. `docs/rulesets.md` — executable/ruleset boundary.
-6. `docs/configuration.md` — project operating policy.
-7. relevant implementation and tests for the concrete command or semantic structure being changed.
-
-When the work originates in a consumer repository, inspect its `.vsir`, `.vsir.cs`, `.vslices/config.yaml`, and `.vslices/ruleset` before modifying Tooling.
+For VSIR language semantics, `vslices/intermediate-representation` is the authority. `src/VSlices.Vsir/README.md` explains how Tooling relates to that authority and where executable support lives. Consumer-project documents are evidence about real cases, not schema authority merely because they were written first.
 
 ## Cross-repository authority map
 
-The current separation is:
-
 ```text
 consumer project
-  = domain/software evidence and concrete VSIR examples
+  = concrete evidence
 
 .vsir
-  = semantic source
+  = semantics
 
 .vsir.cs
-  = human-editable materialization constrained by VSIR
+  = editable human witness
+
+config.yaml
+  = project operating policy
+
+lineage
+  = deterministic ancestry evidence
+
+vslices/intermediate-representation
+  = VSIR language semantics and reconstructible file contract
 
 vslices/ruleset
-  = official revisable target lowering knowledge
-
-consumer/.vslices/ruleset
-  = local ruleset snapshot actually used by lowering
+  = revisable target-lowering knowledge
 
 vslices/tooling
-  = parsing, validation, lowering mechanisms, orchestration,
-    target adapters, CLI behavior and operational guarantees
+  = mechanisms, coordination, guarantees, CLI, VSIR executable support and target adapters
 
 target-native tooling
-  = authoritative target facts where available
-    (for .NET: dotnet/MSBuild/Roslyn/etc.)
+  = target-owned facts
 ```
 
-Do not move knowledge across these boundaries merely because one repository is easier to edit.
-
-## Decision procedure for a new VSIR case
-
-When a concrete project exposes a new concept or lowering problem, proceed in this order:
-
-```text
-1. establish the source behavior and semantics from project evidence
-2. determine whether the existing VSIR can represent them faithfully
-3. if representation is insufficient, extend VSIR/tooling semantics from the concrete case
-4. if representation is sufficient, test whether the local ruleset can lower it
-5. if only target mapping knowledge is missing, change vslices/ruleset
-6. if a new execution mechanism is required to express an authorized rule, change vslices/tooling
-7. delegate target-owned decisions to target tooling before duplicating them
-8. classify any residual freedom
-```
-
-Residual materialization freedom should currently be classified as one of:
-
-```text
-deterministic
-rebase-compatible
-underdetermined but constrained
-unsupported / missing authority
-```
-
-Do not introduce interpretive lowering merely because a deterministic rule has not yet been written.
-
-## Core semantic rules
-
-The current model assumes:
-
-```text
-CSharpImplementation |= VSIR
-```
-
-A transpiled file is one valid witness, not the only valid implementation.
-
-`.vsir.cs` is human-editable source under semantic contract, not disposable generated output.
-
-The main authority rule is:
+The core rule is:
 
 > Lowering may complete implementation detail. Lowering must not complete missing semantics.
 
-For future interpretive work:
+## Internal Tooling flow
 
-> Interpretation may resolve underdetermined materialization. Interpretation must not manufacture missing authority.
-
-Therefore:
+Command handlers are adapters:
 
 ```text
-missing deterministic rule
-  != permission for an AI to guess
-
-missing authority
-  -> stop
+command
+  -> operation / coordinator
+  -> project / ruleset / lineage infrastructure
+  -> VSIR / target mechanism
 ```
 
-## `v0.2.0-preview` working direction
+`TranspilationOperation` is reusable deterministic projection. `RebaseOperation` is reusable deterministic three-way rebase. `LoweringCoordinator` owns the policy choosing between transpile, lineage establishment, rebase and explicit stop.
 
-The current preview line intentionally develops along two tracks:
+Do not make extracted `lower` behavior public merely because it has a class. Do not reuse behavior by calling another command handler.
+
+`VSlicesProjectContext` is the canonical detected project representation. Reuse it instead of deriving project/config/ruleset/lineage roots independently.
+
+## Diagnostic output contract
+
+VSIR-facing commands expose three human diagnostic levels:
 
 ```text
-CLI experience
-  -> identity, presentation, progress and operability
+default
+  -> compact failure and bounded previews
 
-semantic capability
-  -> broader real-world VSIR coverage
-     -> classify new lowering needs
-     -> extend deterministic mechanisms where possible
-     -> discover interpretive need only from concrete evidence
+--verbose
+  -> expanded human-oriented evidence needed to understand the failure
+
+--trace
+  -> complete available decision evidence; implies verbose output
 ```
 
-`vslices interpretate` is a possible future surface, not a feature that must be invented to satisfy the version number.
+`--verbose` and `--trace` affect diagnostic presentation, not semantic or lowering behavior. Diagnostic producers should preserve useful structured detail rather than truncating evidence before it reaches the CLI. `--trace` is an audit trail for the decision path, not a synonym for infrastructure debug logging.
 
-A candidate interpretive case must remain genuinely underdetermined after VSIR semantics, ruleset knowledge, project evidence and target-native authority have all been considered.
+For rebase conflicts, default output keeps bounded region previews, `--verbose` exposes the complete conflicting regions, and `--trace` additionally exposes the complete deterministic/human sources plus the comparison measurements used by the rebaser.
 
-## Consumer-project analysis protocol
+## Semantic conservation
 
-For a repository such as `atom-dev-serviu/account-management-product`, an AI-assisted session should not begin by editing VSlices repositories.
+Known semantic mappings are fail-closed: unknown keys at root, construction, construction step, ensure, condition, failure and equality produce explicit diagnostics. Do not apply fixed-key rejection to variable-key semantic data maps such as `state`, `representation`, and `construction.input`.
 
-First collect concrete examples:
+Traits are unordered capabilities. Duplicates and unknown traits fail explicitly. Current subset requires `transform`; `identifier` separately requires equality.
 
-- current `.vsir` documents;
-- their hand-written or transpiled `.vsir.cs` materializations;
-- surrounding source behavior and tests;
-- the project's `.vslices/config.yaml`;
-- the project's local `.vslices/ruleset`;
-- relevant VSIR documentation in the consumer project;
-- target context such as `.csproj`, namespace/folder conventions, compilation behavior and tests.
+## Ruleset extensibility contract
 
-For each example, record the gap as one of:
+Tooling owns the constrained language in which Rulesets may express semantic knowledge and target realizations. Rulesets own the vocabulary they build with that language.
+
+The intended boundary is:
 
 ```text
-semantic representation gap
-validation/parsing gap
-ruleset knowledge gap
-target-context gap
-lowering mechanism gap
-rebase/provenance gap
-presentation-only gap
+Tooling
+  -> constrains available rule forms, inputs/outputs, bindings, composition,
+     validation, renderers and allowed execution mechanisms
+
+Ruleset
+  -> defines semantic capabilities/relations and target realizations using
+     those constrained mechanisms
+```
+
+Tooling must not treat its built-in vocabulary as the exhaustive universe of valid Ruleset semantics. Built-ins bootstrap the language; they are not a whitelist of what third-party or future Rulesets may define.
+
+Therefore a new Ruleset semantic node must not require a Tooling code change merely because its semantic name is new. If the node can be expressed, validated and executed through already-admitted Tooling mechanisms, Tooling should accept it from the active Ruleset environment.
+
+Conversely, Ruleset extensibility does not grant arbitrary execution. Tooling remains fail-closed when a Ruleset requires a mechanism that the rule language does not expose or when the declared contract is insufficient to validate composition safely. Renderer/template existence alone never grants semantic authority.
+
+When adding new built-in semantics, prefer expressing them as instances of reusable rule-language mechanisms instead of adding another closed `switch`/enum branch. A Tooling code change is justified when the new evidence requires a genuinely new expression/validation/execution mechanism, not merely a new Ruleset vocabulary item.
+
+This extensibility rule applies across the existing semantic surfaces, including intrinsics, projections, construction operations, equality relations, condition operators, traits and type forms. Existing closed implementations may remain as bootstrap machinery while they are progressively generalized, but they must not be treated as architectural limits of what a Ruleset may ultimately express.
+
+## Ruleset update contract
+
+```text
+materialize
+-> prepare selected target
+-> validate through real target loader
+-> atomic swap with rollback
+```
+
+Never replace the current ruleset and discover invalidity afterwards.
+
+For GitHub repository sources, `ruleset.ref` may represent branch, tag or commit/direct archive reference. Non-Git sources do not silently reinterpret it as a branch.
+
+## Lineage contract
+
+Bootstrap is non-destructive:
+
+```text
+existing conventional human witness
++ no lineage
++ bootstrap authority
+-> compute deterministic current projection
+-> store deterministic projection
+-> preserve human bytes
+-> return success
+```
+
+Only a later semantic change performs three-way rebase from stored baseline + human witness + next deterministic projection.
+
+`.vslices/lineage` is intended to be version-controlled so another machine/CI can reconstruct automatic rebase from repository state. It is operational evidence, not semantic authority.
+
+## Consumer-project procedure
+
+For each real `.vsir`:
+
+```text
+1. establish semantics from consumer evidence
+2. ask whether VSIR represents them faithfully
+3. ask whether local ruleset carries required lowering knowledge
+4. ask whether target-native tooling owns remaining target facts
+5. classify any remaining gap
+6. change only the owning repository/layer
+7. validate against the consumer when possible
+```
+
+Gap classes:
+
+```text
+semantic representation
+parsing/validation
+ruleset knowledge
+target context
+lowering mechanism
+rebase/provenance
+presentation
 no gap
 ```
 
-Only then choose the repository to change.
+Do not proceed to a new sample while a previous experimental boundary is still architecturally unstable unless that instability is explicitly accepted.
 
-## How to decide which repository changes
+## Validation expectations
 
-Prefer changing the consumer project when the new information is specific to that project's domain or conventions.
+Prefer evidence at the lowest faithful level and retain real CLI smoke flows for orchestration. Current regression coverage includes project discovery, ruleset update, byte-for-byte non-destructive bootstrap and subsequent automatic rebase.
 
-Prefer changing `vslices/ruleset` when VSIR already carries enough semantics and the missing piece is target lowering knowledge executable by existing mechanisms.
+An in-process Tooling test reference exposed a case-insensitive assembly-name collision (`vslices` executable vs Framework `VSlices`). The dedicated Tooling tests therefore exercise orchestration through the built CLI process instead of introducing a new assembly solely to satisfy tests. Treat the assembly identity as an open architectural finding if Tooling later needs to become a reusable in-process library.
 
-Prefer changing `vslices/tooling` when the parser/model cannot represent the semantic structure, when a new generic execution primitive is required, when orchestration/safety behavior changes, or when target context requires a reusable adapter capability.
+## Continuity
 
-A concrete case may legitimately require coordinated changes in more than one repository. When that happens, keep the causal chain explicit: project evidence -> semantic requirement -> mechanism/rule change -> validation evidence.
-
-## Evidence expectations
-
-Before promoting a new capability, seek evidence that distinguishes semantics from one convenient implementation.
-
-Useful checks include:
-
-- same VSIR + same ruleset + same target context => same deterministic output;
-- removing a required rule stops explicitly;
-- changing an external rule can alter lowering without rebuilding the CLI;
-- human edits compatible with VSIR remain legitimate;
-- target-native tooling is consulted where it owns the fact;
-- redirected CLI output remains machine-safe;
-- Native AOT and command-level smoke tests still pass when CLI behavior changes.
-
-If evidence is incomplete, document the claim as a hypothesis rather than silently treating it as architecture.
-
-## Continuity rule for future chats
-
-A future AI session should be able to reconstruct the working model from repositories alone.
-
-When a material decision changes one of these boundaries, update the closest authoritative document in the same change. Do not depend on a chat transcript to preserve:
-
-- command semantics;
-- version direction;
-- ownership between tooling and ruleset;
-- VSIR conformance assumptions;
-- interpretive authority rules;
-- target-tool delegation rules;
-- validation expectations.
-
-Conversation history may explain why a decision happened, but repository artifacts must remain sufficient to discover what is currently accepted.
+When command semantics, authority, project context, lineage, ruleset behavior or VSIR executable support changes materially, update the closest owning repository document in the same change. VSIR language changes belong in `vslices/intermediate-representation`; Tooling documentation should reference them rather than duplicate them.

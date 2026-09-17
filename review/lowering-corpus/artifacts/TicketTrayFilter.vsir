@@ -1,0 +1,75 @@
+vsir: 0.1
+kind: domain-type
+name: TicketTrayFilter
+classification: value-object
+shape: product
+traits: [transform]
+
+state:
+  Search:
+    optional: TicketSearch
+  ProjectReference:
+    optional: ProjectReference
+  IncidentTypeReference:
+    optional: IncidentTypeReference
+  ResponsibleReference:
+    optional: AccountReference
+  Risk:
+    optional: string
+  Module:
+    optional: string
+  Dates:
+    optional: TicketDateRange
+
+representation:
+  Search:
+    type:
+      optional: TicketSearch.Repr
+    mapping:
+      represent: state.Search
+  ProjectReference:
+    type:
+      optional: ProjectReference.Repr
+    mapping:
+      represent: state.ProjectReference
+  IncidentTypeReference:
+    type:
+      optional: IncidentTypeReference.Repr
+    mapping:
+      represent: state.IncidentTypeReference
+  ResponsibleReference:
+    type:
+      optional: AccountReference.Repr
+    mapping:
+      represent: state.ResponsibleReference
+  Risk:
+    type:
+      optional: string
+    mapping:
+      represent: state.Risk
+  Module:
+    type:
+      optional: string
+    mapping:
+      represent: state.Module
+  Dates:
+    type:
+      optional: TicketDateRange.Repr
+    mapping:
+      represent: state.Dates
+
+input:
+  Search:
+    optional: TicketSearch
+  ProjectReference:
+    optional: ProjectReference
+  IncidentTypeReference:
+    optional: IncidentTypeReference
+  ResponsibleReference:
+    optional: AccountReference
+  Risk:
+    optional: string
+  Module:
+    optional: string
+  Dates:
+    optional: TicketDateRange

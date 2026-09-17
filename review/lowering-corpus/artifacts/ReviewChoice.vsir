@@ -1,0 +1,26 @@
+vsir: 0.1
+kind: domain-type
+name: ReviewChoice
+shape: sum
+classification: value-object
+
+state: {}
+representation: {}
+
+variants:
+  NamedChoice:
+    traits: [transform]
+    state:
+      Value: string
+    representation:
+      Value: string
+    input:
+      Value: string
+    construction:
+      - ensure:
+          condition:
+            intrinsic: non-empty
+            args:
+              value: input.Value
+          failure:
+            message: A choice value is required
