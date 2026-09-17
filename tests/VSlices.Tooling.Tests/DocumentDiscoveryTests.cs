@@ -151,11 +151,7 @@ public sealed class DocumentDiscoveryTests
             """);
 
         var grandchild = includeGrandchild
-            ? """
-                    children:
-                      - id: assumption-risk
-                        text: ¿Qué pasa si este supuesto cambia?
-              """
+            ? "        children:\n          - id: assumption-risk\n            text: ¿Qué pasa si este supuesto cambia?\n"
             : string.Empty;
 
         File.WriteAllText(
