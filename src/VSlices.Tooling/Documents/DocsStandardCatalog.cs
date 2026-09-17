@@ -34,7 +34,7 @@ internal sealed class DocsStandardCatalog
         this.documents = documents;
     }
 
-    public IReadOnlyCollection<DocumentDefinition> Documents => documents.Values;
+    public IEnumerable<DocumentDefinition> Documents => documents.Values;
 
     public bool TryGetDocument(string kind, out DocumentDefinition? definition) =>
         documents.TryGetValue(kind, out definition);
