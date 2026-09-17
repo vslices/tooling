@@ -82,6 +82,75 @@ internal static class UpdateCommands
         return DocsStandardUpdater.Update(project, source, reference, cancellationToken);
     }
 
+    /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
+    /// <param name="document">Document name or path. The .md extension is added when omitted.</param>
+    /// <param name="questionId">Ephemeral 1-based selection from the current Document authoring surface.</param>
+    /// <param name="answer">Non-empty Markdown answer for the selected question.</param>
+    public static async Task<int> Document(
+        [Argument] string document,
+        int? questionId = null,
+        string? answer = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (questionId is null || questionId <= 0)
+        {
+            TerminalOutput.Error("UPDATE100: --question-id <number> is required and must be greater than zero.");
+            return 2;
+        }
+
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            TerminalOutput.Error("UPDATE101: --answer must contain non-whitespace text.");
+            return 2;
+        }
+
+        var path = Path.GetFullPath(
+            document.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
+                ? document
+                : document + ".md",
+            Environment.CurrentDirectory);
+        if (!File.Exists(path))
+        {
+            TerminalOutput.Error($"UPDATE102: Document '{path}' does not exist.");
+            return 1;
+        }
+
+        var standardRoot = DocsStandardCatalog.FindInstalledRoot(path);
+        if (standardRoot is null)
+        {
+            TerminalOutput.Error(
+                "UPDATE103: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard.");
+            return 1;
+        }
+
+        var catalog = DocsStandardCatalog.Load(standardRoot);
+        if (!catalog.IsSuccess)
+        {
+            TerminalOutput.Error(catalog.Error!);
+            return 1;
+        }
+
+        var source = await File.ReadAllTextAsync(path, cancellationToken);
+        var state = DocumentArtifact.Read(source, catalog.Catalog!);
+        if (!state.IsSuccess)
+        {
+            TerminalOutput.Error(state.Error!);
+            return 2;
+        }
+
+        var candidate = state.Artifact!.Update(questionId.Value, answer);
+        if (!candidate.IsSuccess)
+        {
+            TerminalOutput.Error(candidate.Error!);
+            return 2;
+        }
+
+        await CommandInfrastructure.AtomicWrite(path, candidate.Source!, cancellationToken);
+        Console.WriteLine(
+            $"Updated question [{questionId.Value}] '{candidate.Question!.Text}' in '{path}'.");
+        return 0;
+    }
+
     /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
     /// <param name="add">Adds members to collection-valued surfaces. The option may be repeated. Available for searchable tags metadata and semantic traits.</param>

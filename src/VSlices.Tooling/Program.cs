@@ -44,6 +44,7 @@ app.Add("new document", NewCommands.Document);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
 app.Add("search", SearchCommands.Search);
 app.Add("update vsir", UpdateCommands.Vsir);
+app.Add("update document", UpdateCommands.Document);
 app.Add("update self", UpdateCommands.Self);
 app.Add("update ruleset", UpdateCommands.Ruleset);
 app.Add("update docs-standard", UpdateCommands.DocsStandard);
