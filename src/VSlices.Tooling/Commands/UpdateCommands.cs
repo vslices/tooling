@@ -53,6 +53,35 @@ internal static class UpdateCommands
         return RulesetUpdater.Update(project, cancellationToken);
     }
 
+    /// <summary>Updates the project-local Docs Standard snapshot.</summary>
+    /// <param name="from">Docs Standard source directory, GitHub repository, or ZIP URL. Defaults to the official source.</param>
+    /// <param name="ref">GitHub branch, tag, or commit. Defaults to main for the official source.</param>
+    public static Task<int> DocsStandard(
+        string? from = null,
+        string? @ref = null,
+        CancellationToken cancellationToken = default)
+    {
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        if (project is null)
+        {
+            TerminalOutput.Error(
+                "UPD030: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Docs Standard.");
+            return Task.FromResult(1);
+        }
+
+        var source = string.IsNullOrWhiteSpace(from)
+            ? DocsStandardUpdater.OfficialSource
+            : from;
+        var reference = @ref;
+        if (string.IsNullOrWhiteSpace(reference) &&
+            source.Equals(DocsStandardUpdater.OfficialSource, StringComparison.OrdinalIgnoreCase))
+        {
+            reference = DocsStandardUpdater.OfficialRef;
+        }
+
+        return DocsStandardUpdater.Update(project, source, reference, cancellationToken);
+    }
+
     /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>
     /// <param name="artifact">VSIR symbol or path.</param>
     /// <param name="add">Adds members to collection-valued surfaces. The option may be repeated. Available for searchable tags metadata and semantic traits.</param>

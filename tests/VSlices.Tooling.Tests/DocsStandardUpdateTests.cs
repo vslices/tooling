@@ -1,0 +1,138 @@
+namespace VSlices.Tooling.Tests;
+
+public sealed class DocsStandardUpdateTests
+{
+    [Fact]
+    public async Task Valid_local_source_replaces_snapshot_and_installs_only_manifest_reachable_files()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "source-docs-standard");
+        WriteDocsStandard(source, "¿Dónde existe ahora?");
+        File.WriteAllText(Path.Combine(source, "unreachable.txt"), "not part of the standard");
+
+        var installed = Path.Combine(project.VslicesRoot, "docs-standard");
+        WriteDocsStandard(installed, "¿Dónde existía?");
+        File.WriteAllText(Path.Combine(installed, "old.marker"), "old");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", source);
+
+        Assert.Equal(0, result.ExitCode);
+        var installedDefinition = File.ReadAllText(
+            Path.Combine(installed, "documents", "context-document.yml"));
+        Assert.Contains("¿Dónde existe ahora?", installedDefinition, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(installed, "old.marker")));
+        Assert.False(File.Exists(Path.Combine(installed, "unreachable.txt")));
+        Assert.DoesNotContain(
+            Directory.EnumerateDirectories(project.VslicesRoot),
+            path => Path.GetFileName(path).StartsWith(".docs-standard-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Invalid_candidate_never_replaces_current_snapshot()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "invalid-docs-standard");
+        Directory.CreateDirectory(source);
+        File.WriteAllText(
+            Path.Combine(source, "manifest.yaml"),
+            """
+            kind: vslices-docs-standard
+            version: 0.1
+            documents:
+              - documents/missing.yml
+            """);
+
+        var installed = Path.Combine(project.VslicesRoot, "docs-standard");
+        WriteDocsStandard(installed, "¿Dónde existía?");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", source);
+
+        Assert.NotEqual(0, result.ExitCode);
+        var installedDefinition = File.ReadAllText(
+            Path.Combine(installed, "documents", "context-document.yml"));
+        Assert.Contains("¿Dónde existía?", installedDefinition, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            Directory.EnumerateDirectories(project.VslicesRoot),
+            path => Path.GetFileName(path).StartsWith(".docs-standard-", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Local_source_with_ref_fails_instead_of_silently_interpreting_it()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "source-docs-standard");
+        WriteDocsStandard(source, "¿Dónde existe ahora?");
+
+        var installed = Path.Combine(project.VslicesRoot, "docs-standard");
+        WriteDocsStandard(installed, "¿Dónde existía?");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", source, "--ref", "main");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DSM002", result.StandardError, StringComparison.Ordinal);
+        var installedDefinition = File.ReadAllText(
+            Path.Combine(installed, "documents", "context-document.yml"));
+        Assert.Contains("¿Dónde existía?", installedDefinition, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Update_docs_standard_requires_a_vslices_project()
+    {
+        using var project = new ToolingTestProject();
+        var source = Path.Combine(project.Root, "source-docs-standard");
+        WriteDocsStandard(source, "¿Dónde existe ahora?");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", source);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("UPD030", result.StandardError, StringComparison.Ordinal);
+    }
+
+    private static void WriteDocsStandard(string root, string rootQuestion)
+    {
+        var documents = Path.Combine(root, "documents");
+        Directory.CreateDirectory(documents);
+
+        File.WriteAllText(
+            Path.Combine(root, "manifest.yaml"),
+            """
+            kind: vslices-docs-standard
+            version: 0.1
+            documents:
+              - documents/context-document.yml
+            """);
+
+        File.WriteAllText(
+            Path.Combine(documents, "context-document.yml"),
+            $$"""
+            kind: vslices-document-definition
+            version: 0.1
+
+            document:
+              type: context
+              scopes:
+                - concept
+                - project
+              question:
+                id: context
+                text: {{rootQuestion}}
+                children:
+                  - id: assumptions
+                    text: ¿Qué estamos asumiendo como cierto?
+            """);
+    }
+}

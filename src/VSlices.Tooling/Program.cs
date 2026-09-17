@@ -46,6 +46,7 @@ app.Add("search", SearchCommands.Search);
 app.Add("update vsir", UpdateCommands.Vsir);
 app.Add("update self", UpdateCommands.Self);
 app.Add("update ruleset", UpdateCommands.Ruleset);
+app.Add("update docs-standard", UpdateCommands.DocsStandard);
 app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);
