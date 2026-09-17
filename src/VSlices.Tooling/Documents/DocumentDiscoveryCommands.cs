@@ -75,7 +75,7 @@ internal static class DocumentDiscoveryCommands
 
     private static string QuoteArgument(string value)
     {
-        if (!value.Any(char.IsWhiteSpace) && !value.Contains('"', StringComparison.Ordinal))
+        if (!value.Any(char.IsWhiteSpace) && !value.Contains('"'))
             return value;
 
         return "\"" + value.Replace("\\", "\\\\", StringComparison.Ordinal)
