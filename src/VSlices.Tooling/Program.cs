@@ -40,6 +40,7 @@ var app = ConsoleApp.Create();
 
 app.Add("init", RulesetCommands.Init);
 app.Add("new vsir", NewCommands.Vsir);
+app.Add("new document", NewCommands.Document);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
 app.Add("search", SearchCommands.Search);
 app.Add("update vsir", UpdateCommands.Vsir);
