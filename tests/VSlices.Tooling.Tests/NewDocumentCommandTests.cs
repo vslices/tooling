@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class NewDocumentCommandTests
 {
     [Fact]
-    public async Task New_document_materializes_only_the_root_question_and_placeholder()
+    public async Task New_document_materializes_minimal_identity_root_question_and_placeholder()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
@@ -16,9 +16,26 @@ public sealed class NewDocumentCommandTests
         var path = Path.Combine(project.Root, "tooling-context.md");
         Assert.True(File.Exists(path));
         Assert.Equal(
-            "# ¿Dónde existe?\n\n<!-- vslices:placeholder document=context question=context -->\n",
+            """
+            ---
+            artifact:
+              kind: document
+              type: context
+            ---
+
+            # ¿Dónde existe?
+
+            <!-- vslices:placeholder question=context -->
+            """.Replace("\r\n", "\n"),
             File.ReadAllText(path).Replace("\r\n", "\n"));
-        Assert.DoesNotContain("¿Qué estamos asumiendo como cierto?", File.ReadAllText(path), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "¿Qué estamos asumiendo como cierto?",
+            File.ReadAllText(path),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "document:\n  question:",
+            File.ReadAllText(path).Replace("\r\n", "\n"),
+            StringComparison.Ordinal);
     }
 
     [Fact]
@@ -34,6 +51,7 @@ public sealed class NewDocumentCommandTests
         Assert.Equal(0, result.ExitCode);
         var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
         Assert.Contains("# ¿Dónde existe realmente?", source, StringComparison.Ordinal);
+        Assert.Contains("type: context", source, StringComparison.Ordinal);
     }
 
     [Fact]
