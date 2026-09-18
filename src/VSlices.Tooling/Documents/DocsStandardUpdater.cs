@@ -2,8 +2,8 @@ namespace VSlices.Tooling;
 
 internal static class DocsStandardUpdater
 {
-    public const string OfficialSource = "https://github.com/vslices/docs-standard";
-    public const string OfficialRef = "main";
+    public const string OfficialSource = ProjectConfiguration.OfficialDocsStandardSource;
+    public const string OfficialRef = ProjectConfiguration.OfficialDocsStandardRef;
 
     public static async Task<int> Update(
         VSlicesProjectContext project,
