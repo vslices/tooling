@@ -69,14 +69,36 @@ internal static class UpdateCommands
             return Task.FromResult(1);
         }
 
-        var source = string.IsNullOrWhiteSpace(from)
-            ? DocsStandardUpdater.OfficialSource
-            : from;
-        var reference = @ref;
-        if (string.IsNullOrWhiteSpace(reference) &&
-            source.Equals(DocsStandardUpdater.OfficialSource, StringComparison.OrdinalIgnoreCase))
+        var configuration = project.Configuration;
+        var explicitSource = !string.IsNullOrWhiteSpace(from);
+        var source = explicitSource
+            ? from!
+            : configuration.DocsStandardSource
+              ?? DocsStandardUpdater.OfficialSource;
+
+        string? reference;
+        if (!string.IsNullOrWhiteSpace(@ref))
         {
-            reference = DocsStandardUpdater.OfficialRef;
+            reference = @ref;
+        }
+        else if (explicitSource)
+        {
+            reference = source.Equals(
+                DocsStandardUpdater.OfficialSource,
+                StringComparison.OrdinalIgnoreCase)
+                ? DocsStandardUpdater.OfficialRef
+                : null;
+        }
+        else
+        {
+            reference = configuration.DocsStandardRef;
+            if (string.IsNullOrWhiteSpace(reference) &&
+                source.Equals(
+                    DocsStandardUpdater.OfficialSource,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                reference = DocsStandardUpdater.OfficialRef;
+            }
         }
 
         return DocsStandardUpdater.Update(project, source, reference, cancellationToken);
