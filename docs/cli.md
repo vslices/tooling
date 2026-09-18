@@ -1,6 +1,6 @@
 # VSlices CLI specification
 
-Status: v0.2.0 interaction contract for progressive VSIR authoring and lowering.
+Status: v0.3.0-preview interaction contract under active experiment.
 
 VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset`](https://github.com/vslices/ruleset). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
 
@@ -20,12 +20,19 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <N> --answer "<markdown>"
 
 vslices --version
 vslices -v
 ```
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
+
+`vslices init` creates only the minimum project surface. Ruleset and Docs Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, and `--default-origin` are convenience composition over those same operations.
 
 ## 2. Core authoring protocol
 
