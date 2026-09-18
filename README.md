@@ -383,7 +383,7 @@ The language-level semantics live in `vslices/intermediate-representation`; Rule
 
 ## Project semantic extensions
 
-`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `init --force` and `vslices update ruleset` may replace the installed Ruleset snapshot, but they preserve the project-owned extension overlay.
+`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `vslices update ruleset` may replace the installed Ruleset snapshot, but it preserves the project-owned extension overlay. An `init` Ruleset shortcut delegates to that same update operation.
 
 Example:
 
@@ -566,28 +566,30 @@ refactor/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.d
 
 Startup health checks, same-build `vslices update self` repair, downloaded-archive validation, staging validation and the Windows installer share the same completeness rule. A root helper DLL without `BuildHost-netcore` is incomplete.
 
-## Ruleset lifecycle and updates
+## External knowledge lifecycle and updates
 
-`vslices init` and `vslices update ruleset` share Ruleset-source materialization and snapshot installation mechanisms:
+Ruleset and Docs Standard are installed and refreshed independently from project initialization:
 
 ```text
-source
-  -> materialize
-  -> prepare selected-target snapshot
-  -> validate with the real target loader
-  -> atomic replace .vslices/ruleset with backup/rollback
+vslices update ruleset
+vslices update docs-standard
 ```
 
-For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+Each resolves an origin, materializes a candidate, validates it through the real consumer, atomically replaces its project-local snapshot, and records successful provenance.
+
+For C#, a prepared Ruleset snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+
+`vslices init --ruleset-origin ...`, `--docs-standard-origin ...`, and `--default-origin` are convenience composition only; they delegate to those same updater mechanisms.
 
 The independent updater surfaces are:
 
 ```text
 vslices update self
 vslices update ruleset
+vslices update docs-standard
 ```
 
-There is no aggregate update operation in v0.2.0.
+There is no aggregate `vslices update` operation.
 
 See [`docs/rulesets.md`](docs/rulesets.md).
 
