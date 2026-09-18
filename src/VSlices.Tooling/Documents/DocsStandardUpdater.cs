@@ -66,7 +66,19 @@ internal static class DocsStandardUpdater
 
             TerminalOutput.Success("✓ Docs Standard validated");
             DocsStandardSnapshotInstaller.Replace(project.VslicesRoot, prepared);
+
+            var configuration = project.Configuration with
+            {
+                DocsStandardSource = source,
+                DocsStandardRef = reference
+            };
+            await ProjectConfiguration.WriteAsync(
+                project.ProjectRoot,
+                configuration,
+                cancellationToken);
+
             TerminalOutput.Success("✓ Docs Standard updated");
+            TerminalOutput.Success("✓ Docs Standard provenance recorded");
             return 0;
         }
         catch (Exception ex)
