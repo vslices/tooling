@@ -154,7 +154,7 @@ internal static class UpdateCommands
         if (standardRoot is null)
         {
             TerminalOutput.Error(
-                "UPDATE103: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard.");
+                "UPDATE103: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard' to install it.");
             return 1;
         }
 
