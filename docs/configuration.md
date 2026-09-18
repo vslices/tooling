@@ -145,6 +145,38 @@ source: https://github.com/vslices/ruleset
 ref: main
 ```
 
+## Docs Standard provenance
+
+After a Docs Standard snapshot has been installed from an explicit source, Tooling records its provenance in project configuration:
+
+```yaml
+docs-standard:
+  source: https://github.com/vslices/docs-standard
+  ref: feat/document-authoring-preview
+```
+
+`docs-standard.source` and optional `docs-standard.ref` play the same role for documentary vocabulary that `ruleset.source` and `ruleset.ref` play for target-lowering knowledge.
+
+The update precedence is:
+
+```text
+explicit --from / --ref
+  > configured docs-standard.source / docs-standard.ref
+  > official source / main
+```
+
+A successful `vslices update docs-standard --from ... --ref ...` records the resolved provenance only after the candidate snapshot has been materialized and validated. A failed candidate does not replace the known-good provenance.
+
+Consequently, after one successful explicit installation, later invocations may use:
+
+```text
+vslices update docs-standard
+```
+
+to refresh from the same source and Git ref.
+
+Older project configurations that predate this provenance field remain readable. Because an already-installed snapshot does not itself prove which source/ref produced it, such projects need one explicit successful update to establish provenance before argument-free updates can reuse it.
+
 ## Lineage bootstrap
 
 The first supported convention is:
