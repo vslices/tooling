@@ -115,10 +115,23 @@ public sealed class ProjectInitializationLifecycleTests
     }
 
     [Fact]
-    public void Official_shorthand_without_ref_gets_the_official_ref()
+    public void Relative_two_segment_path_is_not_reinterpreted_as_a_GitHub_repository()
     {
         var result = ProjectOriginResolver.Parse(
-            "vslices/ruleset",
+            "fixtures/ruleset",
+            ProjectOrigin.OfficialRuleset,
+            "TEST001");
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal("fixtures/ruleset", result.Origin!.Source);
+        Assert.Null(result.Origin.Reference);
+    }
+
+    [Fact]
+    public void Official_GitHub_URL_without_explicit_ref_uses_the_official_ref()
+    {
+        var result = ProjectOriginResolver.Parse(
+            "https://github.com/vslices/ruleset",
             ProjectOrigin.OfficialRuleset,
             "TEST001");
 
