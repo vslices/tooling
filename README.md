@@ -28,12 +28,27 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <N> --answer "<markdown>"
 
 vslices --version
 vslices -v
 ```
 
 `update` is a command group. There is deliberately no legacy `update --self`, `update --ruleset`, plain aggregate `update`, or combined update alias in the current public contract.
+
+
+`vslices init` now establishes only the minimum project surface:
+
+```text
+.vslices/config.yaml
+.vslices/.ignore
+```
+
+Ruleset and Docs Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
 
 The current authoring loop is:
 
@@ -81,7 +96,10 @@ vslices/ruleset
   = project operating policy
 
 .vslices/ruleset/
-  = installed source-owned target-knowledge snapshot
+  = optional installed source-owned target-knowledge snapshot
+
+.vslices/docs-standard/
+  = optional installed normative documentary-vocabulary snapshot
 
 .vslices/extensions/
   = project-owned semantic-extension overlay
