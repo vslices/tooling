@@ -28,7 +28,7 @@ internal static class TemplateStandardSourceMaterializer
             if (!Directory.Exists(local))
                 return TemplateStandardMaterializationResult.Failure("TSM001", $"Template Standard source '{source.Location}' is neither an existing directory nor an HTTP(S) URL.");
             if (!string.IsNullOrWhiteSpace(source.Reference))
-                return TemplateStandardMaterializationResult.Failure("TSM002", "--ref applies only to supported GitHub repository sources, not local directories.");
+                return TemplateStandardMaterializationResult.Failure("TSM002", "A Template Standard ref applies only to supported GitHub repository sources, not local directories.");
             return TemplateStandardMaterializationResult.Success(local, false);
         }
 
@@ -40,7 +40,7 @@ internal static class TemplateStandardSourceMaterializer
             if (IsGitHubRepositoryUri(uri))
             {
                 if (string.IsNullOrWhiteSpace(source.Reference))
-                    return TemplateStandardMaterializationResult.Failure("TSM003", "A GitHub Template Standard source requires --ref so the snapshot is reproducible.", true);
+                    return TemplateStandardMaterializationResult.Failure("TSM003", "A GitHub Template Standard source requires a ref in its origin or recorded provenance so the snapshot is reproducible.", true);
 
                 using var http = new HttpClient();
                 foreach (var candidate in GitHubArchiveCandidates(uri, source.Reference))
@@ -56,7 +56,7 @@ internal static class TemplateStandardSourceMaterializer
             }
 
             if (!string.IsNullOrWhiteSpace(source.Reference))
-                return TemplateStandardMaterializationResult.Failure("TSM005", "--ref is currently supported only for GitHub repository sources.", true);
+                return TemplateStandardMaterializationResult.Failure("TSM005", "Template Standard refs are currently supported only for GitHub repository sources.", true);
 
             using var directHttp = new HttpClient();
             await using var directStream = await directHttp.GetStreamAsync(uri, cancellationToken);

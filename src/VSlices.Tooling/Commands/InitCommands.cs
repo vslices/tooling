@@ -11,7 +11,6 @@ internal static class InitCommands
     /// <param name="docsStandardOrigin">Optionally installs Docs Standard through the same origin/update lifecycle as 'vslices update docs-standard'.</param>
     /// <param name="templateStandardOrigin">Optionally installs Template Standard through the same origin/update lifecycle as 'vslices update template-standard'.</param>
     /// <param name="defaultOrigin">Installs any unspecified external knowledge source from its official VSlices origin.</param>
-    /// <param name="from">Compatibility alias for --ruleset-origin.</param>
     /// <param name="target">-t, Default lowering target. Current experimental target: C#.</param>
     /// <param name="force">Reinitializes the minimum project surface while preserving existing project policy not explicitly replaced.</param>
     public static async Task<int> Init(
@@ -19,35 +18,21 @@ internal static class InitCommands
         string? docsStandardOrigin = null,
         string? templateStandardOrigin = null,
         bool defaultOrigin = false,
-        string? from = null,
         string? target = null,
         bool force = false,
         CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(rulesetOrigin) &&
-            !string.IsNullOrWhiteSpace(from))
-        {
-            TerminalOutput.Error(
-                "CLI025: --ruleset-origin cannot be combined with the compatibility option --from.");
-            return 2;
-        }
-
         var environmentSource = Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE");
         if (!string.IsNullOrWhiteSpace(environmentSource))
         {
-            if (!string.IsNullOrWhiteSpace(rulesetOrigin) ||
-                !string.IsNullOrWhiteSpace(from))
+            if (!string.IsNullOrWhiteSpace(rulesetOrigin))
             {
                 TerminalOutput.Error(
-                    "CLI026: VSLICES_RULESET_SOURCE cannot be combined with --ruleset-origin or --from.");
+                    "CLI026: VSLICES_RULESET_SOURCE cannot be combined with --ruleset-origin.");
                 return 2;
             }
 
             rulesetOrigin = environmentSource;
-        }
-        else if (!string.IsNullOrWhiteSpace(from))
-        {
-            rulesetOrigin = from;
         }
 
         if (defaultOrigin)

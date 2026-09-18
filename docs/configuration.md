@@ -193,8 +193,6 @@ explicit --origin
   > official source / main
 ```
 
-Ruleset and Docs Standard additionally retain their historical `--from / --ref` compatibility surface between explicit `--origin` and configured provenance. Template Standard starts directly with the preferred `--origin` surface and does not introduce that legacy syntax.
-
 The preferred compact GitHub syntax is:
 
 ```text

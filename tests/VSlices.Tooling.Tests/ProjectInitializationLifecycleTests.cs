@@ -77,43 +77,6 @@ public sealed class ProjectInitializationLifecycleTests
     }
 
     [Fact]
-    public async Task Historical_init_from_remains_a_ruleset_origin_compatibility_bridge()
-    {
-        using var project = new ToolingTestProject();
-
-        var rulesetOrigin = Path.Combine(project.Root, "ruleset-origin");
-        ToolingTestProject.WriteValidRuleset(rulesetOrigin, "ruleset.marker");
-
-        var result = await project.Run(
-            project.Root,
-            "init",
-            "--from", rulesetOrigin);
-
-        Assert.Equal(0, result.ExitCode);
-        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "ruleset.marker")));
-
-        var configuration = ProjectConfiguration.LoadFromProjectRoot(project.Root);
-        Assert.NotNull(configuration);
-        Assert.Equal(rulesetOrigin, configuration!.RulesetSource);
-    }
-
-    [Fact]
-    public async Task Init_rejects_two_ruleset_origin_surfaces_for_the_same_operation()
-    {
-        using var project = new ToolingTestProject();
-
-        var result = await project.Run(
-            project.Root,
-            "init",
-            "--ruleset-origin", "vslices/ruleset:main",
-            "--from", "https://github.com/vslices/ruleset");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("CLI025", result.StandardError, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(project.VslicesRoot, "config.yaml")));
-    }
-
-    [Fact]
     public void GitHub_shorthand_origin_separates_repository_and_ref()
     {
         var result = ProjectOriginResolver.Parse(

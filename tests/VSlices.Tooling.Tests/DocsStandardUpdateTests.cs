@@ -43,7 +43,7 @@ public sealed class DocsStandardUpdateTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--from", source);
+            "update", "docs-standard", "--origin", source);
 
         Assert.Equal(0, result.ExitCode);
         var installedDefinition = File.ReadAllText(
@@ -154,7 +154,7 @@ public sealed class DocsStandardUpdateTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--from", source);
+            "update", "docs-standard", "--origin", source);
 
         Assert.NotEqual(0, result.ExitCode);
         var installedDefinition = File.ReadAllText(
@@ -163,45 +163,6 @@ public sealed class DocsStandardUpdateTests
         Assert.DoesNotContain(
             Directory.EnumerateDirectories(project.VslicesRoot),
             path => Path.GetFileName(path).StartsWith(".docs-standard-", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public async Task Local_source_with_ref_fails_instead_of_silently_interpreting_it()
-    {
-        using var project = new ToolingTestProject();
-        project.WriteConfiguration();
-
-        var source = Path.Combine(project.Root, "source-docs-standard");
-        WriteDocsStandard(source, "¿Dónde existe ahora?");
-
-        var installed = Path.Combine(project.VslicesRoot, "docs-standard");
-        WriteDocsStandard(installed, "¿Dónde existía?");
-
-        var result = await project.Run(
-            project.Root,
-            "update", "docs-standard", "--from", source, "--ref", "main");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("DSM002", result.StandardError, StringComparison.Ordinal);
-        var installedDefinition = File.ReadAllText(
-            Path.Combine(installed, "documents", "context-document.yml"));
-        Assert.Contains("¿Dónde existía?", installedDefinition, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Origin_cannot_be_combined_with_legacy_docs_standard_source_options()
-    {
-        using var project = new ToolingTestProject();
-        project.WriteConfiguration();
-
-        var result = await project.Run(
-            project.Root,
-            "update", "docs-standard",
-            "--origin", "vslices/docs-standard:main",
-            "--from", "https://github.com/vslices/docs-standard");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("UPD035", result.StandardError, StringComparison.Ordinal);
     }
 
     [Fact]

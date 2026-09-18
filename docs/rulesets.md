@@ -136,7 +136,7 @@ The project extension overlay does not participate in this replacement.
 
 `vslices init` does not install Ruleset by default. Its `--ruleset-origin` and `--default-origin` shortcuts delegate to the same update operation rather than implementing another acquisition path.
 
-The preferred compact GitHub origin is `owner/repository:ref`. Existing local directories and direct ZIP URLs may be used directly. Historical `init --from` remains a compatibility bridge during the current experiment.
+The preferred compact GitHub origin is `owner/repository:ref`. Existing local directories and direct ZIP URLs may be used directly. The CLI exposes one explicit acquisition surface: `--origin`.
 
 ## Source and ref semantics
 

@@ -43,7 +43,7 @@ internal static class DocsStandardSourceMaterializer
             {
                 return DocsStandardMaterializationResult.Failure(
                     "DSM002",
-                    "--ref applies only to supported GitHub repository sources, not local directories.");
+                    "A Docs Standard ref applies only to supported GitHub repository sources, not local directories.");
             }
 
             return DocsStandardMaterializationResult.Success(local, isRemote: false);
@@ -65,7 +65,7 @@ internal static class DocsStandardSourceMaterializer
                 {
                     return DocsStandardMaterializationResult.Failure(
                         "DSM003",
-                        "A GitHub Docs Standard source requires --ref so the snapshot is reproducible.",
+                        "A GitHub Docs Standard source requires a ref in its origin or recorded provenance so the snapshot is reproducible.",
                         isRemote: true);
                 }
 
@@ -93,7 +93,7 @@ internal static class DocsStandardSourceMaterializer
             {
                 return DocsStandardMaterializationResult.Failure(
                     "DSM005",
-                    "--ref is currently supported only for GitHub repository sources.",
+                    "Docs Standard refs are currently supported only for GitHub repository sources.",
                     isRemote: true);
             }
 

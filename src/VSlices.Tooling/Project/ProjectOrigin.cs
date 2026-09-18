@@ -37,41 +37,13 @@ internal static class ProjectOriginResolver
 {
     public static ProjectOriginResolution Resolve(
         string? compactOrigin,
-        string? legacySource,
-        string? legacyReference,
         string? configuredSource,
         string? configuredReference,
         ProjectOrigin official,
         string diagnosticCode)
     {
-        if (!string.IsNullOrWhiteSpace(compactOrigin) &&
-            (!string.IsNullOrWhiteSpace(legacySource) ||
-             !string.IsNullOrWhiteSpace(legacyReference)))
-        {
-            return ProjectOriginResolution.Failure(
-                $"{diagnosticCode}: --origin cannot be combined with --from or --ref.");
-        }
-
         if (!string.IsNullOrWhiteSpace(compactOrigin))
             return Parse(compactOrigin!, official, diagnosticCode);
-
-        var explicitLegacySource = !string.IsNullOrWhiteSpace(legacySource);
-        var explicitLegacyReference = !string.IsNullOrWhiteSpace(legacyReference);
-        if (explicitLegacySource || explicitLegacyReference)
-        {
-            var source = explicitLegacySource
-                ? legacySource!.Trim()
-                : configuredSource ?? official.Source;
-
-            var reference = explicitLegacyReference
-                ? legacyReference!.Trim()
-                : explicitLegacySource
-                    ? DefaultReferenceFor(source, official)
-                    : configuredReference ?? DefaultReferenceFor(source, official);
-
-            return ProjectOriginResolution.Success(
-                new ProjectOrigin(source, reference));
-        }
 
         if (!string.IsNullOrWhiteSpace(configuredSource))
         {

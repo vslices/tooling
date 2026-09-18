@@ -72,22 +72,6 @@ public sealed class RulesetUpdateTests
     }
 
     [Fact]
-    public async Task Origin_cannot_be_combined_with_legacy_ruleset_source_options()
-    {
-        using var project = new ToolingTestProject();
-        project.WriteConfiguration();
-
-        var result = await project.Run(
-            project.Root,
-            "update", "ruleset",
-            "--origin", "vslices/ruleset:main",
-            "--from", "https://github.com/vslices/ruleset");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("UPD017", result.StandardError, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Valid_local_source_replaces_snapshot_and_cleans_staging()
     {
         using var project = new ToolingTestProject();
@@ -134,7 +118,7 @@ public sealed class RulesetUpdateTests
 
         var result = await project.Run(
             project.Root,
-            "init", "--force", "--from", source, "--target", "C#");
+            "init", "--force", "--ruleset-origin", source, "--target", "C#");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "keep-me")));
@@ -152,7 +136,7 @@ public sealed class RulesetUpdateTests
 
         var initialized = await project.Run(
             project.Root,
-            "init", "--force", "--from", localSource, "--target", "C#");
+            "init", "--force", "--ruleset-origin", localSource, "--target", "C#");
 
         Assert.Equal(0, initialized.ExitCode);
         var configuration = File.ReadAllText(Path.Combine(project.VslicesRoot, "config.yaml"));

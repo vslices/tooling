@@ -41,12 +41,8 @@ internal static class UpdateCommands
 
     /// <summary>Installs or refreshes the project-local ruleset snapshot.</summary>
     /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
-    /// <param name="from">Compatibility alias for an explicit ruleset source.</param>
-    /// <param name="ref">Compatibility GitHub branch, tag, or commit for --from.</param>
     public static Task<int> Ruleset(
         string? origin = null,
-        string? from = null,
-        string? @ref = null,
         CancellationToken cancellationToken = default)
     {
         var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
@@ -59,8 +55,6 @@ internal static class UpdateCommands
 
         var resolved = ProjectOriginResolver.Resolve(
             origin,
-            from,
-            @ref,
             project.Configuration.RulesetSource,
             project.Configuration.RulesetRef,
             ProjectOrigin.OfficialRuleset,
@@ -80,12 +74,8 @@ internal static class UpdateCommands
 
     /// <summary>Installs or refreshes the project-local Docs Standard snapshot.</summary>
     /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
-    /// <param name="from">Compatibility alias for an explicit Docs Standard source.</param>
-    /// <param name="ref">Compatibility GitHub branch, tag, or commit for --from.</param>
     public static Task<int> DocsStandard(
         string? origin = null,
-        string? from = null,
-        string? @ref = null,
         CancellationToken cancellationToken = default)
     {
         var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
@@ -98,8 +88,6 @@ internal static class UpdateCommands
 
         var resolved = ProjectOriginResolver.Resolve(
             origin,
-            from,
-            @ref,
             project.Configuration.DocsStandardSource,
             project.Configuration.DocsStandardRef,
             ProjectOrigin.OfficialDocsStandard,
@@ -133,8 +121,6 @@ internal static class UpdateCommands
 
         var resolved = ProjectOriginResolver.Resolve(
             origin,
-            null,
-            null,
             project.Configuration.TemplateStandardSource,
             project.Configuration.TemplateStandardRef,
             ProjectOrigin.OfficialTemplateStandard,
