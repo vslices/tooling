@@ -86,7 +86,8 @@ internal sealed record ProjectConfiguration(
             ruleset.Add("source", configuration.RulesetSource);
         if (!string.IsNullOrWhiteSpace(configuration.RulesetRef))
             ruleset.Add("ref", configuration.RulesetRef);
-        root.Add("ruleset", ruleset);
+        if (ruleset.Children.Count > 0)
+            root.Add("ruleset", ruleset);
 
         var docsStandard = new YamlMappingNode();
         if (!string.IsNullOrWhiteSpace(configuration.DocsStandardSource))
