@@ -134,41 +134,6 @@ public sealed class TemplateStandardUpdateTests
     }
 
     [Fact]
-    public async Task Local_source_with_ref_fails_instead_of_silently_interpreting_it()
-    {
-        using var project = new ToolingTestProject();
-        Assert.Equal(0, (await project.Run(project.Root, "init")).ExitCode);
-
-        var source = Path.Combine(project.Root, "source-template-standard");
-        WriteTemplateStandard(source, "markdown.question-tree");
-
-        var result = await project.Run(
-            project.Root,
-            "update", "template-standard",
-            "--from", source,
-            "--ref", "main");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("TSM002", result.StandardError, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task Origin_cannot_be_combined_with_legacy_template_standard_source_options()
-    {
-        using var project = new ToolingTestProject();
-        Assert.Equal(0, (await project.Run(project.Root, "init")).ExitCode);
-
-        var result = await project.Run(
-            project.Root,
-            "update", "template-standard",
-            "--origin", "vslices/template-standard:main",
-            "--from", "https://github.com/vslices/template-standard");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("UPD045", result.StandardError, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Update_template_standard_requires_a_vslices_project()
     {
         using var project = new ToolingTestProject();

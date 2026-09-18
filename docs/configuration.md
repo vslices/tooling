@@ -185,14 +185,15 @@ template-standard:
 
 `template-standard.source` and optional `template-standard.ref` identify the materialization vocabulary used by the project. The snapshot is installed at `.vslices/template-standard`.
 
-Ruleset, Docs Standard, and Template Standard use the same update precedence:
+All three external standards prefer the same origin model:
 
 ```text
 explicit --origin
-  > compatibility --from / --ref
   > configured source / ref
   > official source / main
 ```
+
+Ruleset and Docs Standard additionally retain their historical `--from / --ref` compatibility surface between explicit `--origin` and configured provenance. Template Standard starts directly with the preferred `--origin` surface and does not introduce that legacy syntax.
 
 The preferred compact GitHub syntax is:
 
