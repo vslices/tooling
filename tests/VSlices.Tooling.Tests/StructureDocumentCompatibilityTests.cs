@@ -26,7 +26,7 @@ public sealed class StructureDocumentCompatibilityTests
             # ¿Cómo se organiza?
 
             <!-- vslices:placeholder question=structure -->
-            """.Replace("\r\n", "\n"),
+            """.Replace("\r\n", "\n") + "\n",
             initial);
         Assert.DoesNotContain("¿Qué estructura estamos describiendo?", initial, StringComparison.Ordinal);
 
