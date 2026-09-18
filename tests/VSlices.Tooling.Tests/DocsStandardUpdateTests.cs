@@ -3,6 +3,31 @@ namespace VSlices.Tooling.Tests;
 public sealed class DocsStandardUpdateTests
 {
     [Fact]
+    public async Task Project_configuration_round_trips_docs_standard_source_and_ref()
+    {
+        using var project = new ToolingTestProject();
+        var configuration = ProjectConfiguration.Default() with
+        {
+            DocsStandardSource = "https://github.com/vslices/docs-standard",
+            DocsStandardRef = "feat/document-authoring-preview"
+        };
+
+        await ProjectConfiguration.WriteAsync(
+            project.Root,
+            configuration,
+            CancellationToken.None);
+
+        var loaded = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(loaded);
+        Assert.Equal(
+            "https://github.com/vslices/docs-standard",
+            loaded!.DocsStandardSource);
+        Assert.Equal(
+            "feat/document-authoring-preview",
+            loaded.DocsStandardRef);
+    }
+
+    [Fact]
     public async Task Valid_local_source_replaces_snapshot_and_installs_only_manifest_reachable_files()
     {
         using var project = new ToolingTestProject();
