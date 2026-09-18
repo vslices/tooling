@@ -13,7 +13,9 @@ internal sealed record ProjectConfiguration(
     string? LineageBootstrapConvention = "existing-materialization",
     IReadOnlyList<string>? CSharpNamespaceIgnoredFolders = null,
     string? DocsStandardSource = null,
-    string? DocsStandardRef = null)
+    string? DocsStandardRef = null,
+    string? TemplateStandardSource = null,
+    string? TemplateStandardRef = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
@@ -21,6 +23,8 @@ internal sealed record ProjectConfiguration(
     public const string OfficialToolingSource = "https://github.com/vslices/tooling";
     public const string OfficialDocsStandardSource = "https://github.com/vslices/docs-standard";
     public const string OfficialDocsStandardRef = "main";
+    public const string OfficialTemplateStandardSource = "https://github.com/vslices/template-standard";
+    public const string OfficialTemplateStandardRef = "main";
     public const string DefaultUpdateChannel = "preview";
     public const string DefaultLineageBootstrapConvention = "existing-materialization";
 
@@ -35,6 +39,8 @@ internal sealed record ProjectConfiguration(
             null,
             DefaultLineageBootstrapConvention,
             [],
+            null,
+            null,
             null,
             null);
 
@@ -96,6 +102,14 @@ internal sealed record ProjectConfiguration(
             docsStandard.Add("ref", configuration.DocsStandardRef);
         if (docsStandard.Children.Count > 0)
             root.Add("docs-standard", docsStandard);
+
+        var templateStandard = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.TemplateStandardSource))
+            templateStandard.Add("source", configuration.TemplateStandardSource);
+        if (!string.IsNullOrWhiteSpace(configuration.TemplateStandardRef))
+            templateStandard.Add("ref", configuration.TemplateStandardRef);
+        if (templateStandard.Children.Count > 0)
+            root.Add("template-standard", templateStandard);
 
         if (!string.IsNullOrWhiteSpace(configuration.LineageBootstrapConvention))
         {
@@ -162,7 +176,9 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "lineage", "bootstrap", "convention"),
             NestedSequence(root, "targets", "csharp", "namespace", "ignore-folders"),
             NestedScalar(root, "docs-standard", "source"),
-            NestedScalar(root, "docs-standard", "ref"));
+            NestedScalar(root, "docs-standard", "ref"),
+            NestedScalar(root, "template-standard", "source"),
+            NestedScalar(root, "template-standard", "ref"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)

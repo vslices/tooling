@@ -13,6 +13,11 @@ internal sealed record ProjectOrigin(
         new(
             ProjectConfiguration.OfficialDocsStandardSource,
             ProjectConfiguration.OfficialDocsStandardRef);
+
+    public static ProjectOrigin OfficialTemplateStandard =>
+        new(
+            ProjectConfiguration.OfficialTemplateStandardSource,
+            ProjectConfiguration.OfficialTemplateStandardRef);
 }
 
 internal sealed record ProjectOriginResolution(

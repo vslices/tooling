@@ -117,6 +117,45 @@ internal static class UpdateCommands
             cancellationToken);
     }
 
+    /// <summary>Installs or refreshes the project-local Template Standard snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    /// <param name="from">Compatibility alias for an explicit Template Standard source.</param>
+    /// <param name="ref">Compatibility GitHub branch, tag, or commit for --from.</param>
+    public static Task<int> TemplateStandard(
+        string? origin = null,
+        string? from = null,
+        string? @ref = null,
+        CancellationToken cancellationToken = default)
+    {
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        if (project is null)
+        {
+            TerminalOutput.Error(
+                "UPD040: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Template Standard.");
+            return Task.FromResult(1);
+        }
+
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            from,
+            @ref,
+            project.Configuration.TemplateStandardSource,
+            project.Configuration.TemplateStandardRef,
+            ProjectOrigin.OfficialTemplateStandard,
+            "UPD045");
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
+        }
+
+        return TemplateStandardUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
+    }
+
     /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
     /// <param name="document">Document name or path. The .md extension is added when omitted.</param>
     /// <param name="questionId">Ephemeral 1-based selection from the current Document authoring surface.</param>

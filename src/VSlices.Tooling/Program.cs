@@ -49,6 +49,7 @@ app.Add("update document", UpdateCommands.Document);
 app.Add("update self", UpdateCommands.Self);
 app.Add("update ruleset", UpdateCommands.Ruleset);
 app.Add("update docs-standard", UpdateCommands.DocsStandard);
+app.Add("update template-standard", UpdateCommands.TemplateStandard);
 app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);
