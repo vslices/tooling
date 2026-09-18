@@ -141,7 +141,7 @@ src/VSlices.Tooling/
     UpdateCommands.cs
     SearchCommands.cs
     VsirCommands.cs
-    RulesetCommands.cs
+    InitCommands.cs
 
   IO/
     AtomicFile.cs
