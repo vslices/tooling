@@ -26,7 +26,7 @@ internal static class InitCommands
             !string.IsNullOrWhiteSpace(from))
         {
             TerminalOutput.Error(
-                "CLI023: --ruleset-origin cannot be combined with the compatibility option --from.");
+                "CLI025: --ruleset-origin cannot be combined with the compatibility option --from.");
             return 2;
         }
 
@@ -37,7 +37,7 @@ internal static class InitCommands
                 !string.IsNullOrWhiteSpace(from))
             {
                 TerminalOutput.Error(
-                    "CLI024: VSLICES_RULESET_SOURCE cannot be combined with --ruleset-origin or --from.");
+                    "CLI026: VSLICES_RULESET_SOURCE cannot be combined with --ruleset-origin or --from.");
                 return 2;
             }
 
