@@ -93,7 +93,7 @@ public sealed class ProjectInitializationLifecycleTests
             "--from", "https://github.com/vslices/ruleset");
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("CLI023", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("CLI025", result.StandardError, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(project.VslicesRoot, "config.yaml")));
     }
 
