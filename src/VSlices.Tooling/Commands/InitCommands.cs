@@ -50,8 +50,10 @@ internal static class InitCommands
 
         if (defaultOrigin)
         {
-            rulesetOrigin ??= "vslices/ruleset:main";
-            docsStandardOrigin ??= "vslices/docs-standard:main";
+            rulesetOrigin ??=
+                $"{ProjectConfiguration.OfficialRulesetSource}#{ProjectConfiguration.OfficialRulesetRef}";
+            docsStandardOrigin ??=
+                $"{ProjectConfiguration.OfficialDocsStandardSource}#{ProjectConfiguration.OfficialDocsStandardRef}";
         }
 
         var projectRoot = Environment.CurrentDirectory;
