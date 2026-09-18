@@ -45,7 +45,7 @@ internal static class NewCommands
         if (standardRoot is null)
         {
             Console.Error.WriteLine(
-                "NEW104: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard.");
+                "NEW104: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard' to install it.");
             return 1;
         }
 
