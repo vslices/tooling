@@ -39,9 +39,11 @@ internal sealed record DocumentArtifactMutationResult(
 
 internal sealed class DocumentArtifact
 {
-    private const string PlaceholderPrefix = "<!-- vslices:placeholder document=";
+    private const string PlaceholderPrefix = "<!-- vslices:placeholder question=";
+    private const string LegacyPlaceholderPrefix = "<!-- vslices:placeholder document=";
     private const string PlaceholderStem = "<!-- vslices:placeholder";
-    private const string QuestionPrefix = "<!-- vslices:question document=";
+    private const string QuestionPrefix = "<!-- vslices:question question=";
+    private const string LegacyQuestionPrefix = "<!-- vslices:question document=";
     private const string QuestionStem = "<!-- vslices:question";
     private const string MarkerSuffix = " -->";
     private const string QuestionSeparator = " question=";
@@ -52,6 +54,7 @@ internal sealed class DocumentArtifact
     private readonly DocumentDefinition definition;
     private readonly IReadOnlyDictionary<string, QuestionBlock> blocks;
     private readonly Placeholder? placeholder;
+    private readonly bool usesFrontMatterIdentity;
 
     private DocumentArtifact(
         string normalizedSource,
@@ -59,6 +62,7 @@ internal sealed class DocumentArtifact
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
         Placeholder? placeholder,
+        bool usesFrontMatterIdentity,
         IReadOnlyList<DocumentQuestionAffordance> surface)
     {
         this.normalizedSource = normalizedSource;
@@ -66,6 +70,7 @@ internal sealed class DocumentArtifact
         this.definition = definition;
         this.blocks = blocks;
         this.placeholder = placeholder;
+        this.usesFrontMatterIdentity = usesFrontMatterIdentity;
         Surface = surface;
     }
 
@@ -82,15 +87,35 @@ internal sealed class DocumentArtifact
         var normalized = NormalizeNewlines(source);
         var lines = normalized.Split('\n').ToList();
 
+        var frontMatter = DocumentFrontMatter.Read(normalized);
+        if (!frontMatter.IsSuccess)
+            return DocumentArtifactReadResult.Failure(frontMatter.Error!);
+
         Placeholder? placeholder = null;
         var blocks = new Dictionary<string, QuestionBlock>(StringComparer.Ordinal);
-        string? documentType = null;
+        string? documentType = frontMatter.DocumentType;
 
         for (var index = 0; index < lines.Count; index++)
         {
             var trimmed = lines[index].Trim();
 
-            if (TryParseMarker(trimmed, PlaceholderPrefix, out var placeholderDocument, out var placeholderQuestion))
+            if (TryParseQuestionIdentityMarker(trimmed, PlaceholderPrefix, out var placeholderQuestion))
+            {
+                if (placeholder is not null)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        "DOCART001: Document contains more than one VSlices root placeholder.");
+                }
+
+                placeholder = new Placeholder(placeholderQuestion, index);
+                continue;
+            }
+
+            if (TryParseLegacyMarker(
+                    trimmed,
+                    LegacyPlaceholderPrefix,
+                    out var placeholderDocument,
+                    out placeholderQuestion))
             {
                 if (placeholder is not null)
                 {
@@ -114,7 +139,23 @@ internal sealed class DocumentArtifact
                     $"DOCART003: Malformed VSlices placeholder metadata at line {index + 1}.");
             }
 
-            if (TryParseMarker(trimmed, QuestionPrefix, out var blockDocument, out var blockQuestion))
+            string blockQuestion;
+            if (TryParseQuestionIdentityMarker(trimmed, QuestionPrefix, out blockQuestion))
+            {
+                var block = ReadQuestionBlock(lines, index, blockQuestion, blocks);
+                if (!block.IsSuccess)
+                    return DocumentArtifactReadResult.Failure(block.Error!);
+
+                blocks.Add(blockQuestion, block.Block!);
+                index = block.Block!.EndLine;
+                continue;
+            }
+
+            if (TryParseLegacyMarker(
+                    trimmed,
+                    LegacyQuestionPrefix,
+                    out var blockDocument,
+                    out blockQuestion))
             {
                 if (!TryAcceptDocumentType(ref documentType, blockDocument))
                 {
@@ -122,47 +163,12 @@ internal sealed class DocumentArtifact
                         "DOCART002: Document metadata refers to more than one document type.");
                 }
 
-                if (blocks.ContainsKey(blockQuestion))
-                {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART004: Document contains duplicate materialization for question '{blockQuestion}'.");
-                }
+                var block = ReadQuestionBlock(lines, index, blockQuestion, blocks);
+                if (!block.IsSuccess)
+                    return DocumentArtifactReadResult.Failure(block.Error!);
 
-                var endLine = -1;
-                for (var candidate = index + 1; candidate < lines.Count; candidate++)
-                {
-                    var nested = lines[candidate].Trim();
-                    if (nested.Equals(QuestionEndMarker, StringComparison.Ordinal))
-                    {
-                        endLine = candidate;
-                        break;
-                    }
-
-                    if (nested.StartsWith(QuestionStem, StringComparison.Ordinal) ||
-                        nested.StartsWith(PlaceholderStem, StringComparison.Ordinal))
-                    {
-                        return DocumentArtifactReadResult.Failure(
-                            $"DOCART005: Question '{blockQuestion}' contains nested VSlices document metadata before its closing marker.");
-                    }
-                }
-
-                if (endLine < 0)
-                {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART006: Question '{blockQuestion}' is missing '{QuestionEndMarker}'.");
-                }
-
-                var answer = string.Join(
-                    "\n",
-                    lines.Skip(index + 1).Take(endLine - index - 1));
-                if (string.IsNullOrWhiteSpace(answer))
-                {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART007: Materialized question '{blockQuestion}' must contain a non-empty answer.");
-                }
-
-                blocks.Add(blockQuestion, new QuestionBlock(index, endLine));
-                index = endLine;
+                blocks.Add(blockQuestion, block.Block!);
+                index = block.Block!.EndLine;
                 continue;
             }
 
@@ -239,6 +245,7 @@ internal sealed class DocumentArtifact
                 definition,
                 blocks,
                 placeholder,
+                frontMatter.IsPresent,
                 surface));
     }
 
@@ -279,7 +286,11 @@ internal sealed class DocumentArtifact
             lines.RemoveAt(placeholder.Line);
             lines.InsertRange(
                 placeholder.Line,
-                RenderAnswerBlock(definition.Type, selected.QuestionId, answerLines));
+                RenderAnswerBlock(
+                    definition.Type,
+                    selected.QuestionId,
+                    answerLines,
+                    usesFrontMatterIdentity));
         }
         else if (blocks.TryGetValue(selected.QuestionId, out var block))
         {
@@ -298,6 +309,54 @@ internal sealed class DocumentArtifact
             candidate = candidate.Replace("\n", newline, StringComparison.Ordinal);
 
         return DocumentArtifactMutationResult.Success(candidate, selected);
+    }
+
+    private static QuestionBlockReadResult ReadQuestionBlock(
+        IReadOnlyList<string> lines,
+        int startLine,
+        string questionId,
+        IReadOnlyDictionary<string, QuestionBlock> blocks)
+    {
+        if (blocks.ContainsKey(questionId))
+        {
+            return QuestionBlockReadResult.Failure(
+                $"DOCART004: Document contains duplicate materialization for question '{questionId}'.");
+        }
+
+        var endLine = -1;
+        for (var candidate = startLine + 1; candidate < lines.Count; candidate++)
+        {
+            var nested = lines[candidate].Trim();
+            if (nested.Equals(QuestionEndMarker, StringComparison.Ordinal))
+            {
+                endLine = candidate;
+                break;
+            }
+
+            if (nested.StartsWith(QuestionStem, StringComparison.Ordinal) ||
+                nested.StartsWith(PlaceholderStem, StringComparison.Ordinal))
+            {
+                return QuestionBlockReadResult.Failure(
+                    $"DOCART005: Question '{questionId}' contains nested VSlices document metadata before its closing marker.");
+            }
+        }
+
+        if (endLine < 0)
+        {
+            return QuestionBlockReadResult.Failure(
+                $"DOCART006: Question '{questionId}' is missing '{QuestionEndMarker}'.");
+        }
+
+        var answer = string.Join(
+            "\n",
+            lines.Skip(startLine + 1).Take(endLine - startLine - 1));
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            return QuestionBlockReadResult.Failure(
+                $"DOCART007: Materialized question '{questionId}' must contain a non-empty answer.");
+        }
+
+        return QuestionBlockReadResult.Success(new QuestionBlock(startLine, endLine));
     }
 
     private static IReadOnlyList<DocumentQuestionAffordance> BuildSurface(
@@ -359,12 +418,14 @@ internal sealed class DocumentArtifact
     private static IReadOnlyList<string> RenderAnswerBlock(
         string documentType,
         string questionId,
-        IReadOnlyList<string> answerLines)
+        IReadOnlyList<string> answerLines,
+        bool usesFrontMatterIdentity)
     {
-        var result = new List<string>
-        {
-            $"<!-- vslices:question document={documentType} question={questionId} -->"
-        };
+        var marker = usesFrontMatterIdentity
+            ? $"<!-- vslices:question question={questionId} -->"
+            : $"<!-- vslices:question document={documentType} question={questionId} -->";
+
+        var result = new List<string> { marker };
         result.AddRange(answerLines);
         result.Add(QuestionEndMarker);
         return result;
@@ -384,7 +445,12 @@ internal sealed class DocumentArtifact
         var headingLevel = Math.Min(question.Depth + 1, 6);
         lines.Add($"{new string('#', headingLevel)} {question.Text}");
         lines.Add(string.Empty);
-        lines.AddRange(RenderAnswerBlock(definition.Type, question.QuestionId, answerLines));
+        lines.AddRange(
+            RenderAnswerBlock(
+                definition.Type,
+                question.QuestionId,
+                answerLines,
+                usesFrontMatterIdentity));
         lines.Add(string.Empty);
     }
 
@@ -404,7 +470,24 @@ internal sealed class DocumentArtifact
         return false;
     }
 
-    private static bool TryParseMarker(
+    private static bool TryParseQuestionIdentityMarker(
+        string value,
+        string prefix,
+        out string questionId)
+    {
+        questionId = string.Empty;
+
+        if (!value.StartsWith(prefix, StringComparison.Ordinal) ||
+            !value.EndsWith(MarkerSuffix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        questionId = value[prefix.Length..^MarkerSuffix.Length];
+        return IsStableIdentifier(questionId);
+    }
+
+    private static bool TryParseLegacyMarker(
         string value,
         string prefix,
         out string documentType,
@@ -463,4 +546,13 @@ internal sealed class DocumentArtifact
     private sealed record Placeholder(string QuestionId, int Line);
     private sealed record QuestionBlock(int StartLine, int EndLine);
     private sealed record QuestionInfo(string? ParentId, int Depth);
+
+    private sealed record QuestionBlockReadResult(
+        QuestionBlock? Block,
+        string? Error)
+    {
+        public bool IsSuccess => Block is not null && Error is null;
+        public static QuestionBlockReadResult Success(QuestionBlock block) => new(block, null);
+        public static QuestionBlockReadResult Failure(string error) => new(null, error);
+    }
 }
