@@ -14,6 +14,7 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.True(File.Exists(Path.Combine(project.VslicesRoot, ".ignore")));
         Assert.False(Directory.Exists(project.RulesetRoot));
         Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "docs-standard")));
+        Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "template-standard")));
 
         var configuration = ProjectConfiguration.LoadFromProjectRoot(project.Root);
         Assert.NotNull(configuration);
@@ -21,10 +22,13 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.Null(configuration.RulesetRef);
         Assert.Null(configuration.DocsStandardSource);
         Assert.Null(configuration.DocsStandardRef);
+        Assert.Null(configuration.TemplateStandardSource);
+        Assert.Null(configuration.TemplateStandardRef);
 
         var text = File.ReadAllText(Path.Combine(project.VslicesRoot, "config.yaml"));
         Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
         Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -38,11 +42,15 @@ public sealed class ProjectInitializationLifecycleTests
         var docsOrigin = Path.Combine(project.Root, "docs-origin");
         WriteDocsStandard(docsOrigin, "¿Dónde existe?");
 
+        var templateOrigin = Path.Combine(project.Root, "template-origin");
+        WriteTemplateStandard(templateOrigin, "markdown.question-tree");
+
         var result = await project.Run(
             project.Root,
             "init",
             "--ruleset-origin", rulesetOrigin,
-            "--docs-standard-origin", docsOrigin);
+            "--docs-standard-origin", docsOrigin,
+            "--template-standard-origin", templateOrigin);
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "ruleset.marker")));
@@ -51,6 +59,12 @@ public sealed class ProjectInitializationLifecycleTests
             "docs-standard",
             "documents",
             "context-document.yml")));
+        Assert.True(File.Exists(Path.Combine(
+            project.VslicesRoot,
+            "template-standard",
+            "templates",
+            "markdown",
+            "question-tree.yaml")));
 
         var configuration = ProjectConfiguration.LoadFromProjectRoot(project.Root);
         Assert.NotNull(configuration);
@@ -58,6 +72,8 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.Null(configuration.RulesetRef);
         Assert.Equal(docsOrigin, configuration.DocsStandardSource);
         Assert.Null(configuration.DocsStandardRef);
+        Assert.Equal(templateOrigin, configuration.TemplateStandardSource);
+        Assert.Null(configuration.TemplateStandardRef);
     }
 
     [Fact]
@@ -142,6 +158,50 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.Equal(
             ProjectConfiguration.OfficialRulesetRef,
             result.Origin.Reference);
+    }
+
+    [Fact]
+    public void Official_template_standard_URL_without_explicit_ref_uses_the_official_ref()
+    {
+        var result = ProjectOriginResolver.Parse(
+            "https://github.com/vslices/template-standard",
+            ProjectOrigin.OfficialTemplateStandard,
+            "TEST001");
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(
+            ProjectConfiguration.OfficialTemplateStandardSource,
+            result.Origin!.Source);
+        Assert.Equal(
+            ProjectConfiguration.OfficialTemplateStandardRef,
+            result.Origin.Reference);
+    }
+
+    private static void WriteTemplateStandard(string root, string templateId)
+    {
+        var templates = Path.Combine(root, "templates", "markdown");
+        Directory.CreateDirectory(templates);
+
+        File.WriteAllText(
+            Path.Combine(root, "manifest.yaml"),
+            """
+            kind: vslices-template-standard
+            version: 0.1
+            templates:
+              - templates/markdown/question-tree.yaml
+            """);
+
+        File.WriteAllText(
+            Path.Combine(templates, "question-tree.yaml"),
+            $$"""
+            kind: vslices-materialization-template
+            version: 0.1
+
+            template:
+              id: {{templateId}}
+              artifact-kind: document
+              media-type: text/markdown
+            """);
     }
 
     private static void WriteDocsStandard(string root, string rootQuestion)

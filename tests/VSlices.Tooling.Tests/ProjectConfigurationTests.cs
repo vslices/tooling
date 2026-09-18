@@ -23,10 +23,13 @@ public sealed class ProjectConfigurationTests
             Assert.Null(loaded.RulesetRef);
             Assert.Null(loaded.DocsStandardSource);
             Assert.Null(loaded.DocsStandardRef);
+            Assert.Null(loaded.TemplateStandardSource);
+            Assert.Null(loaded.TemplateStandardRef);
 
             var text = File.ReadAllText(Path.Combine(root, ".vslices", "config.yaml"));
             Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
             Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
         }
         finally
         {
