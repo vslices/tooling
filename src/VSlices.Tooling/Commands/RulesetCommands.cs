@@ -6,201 +6,150 @@ internal static class RulesetCommands
         "# Project-specific paths ignored by VSlices artifact discovery.\n" +
         "# Built-in exclusions: .git/, .vslices/, bin/, obj/.\n";
 
-    /// <summary>Initializes a project-local .vslices ruleset from the official ruleset or a custom source.</summary>
-    /// <param name="from">Custom ruleset directory or ZIP URL. If omitted, interactive terminals offer the official ruleset.</param>
-    /// <param name="target">-t, Target rules to install. Current experimental target: C#.</param>
-    /// <param name="force">Replace an existing project-local ruleset.</param>
+    /// <summary>Initializes the minimum project-local VSlices surface.</summary>
+    /// <param name="rulesetOrigin">Optionally installs Ruleset through the same origin/update lifecycle as 'vslices update ruleset'.</param>
+    /// <param name="docsStandardOrigin">Optionally installs Docs Standard through the same origin/update lifecycle as 'vslices update docs-standard'.</param>
+    /// <param name="defaultOrigin">Installs any unspecified external knowledge source from its official VSlices origin.</param>
+    /// <param name="from">Compatibility alias for --ruleset-origin.</param>
+    /// <param name="target">-t, Default lowering target. Current experimental target: C#.</param>
+    /// <param name="force">Reinitializes the minimum project surface while preserving existing project policy not explicitly replaced.</param>
     public static async Task<int> Init(
+        string? rulesetOrigin = null,
+        string? docsStandardOrigin = null,
+        bool defaultOrigin = false,
         string? from = null,
         string? target = null,
         bool force = false,
         CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrWhiteSpace(rulesetOrigin) &&
+            !string.IsNullOrWhiteSpace(from))
+        {
+            TerminalOutput.Error(
+                "CLI023: --ruleset-origin cannot be combined with the compatibility option --from.");
+            return 2;
+        }
+
         var environmentSource = Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE");
-        var explicitSource = !string.IsNullOrWhiteSpace(from) || !string.IsNullOrWhiteSpace(environmentSource);
-        var source = string.IsNullOrWhiteSpace(from) ? environmentSource : from;
-
-        if (string.IsNullOrWhiteSpace(source))
+        if (!string.IsNullOrWhiteSpace(environmentSource))
         {
-            source = Console.IsInputRedirected
-                ? ProjectConfiguration.OfficialRulesetSource
-                : PromptRulesetSource();
+            if (!string.IsNullOrWhiteSpace(rulesetOrigin) ||
+                !string.IsNullOrWhiteSpace(from))
+            {
+                TerminalOutput.Error(
+                    "CLI024: VSLICES_RULESET_SOURCE cannot be combined with --ruleset-origin or --from.");
+                return 2;
+            }
+
+            rulesetOrigin = environmentSource;
+        }
+        else if (!string.IsNullOrWhiteSpace(from))
+        {
+            rulesetOrigin = from;
         }
 
-        if (string.IsNullOrWhiteSpace(source))
+        if (defaultOrigin)
         {
-            TerminalOutput.Error("CLI010: Ruleset initialization was cancelled.");
-            return 2;
+            rulesetOrigin ??= "vslices/ruleset:main";
+            docsStandardOrigin ??= "vslices/docs-standard:main";
         }
-
-        var selectedTarget = ResolveTarget(target);
-        if (selectedTarget is null)
-            return 2;
 
         var projectRoot = Environment.CurrentDirectory;
-        var vslicesRoot = Path.Combine(projectRoot, ".vslices");
-        var rulesetTarget = Path.Combine(vslicesRoot, "ruleset");
-        if (Directory.Exists(rulesetTarget) && !force)
+        var existingConfiguration = ProjectConfiguration.LoadFromProjectRoot(projectRoot);
+        if (existingConfiguration is not null && !force)
         {
-            TerminalOutput.Warning("! Project already contains a VSlices ruleset");
-            TerminalOutput.Detail("Path", rulesetTarget);
-            TerminalOutput.Muted("  Use --force to replace it.");
+            TerminalOutput.Warning("! Directory already contains a VSlices project");
+            TerminalOutput.Detail(
+                "Path",
+                Path.GetRelativePath(
+                    projectRoot,
+                    Path.Combine(projectRoot, ".vslices", "config.yaml")));
+            TerminalOutput.Muted("  Use --force to refresh the minimum project surface.");
             TerminalOutput.BlankLine();
             TerminalOutput.Error(
-                $"CLI011: Ruleset already exists at '{rulesetTarget}'. Use --force to replace it.");
+                "CLI011: VSlices project is already initialized. Use --force to reinitialize it.");
             return 1;
         }
 
-        var official = source.Equals(ProjectConfiguration.OfficialRulesetSource, StringComparison.OrdinalIgnoreCase);
-        var reference = official ? ProjectConfiguration.OfficialRulesetRef : null;
+        var selectedTarget = ResolveTarget(
+            target,
+            existingConfiguration?.DefaultTarget);
+        if (selectedTarget is null)
+            return 2;
+
+        var configuration = existingConfiguration is null
+            ? ProjectConfiguration.Default(selectedTarget)
+            : existingConfiguration with
+            {
+                DefaultTarget = selectedTarget
+            };
+
+        await ProjectConfiguration.WriteAsync(
+            projectRoot,
+            configuration,
+            cancellationToken);
+
+        var vslicesRoot = Path.Combine(projectRoot, ".vslices");
+        var ignorePath = Path.Combine(vslicesRoot, ".ignore");
+        if (!File.Exists(ignorePath))
+        {
+            await File.WriteAllTextAsync(
+                ignorePath,
+                DefaultIgnoreContent,
+                cancellationToken);
+        }
 
         TerminalOutput.Detail("Target", CommandInfrastructure.DisplayTarget(selectedTarget));
-        TerminalOutput.Detail("Ruleset", official ? "official" : DescribeSource(source));
-        TerminalOutput.Detail("Destination", Path.GetRelativePath(projectRoot, rulesetTarget));
+        TerminalOutput.Detail("Configuration", Path.GetRelativePath(projectRoot, Path.Combine(vslicesRoot, "config.yaml")));
+        TerminalOutput.Detail("Ignore policy", Path.GetRelativePath(projectRoot, ignorePath));
         if (force)
-            TerminalOutput.Detail("Mode", "replace existing");
+            TerminalOutput.Detail("Mode", "refresh minimum project surface");
         TerminalOutput.BlankLine();
+        TerminalOutput.Success("✓ VSlices project initialized");
 
-        var staging = Path.Combine(Path.GetTempPath(), "vslices-init-" + Guid.NewGuid().ToString("N"));
-        var prepared = Path.Combine(vslicesRoot, ".ruleset-init-" + Guid.NewGuid().ToString("N"));
-
-        try
+        if (!string.IsNullOrWhiteSpace(rulesetOrigin))
         {
-            RulesetMaterializationResult materialized = null!;
-            var rulesetSource = new RulesetSource(source, reference);
-            if (RulesetSourceMaterializer.IsRemoteSource(source))
-            {
-                await TerminalOutput.ProgressAsync(
-                    "Downloading ruleset...",
-                    async () => materialized = await RulesetSourceMaterializer.Materialize(
-                        rulesetSource,
-                        staging,
-                        cancellationToken));
-            }
-            else
-            {
-                materialized = await RulesetSourceMaterializer.Materialize(
-                    rulesetSource,
-                    staging,
-                    cancellationToken);
-            }
-
-            if (!materialized.IsSuccess)
-            {
-                TerminalOutput.Error($"{materialized.DiagnosticCode}: {materialized.Message}");
-                return 1;
-            }
-
-            TerminalOutput.Success("✓ Ruleset materialized");
-
-            var preparedResult = RulesetSnapshotInstaller.Prepare(
-                materialized.Root!,
-                selectedTarget,
-                prepared);
-            if (!preparedResult.IsSuccess)
-            {
-                CommandInfrastructure.WriteDiagnostics(preparedResult.Diagnostics);
-                return 1;
-            }
-
-            TerminalOutput.Success("✓ Ruleset validated");
-            RulesetSnapshotInstaller.Replace(vslicesRoot, prepared);
-            TerminalOutput.Success($"✓ {CommandInfrastructure.DisplayTarget(selectedTarget)} target installed");
-
-            var ignorePath = Path.Combine(vslicesRoot, ".ignore");
-            if (!File.Exists(ignorePath))
-                await File.WriteAllTextAsync(ignorePath, DefaultIgnoreContent, cancellationToken);
-
-            var existingConfiguration = ProjectConfiguration.LoadFromProjectRoot(projectRoot);
-            var configuration = new ProjectConfiguration(
-                ProjectConfiguration.CurrentVersion,
-                selectedTarget,
-                official
-                    ? ProjectConfiguration.OfficialRulesetSource
-                    : explicitSource
-                        ? source
-                        : existingConfiguration?.RulesetSource ?? source,
-                official
-                    ? ProjectConfiguration.OfficialRulesetRef
-                    : null,
-                existingConfiguration?.UpdateSource ?? ProjectConfiguration.OfficialToolingSource,
-                existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel,
-                existingConfiguration?.UpdatePullRequest,
-                existingConfiguration?.LineageBootstrapConvention ?? ProjectConfiguration.DefaultLineageBootstrapConvention,
-                existingConfiguration?.CSharpNamespaceIgnoredFolders ?? [],
-                existingConfiguration?.DocsStandardSource,
-                existingConfiguration?.DocsStandardRef);
-
-            await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
-            TerminalOutput.Success("✓ Configuration written");
             TerminalOutput.BlankLine();
-            TerminalOutput.Success("VSlices project initialized");
-            return 0;
+            TerminalOutput.Info("→ Installing Ruleset from requested origin");
+            var rulesetExit = await UpdateCommands.Ruleset(
+                origin: rulesetOrigin,
+                cancellationToken: cancellationToken);
+            if (rulesetExit != 0)
+                return rulesetExit;
         }
-        finally
+
+        if (!string.IsNullOrWhiteSpace(docsStandardOrigin))
         {
-            if (Directory.Exists(staging))
-                Directory.Delete(staging, recursive: true);
-            if (Directory.Exists(prepared))
-                Directory.Delete(prepared, recursive: true);
+            TerminalOutput.BlankLine();
+            TerminalOutput.Info("→ Installing Docs Standard from requested origin");
+            var docsExit = await UpdateCommands.DocsStandard(
+                origin: docsStandardOrigin,
+                cancellationToken: cancellationToken);
+            if (docsExit != 0)
+                return docsExit;
         }
+
+        return 0;
     }
 
-    private static string? PromptRulesetSource()
+    private static string? ResolveTarget(
+        string? requestedTarget,
+        string? existingTarget)
     {
-        TerminalOutput.Heading("Select a ruleset source");
-        Console.WriteLine("  1. VSlices official ruleset");
-        Console.WriteLine("  2. Custom source");
-        Console.Write("Choice [1]: ");
-
-        var choice = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(choice) || choice == "1")
-            return ProjectConfiguration.OfficialRulesetSource;
-
-        if (choice != "2")
+        if (!string.IsNullOrWhiteSpace(requestedTarget))
         {
-            TerminalOutput.Error("CLI017: Invalid ruleset source selection.");
-            return null;
-        }
-
-        Console.Write("Ruleset directory or ZIP URL: ");
-        return Console.ReadLine()?.Trim();
-    }
-
-    private static string? ResolveTarget(string? target)
-    {
-        if (!string.IsNullOrWhiteSpace(target))
-        {
-            var normalized = CommandInfrastructure.NormalizeTarget(target);
+            var normalized = CommandInfrastructure.NormalizeTarget(requestedTarget);
             if (normalized == "csharp")
                 return normalized;
 
             TerminalOutput.Error(
-                $"CLI020: Target '{target}' is not supported. Current experimental target: C#.");
+                $"CLI020: Target '{requestedTarget}' is not supported. Current experimental target: C#.");
             return null;
         }
 
-        if (Console.IsInputRedirected)
-            return "csharp";
+        if (!string.IsNullOrWhiteSpace(existingTarget))
+            return CommandInfrastructure.NormalizeTarget(existingTarget);
 
-        TerminalOutput.Heading("Select a target");
-        Console.WriteLine("  1. C#");
-        Console.Write("Choice [1]: ");
-
-        var choice = Console.ReadLine()?.Trim();
-        if (string.IsNullOrEmpty(choice) || choice == "1")
-            return "csharp";
-
-        TerminalOutput.Error("CLI018: Invalid target selection.");
-        return null;
-    }
-
-    private static string DescribeSource(string source)
-    {
-        if (RulesetSourceMaterializer.IsRemoteSource(source))
-            return "custom remote";
-
-        var local = Path.GetFullPath(source, Environment.CurrentDirectory);
-        return Directory.Exists(local) ? "local" : "custom";
+        return "csharp";
     }
 }
