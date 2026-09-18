@@ -53,9 +53,9 @@ internal static class UpdateCommands
         return RulesetUpdater.Update(project, cancellationToken);
     }
 
-    /// <summary>Updates the project-local Docs Standard snapshot.</summary>
-    /// <param name="from">Docs Standard source directory, GitHub repository, or ZIP URL. Defaults to the official source.</param>
-    /// <param name="ref">GitHub branch, tag, or commit. Defaults to main for the official source.</param>
+    /// <summary>Updates the project-local Docs Standard snapshot from explicit or configured provenance.</summary>
+    /// <param name="from">Docs Standard source directory, GitHub repository, or ZIP URL. Overrides configured provenance for this update.</param>
+    /// <param name="ref">GitHub branch, tag, or commit. Overrides the configured reference.</param>
     public static Task<int> DocsStandard(
         string? from = null,
         string? @ref = null,
