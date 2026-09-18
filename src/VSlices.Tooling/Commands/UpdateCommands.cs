@@ -64,7 +64,7 @@ internal static class UpdateCommands
             project.Configuration.RulesetSource,
             project.Configuration.RulesetRef,
             ProjectOrigin.OfficialRuleset,
-            "UPD015");
+            "UPD017");
         if (!resolved.IsSuccess)
         {
             TerminalOutput.Error(resolved.Error!);
