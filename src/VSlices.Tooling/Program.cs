@@ -38,7 +38,7 @@ if (!Console.IsOutputRedirected && args.Length > 0)
 
 var app = ConsoleApp.Create();
 
-app.Add("init", RulesetCommands.Init);
+app.Add("init", InitCommands.Init);
 app.Add("new vsir", NewCommands.Vsir);
 app.Add("new document", NewCommands.Document);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
