@@ -26,7 +26,7 @@ public sealed class NewDocumentCommandTests
             # ¿Dónde existe?
 
             <!-- vslices:placeholder question=context -->
-            """.Replace("\r\n", "\n"),
+            """.Replace("\r\n", "\n") + "\n",
             File.ReadAllText(path).Replace("\r\n", "\n"));
         Assert.DoesNotContain(
             "¿Qué estamos asumiendo como cierto?",
