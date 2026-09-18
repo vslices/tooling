@@ -19,7 +19,11 @@ public sealed class DocumentUpdateTests
         var source = ReadDocument(project);
         Assert.DoesNotContain("vslices:placeholder", source, StringComparison.Ordinal);
         Assert.Contains(
-            "<!-- vslices:question document=context question=context -->",
+            "<!-- vslices:question question=context -->",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "vslices:question document=context",
             source,
             StringComparison.Ordinal);
         Assert.Contains("Existe dentro del experimento de authoring documental.", source, StringComparison.Ordinal);
@@ -51,7 +55,7 @@ public sealed class DocumentUpdateTests
         var source = ReadDocument(project);
         Assert.Contains("## ¿Qué estamos asumiendo como cierto?", source, StringComparison.Ordinal);
         Assert.Contains(
-            "<!-- vslices:question document=context question=assumptions -->",
+            "<!-- vslices:question question=assumptions -->",
             source,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -177,6 +181,38 @@ public sealed class DocumentUpdateTests
             "## ¿Qué supuesto sostiene esta respuesta?",
             ReadDocument(project),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Legacy_document_identity_markers_remain_readable_without_front_matter()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root);
+        var path = Path.Combine(project.Root, "tooling-context.md");
+        File.WriteAllText(
+            path,
+            "# ¿Dónde existe?\n\n<!-- vslices:placeholder document=context question=context -->\n");
+
+        var root = await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Documento creado antes del front-matter.");
+
+        Assert.Equal(0, root.ExitCode);
+        var source = ReadDocument(project);
+        Assert.Contains(
+            "<!-- vslices:question document=context question=context -->",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("artifact:", source, StringComparison.Ordinal);
+
+        var discovered = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, discovered.ExitCode);
+        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
     }
 
     private static async Task CreateContextDocument(ToolingTestProject project)
