@@ -127,7 +127,9 @@ internal static class RulesetCommands
                 existingConfiguration?.UpdateChannel ?? ProjectConfiguration.DefaultUpdateChannel,
                 existingConfiguration?.UpdatePullRequest,
                 existingConfiguration?.LineageBootstrapConvention ?? ProjectConfiguration.DefaultLineageBootstrapConvention,
-                existingConfiguration?.CSharpNamespaceIgnoredFolders ?? []);
+                existingConfiguration?.CSharpNamespaceIgnoredFolders ?? [],
+                existingConfiguration?.DocsStandardSource,
+                existingConfiguration?.DocsStandardRef);
 
             await ProjectConfiguration.WriteAsync(projectRoot, configuration, cancellationToken);
             TerminalOutput.Success("✓ Configuration written");
