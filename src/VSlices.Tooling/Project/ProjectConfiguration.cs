@@ -28,15 +28,15 @@ internal sealed record ProjectConfiguration(
         new(
             CurrentVersion,
             target,
-            OfficialRulesetSource,
-            OfficialRulesetRef,
+            null,
+            null,
             OfficialToolingSource,
             DefaultUpdateChannel,
             null,
             DefaultLineageBootstrapConvention,
             [],
-            OfficialDocsStandardSource,
-            OfficialDocsStandardRef);
+            null,
+            null);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
