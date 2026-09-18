@@ -134,14 +134,13 @@ internal static class ProjectOriginResolver
         }
 
         var separator = value.IndexOf(':');
-        var repository = separator >= 0
-            ? value[..separator]
-            : value;
-        var candidateReference = separator >= 0
-            ? value[(separator + 1)..]
-            : null;
+        if (separator <= 0)
+            return false;
 
-        if (separator >= 0 && string.IsNullOrWhiteSpace(candidateReference))
+        var repository = value[..separator];
+        var candidateReference = value[(separator + 1)..];
+
+        if (string.IsNullOrWhiteSpace(candidateReference))
             return false;
 
         var segments = repository
