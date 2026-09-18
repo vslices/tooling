@@ -147,7 +147,7 @@ internal static class ProjectOriginResolver
         var segments = repository
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (segments.Length != 2 ||
-            repository.StartsWith('.', StringComparison.Ordinal) ||
+            repository.StartsWith(".", StringComparison.Ordinal) ||
             repository.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
         {
             return false;
