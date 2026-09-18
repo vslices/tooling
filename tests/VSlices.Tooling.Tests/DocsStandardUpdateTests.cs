@@ -174,7 +174,7 @@ public sealed class DocsStandardUpdateTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--from", source);
+            "update", "docs-standard", "--origin", source);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("UPD030", result.StandardError, StringComparison.Ordinal);
