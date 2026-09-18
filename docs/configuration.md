@@ -2,17 +2,13 @@
 
 `.vslices/config.yaml` represents project-specific operating policy. It does not redefine VSIR semantics.
 
-A normal initialized configuration is:
+A minimal initialized configuration is:
 
 ```yaml
 version: 0.1
 
 targets:
   default: csharp
-
-ruleset:
-  source: https://github.com/vslices/ruleset
-  ref: main
 
 lineage:
   bootstrap:
@@ -22,6 +18,17 @@ updates:
   source: https://github.com/vslices/tooling
   channel: preview
 ```
+
+`vslices init` creates only the minimum project surface required for later VSlices operations. It does not imply that Ruleset or Docs Standard are already installed.
+
+External knowledge is installed independently:
+
+```text
+vslices update ruleset
+vslices update docs-standard
+```
+
+Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, or `--default-origin`; it does not own a second installation mechanism.
 
 Operational precedence is:
 
@@ -41,7 +48,10 @@ explicit CLI argument
   = project-specific discovery exclusions
 
 .vslices/ruleset/
-  = local target-lowering snapshot
+  = optional local target-lowering snapshot
+
+.vslices/docs-standard/
+  = optional local normative documentation-vocabulary snapshot
 
 .vslices/lineage/
   = operational deterministic ancestry evidence
@@ -138,12 +148,14 @@ For a GitHub repository source, `ruleset.ref` is a real Git reference candidate.
 
 A local directory with `ruleset.ref` is rejected rather than silently treating the value as a branch. A generic direct ZIP URL likewise does not gain Git-ref semantics.
 
-The official defaults are:
+If no Ruleset provenance has been configured yet, `vslices update ruleset` resolves the official origin:
 
 ```text
 source: https://github.com/vslices/ruleset
 ref: main
 ```
+
+A successful first installation records that provenance in `.vslices/config.yaml`. Later plain updates reuse it.
 
 ## Docs Standard provenance
 
@@ -157,23 +169,40 @@ docs-standard:
 
 `docs-standard.source` and optional `docs-standard.ref` play the same role for documentary vocabulary that `ruleset.source` and `ruleset.ref` play for target-lowering knowledge.
 
-The update precedence is:
+Ruleset and Docs Standard use the same update precedence:
 
 ```text
-explicit --from / --ref
-  > configured docs-standard.source / docs-standard.ref
+explicit --origin
+  > compatibility --from / --ref
+  > configured source / ref
   > official source / main
 ```
 
-A successful `vslices update docs-standard --from ... --ref ...` records the resolved provenance only after the candidate snapshot has been materialized and validated. A failed candidate does not replace the known-good provenance.
-
-Consequently, after one successful explicit installation, later invocations may use:
+The preferred compact GitHub syntax is:
 
 ```text
+owner/repository:ref
+```
+
+For example:
+
+```text
+vslices update ruleset --origin vslices/ruleset:main
+vslices update docs-standard --origin vslices/docs-standard:feat/document-authoring-preview
+```
+
+Local directories and direct ZIP origins may be passed directly without a ref.
+
+A successful first installation records the resolved source/ref only after the candidate snapshot has been materialized and validated. A failed candidate does not replace the known-good provenance.
+
+Consequently, later invocations may use:
+
+```text
+vslices update ruleset
 vslices update docs-standard
 ```
 
-to refresh from the same source and Git ref.
+to refresh from their recorded origins.
 
 Older project configurations that predate this provenance field remain readable. Because an already-installed snapshot does not itself prove which source/ref produced it, such projects need one explicit successful update to establish provenance before argument-free updates can reuse it.
 
@@ -219,15 +248,25 @@ The convention does not apply to an explicit `--source` override or a non-conven
 
 Reason: another developer, machine or CI process should be able to reconstruct the same automatic three-way rebase from repository state. Lineage remains operational evidence, not semantic authority. Tooling does not currently infer missing ancestry from Git history, and no provenance graph is introduced.
 
-## Ruleset updates
+## External snapshot updates
 
-`vslices update --ruleset` is implemented.
+`vslices update ruleset` and `vslices update docs-standard` are both first-install and refresh operations.
 
-The operation uses configured `ruleset.source` and `ruleset.ref`, materializes a candidate snapshot, copies only the selected target plus root files, validates the prepared snapshot with the real target loader and only then performs atomic replacement with backup/rollback.
+Each operation:
 
-For C#, validation includes `CSharpLoweringRuleSet.Load`, so missing declared files, duplicate rule nodes, unsupported rule mode/renderer and missing templates prevent replacement.
+```text
+resolve origin
+-> materialize candidate
+-> validate completely
+-> atomically replace its project-local snapshot
+-> persist successful provenance
+```
 
-`vslices update --self` remains independent. Plain `vslices update` and combined `--self --ruleset` remain undefined while aggregate ordering and partial-failure semantics are still under study.
+Ruleset validation uses the real target loader. For C#, this includes `CSharpLoweringRuleSet.Load`, so missing declared files, duplicate rule nodes, unsupported rule mode/renderer and missing templates prevent replacement.
+
+Docs Standard validation follows the manifest-reachable normative definitions and rejects malformed or incomplete candidates before replacement.
+
+`vslices update self` remains independent.
 
 ## CLI update policy
 
