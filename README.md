@@ -29,6 +29,7 @@ vslices lower <artifact-or-project>
 vslices update self
 vslices update ruleset
 vslices update docs-standard
+vslices update template-standard
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
@@ -48,7 +49,7 @@ vslices -v
 .vslices/.ignore
 ```
 
-Ruleset and Docs Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
+Ruleset, Docs Standard, and Template Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
 
 The current authoring loop is:
 
@@ -100,6 +101,9 @@ vslices/ruleset
 
 .vslices/docs-standard/
   = optional installed normative documentary-vocabulary snapshot
+
+.vslices/template-standard/
+  = optional installed source-owned materialization-template snapshot
 
 .vslices/extensions/
   = project-owned semantic-extension overlay
@@ -568,18 +572,19 @@ Startup health checks, same-build `vslices update self` repair, downloaded-archi
 
 ## External knowledge lifecycle and updates
 
-Ruleset and Docs Standard are installed and refreshed independently from project initialization:
+Ruleset, Docs Standard, and Template Standard are installed and refreshed independently from project initialization:
 
 ```text
 vslices update ruleset
 vslices update docs-standard
+vslices update template-standard
 ```
 
-Each resolves an origin, materializes a candidate, validates it through the real consumer, atomically replaces its project-local snapshot, and records successful provenance.
+Each resolves an origin, materializes a candidate, validates it against the currently recognized component contract, atomically replaces its project-local snapshot, and records successful provenance.
 
 For C#, a prepared Ruleset snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
 
-`vslices init --ruleset-origin ...`, `--docs-standard-origin ...`, and `--default-origin` are convenience composition only; they delegate to those same updater mechanisms.
+`vslices init --ruleset-origin ...`, `--docs-standard-origin ...`, `--template-standard-origin ...`, and `--default-origin` are convenience composition only; they delegate to those same updater mechanisms.
 
 The independent updater surfaces are:
 
@@ -587,6 +592,7 @@ The independent updater surfaces are:
 vslices update self
 vslices update ruleset
 vslices update docs-standard
+vslices update template-standard
 ```
 
 There is no aggregate `vslices update` operation.

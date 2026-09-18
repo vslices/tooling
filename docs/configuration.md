@@ -26,9 +26,10 @@ External knowledge is installed independently:
 ```text
 vslices update ruleset
 vslices update docs-standard
+vslices update template-standard
 ```
 
-Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, or `--default-origin`; it does not own a second installation mechanism.
+Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; it does not own a second installation mechanism.
 
 Operational precedence is:
 
@@ -52,6 +53,9 @@ explicit CLI argument
 
 .vslices/docs-standard/
   = optional local normative documentation-vocabulary snapshot
+
+.vslices/template-standard/
+  = optional local normative materialization-template snapshot
 
 .vslices/lineage/
   = operational deterministic ancestry evidence
@@ -169,7 +173,19 @@ docs-standard:
 
 `docs-standard.source` and optional `docs-standard.ref` play the same role for documentary vocabulary that `ruleset.source` and `ruleset.ref` play for target-lowering knowledge.
 
-Ruleset and Docs Standard use the same update precedence:
+## Template Standard provenance
+
+After a Template Standard snapshot has been installed successfully, Tooling records its provenance in project configuration:
+
+```yaml
+template-standard:
+  source: https://github.com/vslices/template-standard
+  ref: feat/initial-markdown-template
+```
+
+`template-standard.source` and optional `template-standard.ref` identify the materialization vocabulary used by the project. The snapshot is installed at `.vslices/template-standard`.
+
+Ruleset, Docs Standard, and Template Standard use the same update precedence:
 
 ```text
 explicit --origin
@@ -189,6 +205,7 @@ For example:
 ```text
 vslices update ruleset --origin vslices/ruleset:main
 vslices update docs-standard --origin vslices/docs-standard:feat/document-authoring-preview
+vslices update template-standard --origin vslices/template-standard:feat/initial-markdown-template
 ```
 
 Local directories and direct ZIP origins may be passed directly without a ref.
@@ -200,6 +217,7 @@ Consequently, later invocations may use:
 ```text
 vslices update ruleset
 vslices update docs-standard
+vslices update template-standard
 ```
 
 to refresh from their recorded origins.
@@ -250,7 +268,7 @@ Reason: another developer, machine or CI process should be able to reconstruct t
 
 ## External snapshot updates
 
-`vslices update ruleset` and `vslices update docs-standard` are both first-install and refresh operations.
+`vslices update ruleset`, `vslices update docs-standard`, and `vslices update template-standard` are all first-install and refresh operations.
 
 Each operation:
 
