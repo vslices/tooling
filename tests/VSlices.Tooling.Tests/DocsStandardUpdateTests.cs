@@ -67,7 +67,7 @@ public sealed class DocsStandardUpdateTests
 
         var first = await project.Run(
             project.Root,
-            "update", "docs-standard", "--from", source);
+            "update", "docs-standard", "--origin", source);
 
         Assert.Equal(0, first.ExitCode);
         var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
@@ -108,7 +108,7 @@ public sealed class DocsStandardUpdateTests
             0,
             (await project.Run(
                 project.Root,
-                "update", "docs-standard", "--from", validSource)).ExitCode);
+                "update", "docs-standard", "--origin", validSource)).ExitCode);
 
         var invalidSource = Path.Combine(project.Root, "invalid-docs-standard");
         Directory.CreateDirectory(invalidSource);
@@ -123,7 +123,7 @@ public sealed class DocsStandardUpdateTests
 
         var failed = await project.Run(
             project.Root,
-            "update", "docs-standard", "--from", invalidSource);
+            "update", "docs-standard", "--origin", invalidSource);
 
         Assert.NotEqual(0, failed.ExitCode);
         var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
@@ -186,6 +186,22 @@ public sealed class DocsStandardUpdateTests
         var installedDefinition = File.ReadAllText(
             Path.Combine(installed, "documents", "context-document.yml"));
         Assert.Contains("¿Dónde existía?", installedDefinition, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Origin_cannot_be_combined_with_legacy_docs_standard_source_options()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard",
+            "--origin", "vslices/docs-standard:main",
+            "--from", "https://github.com/vslices/docs-standard");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("UPD035", result.StandardError, StringComparison.Ordinal);
     }
 
     [Fact]
