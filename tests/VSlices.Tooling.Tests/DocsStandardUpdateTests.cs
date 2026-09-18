@@ -32,6 +32,82 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
+    public async Task Successful_update_records_provenance_and_plain_update_reuses_it()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "source-docs-standard");
+        WriteDocsStandard(source, "¿Dónde existe inicialmente?");
+
+        var first = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", source);
+
+        Assert.Equal(0, first.ExitCode);
+        var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(configured);
+        Assert.Equal(source, configured!.DocsStandardSource);
+        Assert.Null(configured.DocsStandardRef);
+
+        WriteDocsStandard(source, "¿Dónde existe después?");
+        var second = await project.Run(
+            project.Root,
+            "update", "docs-standard");
+
+        Assert.Equal(0, second.ExitCode);
+        Assert.Contains(
+            "Docs Standard source",
+            second.StandardOutput,
+            StringComparison.Ordinal);
+        Assert.Contains(source, second.StandardOutput, StringComparison.Ordinal);
+
+        var installedDefinition = File.ReadAllText(
+            Path.Combine(
+                project.VslicesRoot,
+                "docs-standard",
+                "documents",
+                "context-document.yml"));
+        Assert.Contains("¿Dónde existe después?", installedDefinition, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Failed_update_preserves_last_known_docs_standard_provenance()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var validSource = Path.Combine(project.Root, "valid-docs-standard");
+        WriteDocsStandard(validSource, "¿Dónde existe?");
+        Assert.Equal(
+            0,
+            (await project.Run(
+                project.Root,
+                "update", "docs-standard", "--from", validSource)).ExitCode);
+
+        var invalidSource = Path.Combine(project.Root, "invalid-docs-standard");
+        Directory.CreateDirectory(invalidSource);
+        File.WriteAllText(
+            Path.Combine(invalidSource, "manifest.yaml"),
+            """
+            kind: vslices-docs-standard
+            version: 0.1
+            documents:
+              - documents/missing.yml
+            """);
+
+        var failed = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--from", invalidSource);
+
+        Assert.NotEqual(0, failed.ExitCode);
+        var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(configured);
+        Assert.Equal(validSource, configured!.DocsStandardSource);
+        Assert.Null(configured.DocsStandardRef);
+    }
+
+    [Fact]
     public async Task Invalid_candidate_never_replaces_current_snapshot()
     {
         using var project = new ToolingTestProject();
