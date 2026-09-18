@@ -40,10 +40,16 @@ internal static class DocumentTemplate
                 $"Available kinds: {available}.");
         }
 
+        var newline = Environment.NewLine;
         var root = definition.RootQuestion;
         var source =
-            $"# {root.Text}{Environment.NewLine}{Environment.NewLine}" +
-            $"<!-- vslices:placeholder document={definition.Type} question={root.Id} -->{Environment.NewLine}";
+            $"---{newline}" +
+            $"artifact:{newline}" +
+            $"  kind: document{newline}" +
+            $"  type: {definition.Type}{newline}" +
+            $"---{newline}{newline}" +
+            $"# {root.Text}{newline}{newline}" +
+            $"<!-- vslices:placeholder question={root.Id} -->{newline}";
 
         return DocumentTemplateResult.Success(source);
     }
