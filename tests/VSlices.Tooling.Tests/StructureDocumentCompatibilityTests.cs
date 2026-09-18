@@ -16,7 +16,17 @@ public sealed class StructureDocumentCompatibilityTests
         var path = Path.Combine(project.Root, "architecture.md");
         var initial = File.ReadAllText(path).Replace("\r\n", "\n");
         Assert.Equal(
-            "# ¿Cómo se organiza?\n\n<!-- vslices:placeholder document=structure question=structure -->\n",
+            """
+            ---
+            artifact:
+              kind: document
+              type: structure
+            ---
+
+            # ¿Cómo se organiza?
+
+            <!-- vslices:placeholder question=structure -->
+            """.Replace("\r\n", "\n"),
             initial);
         Assert.DoesNotContain("¿Qué estructura estamos describiendo?", initial, StringComparison.Ordinal);
 
@@ -62,7 +72,11 @@ public sealed class StructureDocumentCompatibilityTests
         var completed = File.ReadAllText(path);
         Assert.Contains("## ¿Qué estructura estamos describiendo?", completed, StringComparison.Ordinal);
         Assert.Contains(
-            "<!-- vslices:question document=structure question=structural-view -->",
+            "<!-- vslices:question question=structural-view -->",
+            completed,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "vslices:question document=structure",
             completed,
             StringComparison.Ordinal);
         Assert.Contains("La estructura del sistema y sus partes principales.", completed, StringComparison.Ordinal);
