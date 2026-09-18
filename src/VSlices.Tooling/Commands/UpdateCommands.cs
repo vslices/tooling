@@ -39,8 +39,15 @@ internal static class UpdateCommands
             cancellationToken);
     }
 
-    /// <summary>Updates the project-local ruleset snapshot from configured provenance.</summary>
-    public static Task<int> Ruleset(CancellationToken cancellationToken = default)
+    /// <summary>Installs or refreshes the project-local ruleset snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    /// <param name="from">Compatibility alias for an explicit ruleset source.</param>
+    /// <param name="ref">Compatibility GitHub branch, tag, or commit for --from.</param>
+    public static Task<int> Ruleset(
+        string? origin = null,
+        string? from = null,
+        string? @ref = null,
+        CancellationToken cancellationToken = default)
     {
         var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
         if (project is null)
@@ -50,13 +57,33 @@ internal static class UpdateCommands
             return Task.FromResult(1);
         }
 
-        return RulesetUpdater.Update(project, cancellationToken);
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            from,
+            @ref,
+            project.Configuration.RulesetSource,
+            project.Configuration.RulesetRef,
+            ProjectOrigin.OfficialRuleset,
+            "UPD015");
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
+        }
+
+        return RulesetUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
     }
 
-    /// <summary>Updates the project-local Docs Standard snapshot from explicit or configured provenance.</summary>
-    /// <param name="from">Docs Standard source directory, GitHub repository, or ZIP URL. Overrides configured provenance for this update.</param>
-    /// <param name="ref">GitHub branch, tag, or commit. Overrides the configured reference.</param>
+    /// <summary>Installs or refreshes the project-local Docs Standard snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    /// <param name="from">Compatibility alias for an explicit Docs Standard source.</param>
+    /// <param name="ref">Compatibility GitHub branch, tag, or commit for --from.</param>
     public static Task<int> DocsStandard(
+        string? origin = null,
         string? from = null,
         string? @ref = null,
         CancellationToken cancellationToken = default)
@@ -69,39 +96,25 @@ internal static class UpdateCommands
             return Task.FromResult(1);
         }
 
-        var configuration = project.Configuration;
-        var explicitSource = !string.IsNullOrWhiteSpace(from);
-        var source = explicitSource
-            ? from!
-            : configuration.DocsStandardSource
-              ?? DocsStandardUpdater.OfficialSource;
-
-        string? reference;
-        if (!string.IsNullOrWhiteSpace(@ref))
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            from,
+            @ref,
+            project.Configuration.DocsStandardSource,
+            project.Configuration.DocsStandardRef,
+            ProjectOrigin.OfficialDocsStandard,
+            "UPD035");
+        if (!resolved.IsSuccess)
         {
-            reference = @ref;
-        }
-        else if (explicitSource)
-        {
-            reference = source.Equals(
-                DocsStandardUpdater.OfficialSource,
-                StringComparison.OrdinalIgnoreCase)
-                ? DocsStandardUpdater.OfficialRef
-                : null;
-        }
-        else
-        {
-            reference = configuration.DocsStandardRef;
-            if (string.IsNullOrWhiteSpace(reference) &&
-                source.Equals(
-                    DocsStandardUpdater.OfficialSource,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                reference = DocsStandardUpdater.OfficialRef;
-            }
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
         }
 
-        return DocsStandardUpdater.Update(project, source, reference, cancellationToken);
+        return DocsStandardUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
     }
 
     /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
