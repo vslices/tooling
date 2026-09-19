@@ -58,6 +58,10 @@ internal static class DocumentMaterializationEnvironment
                 $"DOCMAT004: Configured Document template '{configuredTemplate}' is not installed. Available templates: {available}.");
         }
 
+        var validationError = DocumentMaterialization.ValidateTemplate(template);
+        if (validationError is not null)
+            return DocumentMaterializationEnvironmentResult.Failure(validationError);
+
         return DocumentMaterializationEnvironmentResult.Success(template);
     }
 }
