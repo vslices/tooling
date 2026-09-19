@@ -154,7 +154,7 @@ documents:
 
 This is project policy, not evidence that the corresponding Template Standard snapshot is installed.
 
-Document creation therefore resolves three independent inputs:
+Document authoring and reconstruction therefore resolve three independent inputs:
 
 ```text
 Docs Standard
@@ -167,7 +167,9 @@ Template Standard
   -> executable materialization definition
 ```
 
-If the configured template is unavailable from the installed `.vslices/template-standard` snapshot, Document creation fails closed and directs the user to install or update Template Standard.
+If the configured template is unavailable from the installed `.vslices/template-standard` snapshot, Document authoring and reconstruction fail closed and direct the user to install or update Template Standard.
+
+The current `markdown.question-tree` contract also defines that an empty question answer is `unanswered` and that root identity is reconstructed from the Document type. This allows a newly created root heading to remain markerless while preserving semantic identity.
 
 The current preview intentionally has no per-command, per-artifact, per-document-type, or inferred template override. Those selection surfaces remain outside the current scope.
 

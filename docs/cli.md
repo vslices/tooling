@@ -393,7 +393,7 @@ installed Template Standard
 
 The first executable materialization witness is `markdown.question-tree`.
 
-For its current supported surface, Tooling reads the template's question presentation contract:
+For its current supported surface, Tooling reads the template's question presentation and initial reconstruction contract:
 
 ```yaml
 representation:
@@ -405,6 +405,13 @@ representation:
       level:
         strategy: semantic-depth
         root: 1
+    answer:
+      empty: unanswered
+
+reconstruction:
+  question-identity:
+    root:
+      strategy: document-type-root-question
 ```
 
 Tooling owns the execution mechanism. It no longer hardcodes Markdown heading depth independently in `new document` and `update document`: both project semantic depth through the same configured Template Standard definition.
@@ -419,6 +426,30 @@ artifact:
 ---
 ```
 
-Question placeholder/answer markers also remain unchanged for now. Removing those markers is a later reconstruction slice.
+New Documents no longer persist a root placeholder marker. The minimal unanswered form is now:
+
+```markdown
+---
+artifact:
+  kind: document
+  type: context
+---
+
+# ¿Dónde existe?
+```
+
+For this first markerless reconstruction slice, Tooling combines:
+
+```text
+artifact.type
++ Docs Standard root identity
++ configured Template Standard root geometry
++ no significant body content after the root heading
+-> root is materialized + unanswered
+```
+
+The visible root wording is presentation rather than durable identity; `artifact.type` and the Docs Standard define which root question the heading represents.
+
+Existing `vslices:placeholder` markers remain readable as historical compatibility. Answered-question markers remain in the current representation and are a later reconstruction boundary.
 
 The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, and migration-aware template selection remain non-scope.
