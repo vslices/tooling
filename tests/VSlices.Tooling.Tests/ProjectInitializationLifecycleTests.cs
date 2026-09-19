@@ -24,11 +24,19 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.Null(configuration.DocsStandardRef);
         Assert.Null(configuration.TemplateStandardSource);
         Assert.Null(configuration.TemplateStandardRef);
+        Assert.Equal(
+            ProjectConfiguration.DefaultDocumentTemplate,
+            configuration.DocumentsTemplate);
 
         var text = File.ReadAllText(Path.Combine(project.VslicesRoot, "config.yaml"));
         Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
         Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
         Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
+        Assert.Contains("documents:", text, StringComparison.Ordinal);
+        Assert.Contains(
+            $"template: {ProjectConfiguration.DefaultDocumentTemplate}",
+            text,
+            StringComparison.Ordinal);
     }
 
     [Fact]

@@ -25,11 +25,19 @@ public sealed class ProjectConfigurationTests
             Assert.Null(loaded.DocsStandardRef);
             Assert.Null(loaded.TemplateStandardSource);
             Assert.Null(loaded.TemplateStandardRef);
+            Assert.Equal(
+                ProjectConfiguration.DefaultDocumentTemplate,
+                loaded.DocumentsTemplate);
 
             var text = File.ReadAllText(Path.Combine(root, ".vslices", "config.yaml"));
             Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
             Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
             Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
+            Assert.Contains("documents:", text, StringComparison.Ordinal);
+            Assert.Contains(
+                $"template: {ProjectConfiguration.DefaultDocumentTemplate}",
+                text,
+                StringComparison.Ordinal);
         }
         finally
         {
