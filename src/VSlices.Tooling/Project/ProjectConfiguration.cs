@@ -16,7 +16,7 @@ internal sealed record ProjectConfiguration(
     string? DocsStandardRef = null,
     string? TemplateStandardSource = null,
     string? TemplateStandardRef = null,
-    string? DocumentsTemplate = DefaultDocumentTemplate)
+    string? DocumentsTemplate = "markdown.question-tree")
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
