@@ -15,8 +15,9 @@ internal sealed record DocumentMaterializationResult(
 
 internal static class DocumentMaterialization
 {
-    public static DocumentMaterializationResult RenderRootQuestion(
-        DocumentQuestionDefinition question,
+    public static DocumentMaterializationResult RenderQuestion(
+        string questionText,
+        int semanticDepth,
         MaterializationTemplateDefinition template)
     {
         if (!template.ArtifactKind.Equals("document", StringComparison.Ordinal))
@@ -62,7 +63,14 @@ internal static class DocumentMaterialization
                 $"TMPL106: Configured template '{template.Id}' declares root heading level {presentation.RootLevel}; Markdown heading levels must be between 1 and 6.");
         }
 
+        var headingLevel = presentation.RootLevel + semanticDepth;
+        if (headingLevel > 6)
+        {
+            return DocumentMaterializationResult.Failure(
+                $"TMPL107: Configured template '{template.Id}' maps semantic depth {semanticDepth} to Markdown heading level {headingLevel}, beyond the supported maximum of 6.");
+        }
+
         return DocumentMaterializationResult.Success(
-            new string('#', presentation.RootLevel) + " " + question.Text);
+            new string('#', headingLevel) + " " + questionText);
     }
 }

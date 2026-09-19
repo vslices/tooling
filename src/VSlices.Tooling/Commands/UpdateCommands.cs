@@ -186,6 +186,13 @@ internal static class UpdateCommands
             return 1;
         }
 
+        var materialization = DocumentMaterializationEnvironment.Resolve(path);
+        if (!materialization.IsSuccess)
+        {
+            TerminalOutput.Error(materialization.Error!);
+            return 1;
+        }
+
         var source = await File.ReadAllTextAsync(path, cancellationToken);
         var state = DocumentArtifact.Read(source, catalog.Catalog!);
         if (!state.IsSuccess)
@@ -194,7 +201,10 @@ internal static class UpdateCommands
             return 2;
         }
 
-        var candidate = state.Artifact!.Update(questionId.Value, answer);
+        var candidate = state.Artifact!.Update(
+            questionId.Value,
+            answer,
+            materialization.Template!);
         if (!candidate.IsSuccess)
         {
             TerminalOutput.Error(candidate.Error!);

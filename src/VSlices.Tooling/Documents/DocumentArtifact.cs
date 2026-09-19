@@ -251,7 +251,8 @@ internal sealed class DocumentArtifact
 
     public DocumentArtifactMutationResult Update(
         int selection,
-        string answer)
+        string answer,
+        MaterializationTemplateDefinition materializationTemplate)
     {
         if (selection < 1 || selection > Surface.Count)
         {
@@ -301,7 +302,18 @@ internal sealed class DocumentArtifact
         }
         else
         {
-            AppendQuestion(lines, selected, answerLines);
+            var renderedQuestion = DocumentMaterialization.RenderQuestion(
+                selected.Text,
+                selected.Depth,
+                materializationTemplate);
+            if (!renderedQuestion.IsSuccess)
+                return DocumentArtifactMutationResult.Failure(renderedQuestion.Error!);
+
+            AppendQuestion(
+                lines,
+                selected,
+                renderedQuestion.Source!,
+                answerLines);
         }
 
         var candidate = string.Join("\n", lines);
@@ -434,6 +446,7 @@ internal sealed class DocumentArtifact
     private void AppendQuestion(
         List<string> lines,
         DocumentQuestionAffordance question,
+        string renderedQuestion,
         IReadOnlyList<string> answerLines)
     {
         while (lines.Count > 0 && lines[^1].Length == 0)
@@ -442,8 +455,7 @@ internal sealed class DocumentArtifact
         if (lines.Count > 0)
             lines.Add(string.Empty);
 
-        var headingLevel = Math.Min(question.Depth + 1, 6);
-        lines.Add($"{new string('#', headingLevel)} {question.Text}");
+        lines.Add(renderedQuestion);
         lines.Add(string.Empty);
         lines.AddRange(
             RenderAnswerBlock(

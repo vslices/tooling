@@ -56,50 +56,11 @@ internal static class NewCommands
             return 1;
         }
 
-        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
-        if (project is null)
+        var materialization = DocumentMaterializationEnvironment.Resolve(
+            Environment.CurrentDirectory);
+        if (!materialization.IsSuccess)
         {
-            Console.Error.WriteLine(
-                "NEW105: Could not locate .vslices/config.yaml. Run 'vslices init' before creating Documents.");
-            return 1;
-        }
-
-        var templateRoot = Path.Combine(project.VslicesRoot, "template-standard");
-        if (!File.Exists(Path.Combine(templateRoot, "manifest.yaml")))
-        {
-            Console.Error.WriteLine(
-                "NEW106: Could not locate an installed Template Standard snapshot at .vslices/template-standard. Run 'vslices update template-standard' to install it.");
-            return 1;
-        }
-
-        var templateCatalog = TemplateStandardCatalog.Load(templateRoot);
-        if (!templateCatalog.IsSuccess)
-        {
-            Console.Error.WriteLine(templateCatalog.Error);
-            return 1;
-        }
-
-        var configuredTemplate = project.Configuration.DocumentsTemplate;
-        if (string.IsNullOrWhiteSpace(configuredTemplate))
-        {
-            Console.Error.WriteLine(
-                "NEW107: Project configuration must declare documents.template.");
-            return 1;
-        }
-
-        if (!templateCatalog.Catalog!.TryGetTemplate(
-                configuredTemplate,
-                out var materializationTemplate) ||
-            materializationTemplate is null)
-        {
-            var available = string.Join(
-                ", ",
-                templateCatalog.Catalog.Templates
-                    .Select(template => template.Id)
-                    .OrderBy(id => id, StringComparer.Ordinal));
-
-            Console.Error.WriteLine(
-                $"NEW108: Configured Document template '{configuredTemplate}' is not installed. Available templates: {available}.");
+            Console.Error.WriteLine(materialization.Error);
             return 1;
         }
 
@@ -107,7 +68,7 @@ internal static class NewCommands
             name,
             kind,
             catalog.Catalog!,
-            materializationTemplate);
+            materialization.Template!);
         if (!result.IsSuccess)
         {
             Console.Error.WriteLine(result.Error);

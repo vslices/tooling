@@ -42,8 +42,9 @@ internal static class DocumentTemplate
         }
 
         var root = definition.RootQuestion;
-        var renderedRoot = DocumentMaterialization.RenderRootQuestion(
-            root,
+        var renderedRoot = DocumentMaterialization.RenderQuestion(
+            root.Text,
+            semanticDepth: 0,
             materializationTemplate);
         if (!renderedRoot.IsSuccess)
             return DocumentTemplateResult.Failure(renderedRoot.Error!);
