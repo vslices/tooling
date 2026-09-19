@@ -56,8 +56,7 @@ internal static class DocumentTemplate
             $"  kind: document{newline}" +
             $"  type: {definition.Type}{newline}" +
             $"---{newline}{newline}" +
-            $"{renderedRoot.Source}{newline}{newline}" +
-            $"<!-- vslices:placeholder question={root.Id} -->{newline}";
+            $"{renderedRoot.Source}{newline}";
 
         return DocumentTemplateResult.Success(source);
     }

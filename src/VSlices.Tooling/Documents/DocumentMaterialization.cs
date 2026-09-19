@@ -54,6 +54,19 @@ internal static class DocumentMaterialization
             return $"TMPL106: Configured template '{template.Id}' declares root heading level {presentation.RootLevel}; Markdown heading levels must be between 1 and 6.";
         }
 
+        if (!string.Equals(template.EmptyAnswerState, "unanswered", StringComparison.Ordinal))
+        {
+            return $"TMPL108: Configured template '{template.Id}' must declare representation.question.answer.empty as 'unanswered' for progressive Document authoring.";
+        }
+
+        if (!string.Equals(
+                template.RootQuestionIdentityStrategy,
+                "document-type-root-question",
+                StringComparison.Ordinal))
+        {
+            return $"TMPL109: Configured template '{template.Id}' must declare reconstruction.question-identity.root.strategy as 'document-type-root-question'.";
+        }
+
         return null;
     }
 

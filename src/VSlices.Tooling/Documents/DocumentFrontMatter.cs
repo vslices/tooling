@@ -5,18 +5,21 @@ namespace VSlices.Tooling;
 internal sealed record DocumentFrontMatterReadResult(
     bool IsPresent,
     string? DocumentType,
+    int? ClosingLine,
     string? Error)
 {
     public bool IsSuccess => Error is null;
 
     public static DocumentFrontMatterReadResult Missing() =>
-        new(false, null, null);
+        new(false, null, null, null);
 
-    public static DocumentFrontMatterReadResult Success(string documentType) =>
-        new(true, documentType, null);
+    public static DocumentFrontMatterReadResult Success(
+        string documentType,
+        int closingLine) =>
+        new(true, documentType, closingLine, null);
 
     public static DocumentFrontMatterReadResult Failure(string error) =>
-        new(true, null, error);
+        new(true, null, null, error);
 }
 
 internal static class DocumentFrontMatter
@@ -91,7 +94,7 @@ internal static class DocumentFrontMatter
                     "DOCART023: artifact.type must be a stable identifier beginning with a letter and containing only letters, digits, '-' or '_'.");
             }
 
-            return DocumentFrontMatterReadResult.Success(type);
+            return DocumentFrontMatterReadResult.Success(type, closingLine);
         }
         catch (Exception ex)
         {

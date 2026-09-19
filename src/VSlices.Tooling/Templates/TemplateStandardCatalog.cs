@@ -13,7 +13,9 @@ internal sealed record MaterializationTemplateDefinition(
     string ArtifactKind,
     string MediaType,
     string RelativePath,
-    QuestionPresentationDefinition? QuestionPresentation);
+    QuestionPresentationDefinition? QuestionPresentation,
+    string? EmptyAnswerState,
+    string? RootQuestionIdentityStrategy);
 
 internal sealed record TemplateStandardCatalogResult(
     TemplateStandardCatalog? Catalog,
@@ -124,13 +126,23 @@ internal sealed class TemplateStandardCatalog
         if (!questionPresentation.IsSuccess)
             return TemplateDefinitionParseResult.Failure(questionPresentation.Error!);
 
+        var emptyAnswerState = ParseEmptyAnswerState(root, id);
+        if (!emptyAnswerState.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(emptyAnswerState.Error!);
+
+        var rootIdentityStrategy = ParseRootQuestionIdentityStrategy(root, id);
+        if (!rootIdentityStrategy.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(rootIdentityStrategy.Error!);
+
         return TemplateDefinitionParseResult.Success(
             new MaterializationTemplateDefinition(
                 id,
                 artifactKind,
                 mediaType,
                 relativePath,
-                questionPresentation.Definition));
+                questionPresentation.Definition,
+                emptyAnswerState.Value,
+                rootIdentityStrategy.Value));
     }
 
     private static QuestionPresentationParseResult ParseQuestionPresentation(
@@ -186,6 +198,59 @@ internal sealed class TemplateStandardCatalog
                 textSource,
                 levelStrategy,
                 rootLevel));
+    }
+
+    private static OptionalScalarParseResult ParseEmptyAnswerState(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var answer, "representation", "question", "answer"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(answer, "empty", out var empty))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL024: Materialization template '{templateId}' question answer contract must declare answer.empty.");
+        }
+
+        return OptionalScalarParseResult.Success(empty);
+    }
+
+    private static OptionalScalarParseResult ParseRootQuestionIdentityStrategy(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var rootIdentity, "reconstruction", "question-identity", "root"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(rootIdentity, "strategy", out var strategy))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL025: Materialization template '{templateId}' root question reconstruction must declare strategy.");
+        }
+
+        return OptionalScalarParseResult.Success(strategy);
+    }
+
+    private static bool TryNestedMapping(
+        YamlMappingNode root,
+        out YamlMappingNode mapping,
+        params string[] path)
+    {
+        mapping = root;
+        foreach (var segment in path)
+        {
+            if (!mapping.Children.TryGetValue(new YamlScalarNode(segment), out var node) ||
+                node is not YamlMappingNode child)
+            {
+                mapping = null!;
+                return false;
+            }
+
+            mapping = child;
+        }
+
+        return true;
     }
 
     private static MappingLoadResult LoadMapping(string path, string code, string subject)
@@ -283,5 +348,14 @@ internal sealed class TemplateStandardCatalog
 
         public static QuestionPresentationParseResult Failure(string error) =>
             new(null, error);
+    }
+
+    private sealed record OptionalScalarParseResult(
+        string? Value,
+        string? Error)
+    {
+        public bool IsSuccess => Error is null;
+        public static OptionalScalarParseResult Success(string? value) => new(value, null);
+        public static OptionalScalarParseResult Failure(string error) => new(null, error);
     }
 }
