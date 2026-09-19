@@ -58,7 +58,7 @@ documents:
   template: markdown.question-tree
 ```
 
-That policy does not install Template Standard. Document creation requires both the configured template id and an installed Template Standard snapshot that defines it.
+That policy does not install Template Standard. Document authoring requires both the configured template id and an installed Template Standard snapshot that defines it. Creation and later materialization of newly activated questions use the same template geometry.
 
 The current authoring loop is:
 
