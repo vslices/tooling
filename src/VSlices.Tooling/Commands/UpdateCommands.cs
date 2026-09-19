@@ -194,7 +194,10 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(path, cancellationToken);
-        var state = DocumentArtifact.Read(source, catalog.Catalog!);
+        var state = DocumentArtifact.Read(
+            source,
+            catalog.Catalog!,
+            materialization.Template!);
         if (!state.IsSuccess)
         {
             TerminalOutput.Error(state.Error!);

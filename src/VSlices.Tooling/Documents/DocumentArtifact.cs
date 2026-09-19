@@ -53,7 +53,7 @@ internal sealed class DocumentArtifact
     private readonly string newline;
     private readonly DocumentDefinition definition;
     private readonly IReadOnlyDictionary<string, QuestionBlock> blocks;
-    private readonly Placeholder? placeholder;
+    private readonly UnansweredRoot? unansweredRoot;
     private readonly bool usesFrontMatterIdentity;
 
     private DocumentArtifact(
@@ -61,7 +61,7 @@ internal sealed class DocumentArtifact
         string newline,
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
-        Placeholder? placeholder,
+        UnansweredRoot? unansweredRoot,
         bool usesFrontMatterIdentity,
         IReadOnlyList<DocumentQuestionAffordance> surface)
     {
@@ -69,7 +69,7 @@ internal sealed class DocumentArtifact
         this.newline = newline;
         this.definition = definition;
         this.blocks = blocks;
-        this.placeholder = placeholder;
+        this.unansweredRoot = unansweredRoot;
         this.usesFrontMatterIdentity = usesFrontMatterIdentity;
         Surface = surface;
     }
@@ -79,7 +79,8 @@ internal sealed class DocumentArtifact
 
     public static DocumentArtifactReadResult Read(
         string source,
-        DocsStandardCatalog catalog)
+        DocsStandardCatalog catalog,
+        MaterializationTemplateDefinition materializationTemplate)
     {
         var newline = source.Contains("\r\n", StringComparison.Ordinal)
             ? "\r\n"
@@ -91,7 +92,7 @@ internal sealed class DocumentArtifact
         if (!frontMatter.IsSuccess)
             return DocumentArtifactReadResult.Failure(frontMatter.Error!);
 
-        Placeholder? placeholder = null;
+        UnansweredRoot? unansweredRoot = null;
         var blocks = new Dictionary<string, QuestionBlock>(StringComparer.Ordinal);
         string? documentType = frontMatter.DocumentType;
 
@@ -101,13 +102,13 @@ internal sealed class DocumentArtifact
 
             if (TryParseQuestionIdentityMarker(trimmed, PlaceholderPrefix, out var placeholderQuestion))
             {
-                if (placeholder is not null)
+                if (unansweredRoot is not null)
                 {
                     return DocumentArtifactReadResult.Failure(
                         "DOCART001: Document contains more than one VSlices root placeholder.");
                 }
 
-                placeholder = new Placeholder(placeholderQuestion, index);
+                unansweredRoot = new UnansweredRoot(placeholderQuestion, null, index);
                 continue;
             }
 
@@ -117,7 +118,7 @@ internal sealed class DocumentArtifact
                     out var placeholderDocument,
                     out placeholderQuestion))
             {
-                if (placeholder is not null)
+                if (unansweredRoot is not null)
                 {
                     return DocumentArtifactReadResult.Failure(
                         "DOCART001: Document contains more than one VSlices root placeholder.");
@@ -199,28 +200,41 @@ internal sealed class DocumentArtifact
 
         var questionIndex = BuildQuestionIndex(definition.RootQuestion);
 
-        if (placeholder is not null)
+        if (unansweredRoot is not null)
         {
-            if (!placeholder.QuestionId.Equals(definition.RootQuestion.Id, StringComparison.Ordinal))
+            if (!unansweredRoot.QuestionId.Equals(definition.RootQuestion.Id, StringComparison.Ordinal))
             {
                 return DocumentArtifactReadResult.Failure(
-                    $"DOCART012: Root placeholder question '{placeholder.QuestionId}' does not match Docs Standard root '{definition.RootQuestion.Id}'.");
+                    $"DOCART012: Root placeholder question '{unansweredRoot.QuestionId}' does not match Docs Standard root '{definition.RootQuestion.Id}'.");
             }
 
             if (blocks.Count > 0)
             {
                 return DocumentArtifactReadResult.Failure(
-                    "DOCART013: A Document with an unanswered root placeholder cannot already contain answered question blocks.");
+                    "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
             }
         }
-        else
+        else if (!blocks.ContainsKey(definition.RootQuestion.Id))
         {
-            if (!blocks.ContainsKey(definition.RootQuestion.Id))
+            if (!frontMatter.IsPresent || frontMatter.ClosingLine is null)
             {
                 return DocumentArtifactReadResult.Failure(
                     $"DOCART014: Answered Document must materialize root question '{definition.RootQuestion.Id}'.");
             }
 
+            var inferredRoot = ReadMarkerlessUnansweredRoot(
+                lines,
+                frontMatter.ClosingLine.Value,
+                definition.RootQuestion,
+                materializationTemplate);
+            if (!inferredRoot.IsSuccess)
+                return DocumentArtifactReadResult.Failure(inferredRoot.Error!);
+
+            unansweredRoot = inferredRoot.Root;
+        }
+
+        if (unansweredRoot is null)
+        {
             foreach (var questionId in blocks.Keys)
             {
                 if (!questionIndex.TryGetValue(questionId, out var info))
@@ -237,14 +251,14 @@ internal sealed class DocumentArtifact
             }
         }
 
-        var surface = BuildSurface(definition, blocks, placeholder);
+        var surface = BuildSurface(definition, blocks, unansweredRoot);
         return DocumentArtifactReadResult.Success(
             new DocumentArtifact(
                 normalized,
                 newline,
                 definition,
                 blocks,
-                placeholder,
+                unansweredRoot,
                 frontMatter.IsPresent,
                 surface));
     }
@@ -276,22 +290,40 @@ internal sealed class DocumentArtifact
         var lines = normalizedSource.Split('\n').ToList();
         var answerLines = NormalizeNewlines(answer.Trim()).Split('\n').ToArray();
 
-        if (placeholder is not null)
+        if (unansweredRoot is not null)
         {
-            if (!selected.QuestionId.Equals(placeholder.QuestionId, StringComparison.Ordinal))
+            if (!selected.QuestionId.Equals(unansweredRoot.QuestionId, StringComparison.Ordinal))
             {
                 return DocumentArtifactMutationResult.Failure(
                     "UPDATE108: The unanswered root is the only writable question in the current Document state.");
             }
 
-            lines.RemoveAt(placeholder.Line);
-            lines.InsertRange(
-                placeholder.Line,
-                RenderAnswerBlock(
-                    definition.Type,
-                    selected.QuestionId,
-                    answerLines,
-                    usesFrontMatterIdentity));
+            if (unansweredRoot.PlaceholderLine is int placeholderLine)
+            {
+                lines.RemoveAt(placeholderLine);
+                lines.InsertRange(
+                    placeholderLine,
+                    RenderAnswerBlock(
+                        definition.Type,
+                        selected.QuestionId,
+                        answerLines,
+                        usesFrontMatterIdentity));
+            }
+            else
+            {
+                var headingLine = unansweredRoot.HeadingLine!.Value;
+                if (lines.Count > headingLine + 1)
+                    lines.RemoveRange(headingLine + 1, lines.Count - headingLine - 1);
+
+                lines.Add(string.Empty);
+                lines.AddRange(
+                    RenderAnswerBlock(
+                        definition.Type,
+                        selected.QuestionId,
+                        answerLines,
+                        usesFrontMatterIdentity));
+                lines.Add(string.Empty);
+            }
         }
         else if (blocks.TryGetValue(selected.QuestionId, out var block))
         {
@@ -321,6 +353,62 @@ internal sealed class DocumentArtifact
             candidate = candidate.Replace("\n", newline, StringComparison.Ordinal);
 
         return DocumentArtifactMutationResult.Success(candidate, selected);
+    }
+
+    private static MarkerlessRootReadResult ReadMarkerlessUnansweredRoot(
+        IReadOnlyList<string> lines,
+        int frontMatterClosingLine,
+        DocumentQuestionDefinition rootQuestion,
+        MaterializationTemplateDefinition materializationTemplate)
+    {
+        var validationError = DocumentMaterialization.ValidateTemplate(materializationTemplate);
+        if (validationError is not null)
+            return MarkerlessRootReadResult.Failure(validationError);
+
+        var significant = lines
+            .Select((line, index) => new { Line = line, Index = index })
+            .Skip(frontMatterClosingLine + 1)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Line))
+            .ToArray();
+
+        if (significant.Length != 1)
+        {
+            return MarkerlessRootReadResult.Failure(
+                "DOCART025: Markerless unanswered Document must contain exactly one significant body line: the materialized root question.");
+        }
+
+        var rootLine = significant[0];
+        if (!TryReadHeadingLevel(rootLine.Line, out var headingLevel) ||
+            headingLevel != materializationTemplate.QuestionPresentation!.RootLevel)
+        {
+            return MarkerlessRootReadResult.Failure(
+                $"DOCART026: Markerless unanswered root must use heading level {materializationTemplate.QuestionPresentation!.RootLevel} from the configured Template Standard.");
+        }
+
+        return MarkerlessRootReadResult.Success(
+            new UnansweredRoot(
+                rootQuestion.Id,
+                rootLine.Index,
+                PlaceholderLine: null));
+    }
+
+    private static bool TryReadHeadingLevel(string line, out int level)
+    {
+        level = 0;
+        var trimmed = line.TrimStart();
+        while (level < trimmed.Length && trimmed[level] == '#')
+            level++;
+
+        if (level is < 1 or > 6 ||
+            level >= trimmed.Length ||
+            trimmed[level] != ' ' ||
+            string.IsNullOrWhiteSpace(trimmed[(level + 1)..]))
+        {
+            level = 0;
+            return false;
+        }
+
+        return true;
     }
 
     private static QuestionBlockReadResult ReadQuestionBlock(
@@ -374,7 +462,7 @@ internal sealed class DocumentArtifact
     private static IReadOnlyList<DocumentQuestionAffordance> BuildSurface(
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
-        Placeholder? placeholder)
+        UnansweredRoot? unansweredRoot)
     {
         var surface = new List<DocumentQuestionAffordance>();
 
@@ -555,9 +643,21 @@ internal sealed class DocumentArtifact
     private static string NormalizeNewlines(string value) =>
         value.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
-    private sealed record Placeholder(string QuestionId, int Line);
+    private sealed record UnansweredRoot(
+        string QuestionId,
+        int? HeadingLine,
+        int? PlaceholderLine);
     private sealed record QuestionBlock(int StartLine, int EndLine);
     private sealed record QuestionInfo(string? ParentId, int Depth);
+
+    private sealed record MarkerlessRootReadResult(
+        UnansweredRoot? Root,
+        string? Error)
+    {
+        public bool IsSuccess => Root is not null && Error is null;
+        public static MarkerlessRootReadResult Success(UnansweredRoot root) => new(root, null);
+        public static MarkerlessRootReadResult Failure(string error) => new(null, error);
+    }
 
     private sealed record QuestionBlockReadResult(
         QuestionBlock? Block,

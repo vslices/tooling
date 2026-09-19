@@ -36,8 +36,18 @@ internal static class DocumentDiscoveryCommands
             return 1;
         }
 
+        var materialization = DocumentMaterializationEnvironment.Resolve(path);
+        if (!materialization.IsSuccess)
+        {
+            TerminalOutput.Error(materialization.Error!);
+            return 1;
+        }
+
         var source = await File.ReadAllTextAsync(path, cancellationToken);
-        var state = DocumentArtifact.Read(source, catalog.Catalog!);
+        var state = DocumentArtifact.Read(
+            source,
+            catalog.Catalog!,
+            materialization.Template!);
         if (!state.IsSuccess)
         {
             TerminalOutput.Error(state.Error!);
