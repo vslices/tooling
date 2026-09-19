@@ -51,6 +51,15 @@ vslices -v
 
 Ruleset, Docs Standard, and Template Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
 
+The minimum project configuration also records the current default Document materialization policy:
+
+```yaml
+documents:
+  template: markdown.question-tree
+```
+
+That policy does not install Template Standard. Document creation requires both the configured template id and an installed Template Standard snapshot that defines it.
+
 The current authoring loop is:
 
 ```text

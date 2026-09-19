@@ -33,7 +33,7 @@ vslices -v
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
 
-`vslices init` creates only the minimum project surface. Ruleset, Docs Standard, and Template Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin` are convenience composition over those same operations.
+`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset, Docs Standard, and Template Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin` are convenience composition over those same operations.
 
 ## 2. Core authoring protocol
 
@@ -374,3 +374,51 @@ TicketTrayFilter
 ```
 
 Unknown semantics remain unknown; Tooling does not infer target or domain authority from convenience conventions.
+
+
+## 17. Document materialization
+
+`new document` currently combines three authorities:
+
+```text
+installed Docs Standard
+  -> Document type + root question
+
+project configuration
+  -> documents.template
+
+installed Template Standard
+  -> materialization definition
+```
+
+The first executable materialization witness is `markdown.question-tree`.
+
+For its current supported surface, Tooling reads the template's question presentation contract:
+
+```yaml
+representation:
+  question:
+    presentation:
+      kind: heading
+      text:
+        source: question.text
+      level:
+        strategy: semantic-depth
+        root: 1
+```
+
+Tooling owns the execution mechanism. It no longer hardcodes the root Markdown heading level inside the Document template path.
+
+Front matter remains Tooling-owned in this slice:
+
+```yaml
+---
+artifact:
+  kind: document
+  type: context
+---
+```
+
+Question placeholder/answer markers also remain unchanged for now. Removing those markers is a later reconstruction slice.
+
+The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, and migration-aware template selection remain non-scope.

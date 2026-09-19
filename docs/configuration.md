@@ -10,6 +10,9 @@ version: 0.1
 targets:
   default: csharp
 
+documents:
+  template: markdown.question-tree
+
 lineage:
   bootstrap:
     convention: existing-materialization
@@ -19,7 +22,7 @@ updates:
   channel: preview
 ```
 
-`vslices init` creates only the minimum project surface required for later VSlices operations. It does not imply that Ruleset or Docs Standard are already installed.
+`vslices init` creates only the minimum project surface required for later VSlices operations. It records the project's default Document materialization policy, but it does not imply that Ruleset, Docs Standard, or Template Standard are already installed.
 
 External knowledge is installed independently:
 
@@ -137,6 +140,36 @@ The recursive `**` segment is contextual rather than the directory target itself
 This lets physical organization be more expressive than target namespace organization without hardcoding aggregate names or folder conventions into Tooling.
 
 An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
+
+## Document materialization policy
+
+`documents.template` selects the project-default Document materialization template.
+
+The current default is:
+
+```yaml
+documents:
+  template: markdown.question-tree
+```
+
+This is project policy, not evidence that the corresponding Template Standard snapshot is installed.
+
+Document creation therefore resolves three independent inputs:
+
+```text
+Docs Standard
+  -> documentary semantics / question graph
+
+documents.template
+  -> project-selected default materialization
+
+Template Standard
+  -> executable materialization definition
+```
+
+If the configured template is unavailable from the installed `.vslices/template-standard` snapshot, Document creation fails closed and directs the user to install or update Template Standard.
+
+The current preview intentionally has no per-command, per-artifact, per-document-type, or inferred template override. Those selection surfaces remain outside the current scope.
 
 ## Ruleset provenance
 
