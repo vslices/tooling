@@ -84,6 +84,8 @@ public sealed class StructureDocumentCompatibilityTests
 
     private static void WriteDocsStandard(string projectRoot)
     {
+        ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
+
         var standardRoot = Path.Combine(projectRoot, ".vslices", "docs-standard");
         var documentsRoot = Path.Combine(standardRoot, "documents");
         Directory.CreateDirectory(documentsRoot);

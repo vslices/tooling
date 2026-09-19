@@ -154,6 +154,36 @@ public sealed class DocumentUpdateTests
     }
 
     [Fact]
+    public async Task New_child_uses_the_same_configured_template_depth_as_document_creation()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root);
+        ToolingTestProject.WriteDocumentAuthoringSupport(
+            project.Root,
+            templateId: "markdown.question-tree-h2",
+            rootLevel: 2);
+
+        await CreateContextDocument(project);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+
+        var child = await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "Child answer");
+
+        Assert.Equal(0, child.ExitCode);
+        var source = ReadDocument(project);
+        Assert.Contains("## ¿Dónde existe?", source, StringComparison.Ordinal);
+        Assert.Contains("### ¿Qué estamos asumiendo como cierto?", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task New_child_wording_comes_from_current_docs_standard_without_recompiling_tooling()
     {
         using var project = new ToolingTestProject();
@@ -232,6 +262,8 @@ public sealed class DocumentUpdateTests
         string childQuestion = "¿Qué estamos asumiendo como cierto?",
         bool includeRisk = false)
     {
+        ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
+
         var standardRoot = Path.Combine(projectRoot, ".vslices", "docs-standard");
         var documentsRoot = Path.Combine(standardRoot, "documents");
         Directory.CreateDirectory(documentsRoot);

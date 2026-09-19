@@ -136,7 +136,7 @@ public sealed class NewDocumentCommandTests
             "new", "document", "tooling-context", "--kind", "context");
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("NEW105", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("DOCMAT001", result.StandardError, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(project.Root, "tooling-context.md")));
     }
 
@@ -155,7 +155,7 @@ public sealed class NewDocumentCommandTests
             "new", "document", "tooling-context", "--kind", "context");
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("NEW106", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("DOCMAT002", result.StandardError, StringComparison.Ordinal);
         Assert.Contains("vslices update template-standard", result.StandardError, StringComparison.Ordinal);
         Assert.False(File.Exists(Path.Combine(project.Root, "tooling-context.md")));
     }
@@ -182,7 +182,7 @@ public sealed class NewDocumentCommandTests
             "new", "document", "tooling-context", "--kind", "context");
 
         Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("NEW108", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("DOCMAT004", result.StandardError, StringComparison.Ordinal);
         Assert.Contains("markdown.not-installed", result.StandardError, StringComparison.Ordinal);
         Assert.Contains(
             ProjectConfiguration.DefaultDocumentTemplate,

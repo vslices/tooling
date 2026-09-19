@@ -88,6 +88,60 @@ internal sealed class ToolingTestProject : IDisposable
             File.WriteAllText(Path.Combine(root, marker), marker);
     }
 
+    public static void WriteDocumentAuthoringSupport(
+        string projectRoot,
+        string templateId = ProjectConfiguration.DefaultDocumentTemplate,
+        int rootLevel = 1)
+    {
+        var vslicesRoot = Path.Combine(projectRoot, ".vslices");
+        Directory.CreateDirectory(vslicesRoot);
+
+        File.WriteAllText(
+            Path.Combine(vslicesRoot, "config.yaml"),
+            $$"""
+            version: 0.1
+            targets:
+              default: csharp
+            documents:
+              template: {{templateId}}
+            """);
+
+        var templateStandardRoot = Path.Combine(vslicesRoot, "template-standard");
+        var templatesRoot = Path.Combine(templateStandardRoot, "templates", "markdown");
+        Directory.CreateDirectory(templatesRoot);
+
+        File.WriteAllText(
+            Path.Combine(templateStandardRoot, "manifest.yaml"),
+            """
+            kind: vslices-template-standard
+            version: 0.1
+            templates:
+              - templates/markdown/question-tree.yaml
+            """);
+
+        File.WriteAllText(
+            Path.Combine(templatesRoot, "question-tree.yaml"),
+            $$"""
+            kind: vslices-materialization-template
+            version: 0.1
+
+            template:
+              id: {{templateId}}
+              artifact-kind: document
+              media-type: text/markdown
+
+            representation:
+              question:
+                presentation:
+                  kind: heading
+                  text:
+                    source: question.text
+                  level:
+                    strategy: semantic-depth
+                    root: {{rootLevel}}
+            """);
+    }
+
     public string WriteStreetName(int max = 30, string? directory = null)
     {
         var targetDirectory = directory ?? Root;

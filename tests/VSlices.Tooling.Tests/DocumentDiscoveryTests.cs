@@ -137,6 +137,8 @@ public sealed class DocumentDiscoveryTests
         bool includeGrandchild = false,
         string childQuestion = "¿Qué estamos asumiendo como cierto?")
     {
+        ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
+
         var standardRoot = Path.Combine(projectRoot, ".vslices", "docs-standard");
         var documentsRoot = Path.Combine(standardRoot, "documents");
         Directory.CreateDirectory(documentsRoot);
