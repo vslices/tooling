@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class NewDocumentCommandTests
 {
     [Fact]
-    public async Task New_document_materializes_minimal_identity_root_question_and_placeholder()
+    public async Task New_document_materializes_minimal_identity_and_markerless_root_question()
     {
         using var project = new ToolingTestProject();
         await WriteDocumentAuthoringEnvironment(project);
@@ -24,8 +24,6 @@ public sealed class NewDocumentCommandTests
             ---
 
             # ¿Dónde existe?
-
-            <!-- vslices:placeholder question=context -->
             """.Replace("\r\n", "\n") + "\n",
             File.ReadAllText(path).Replace("\r\n", "\n"));
         Assert.DoesNotContain(
@@ -35,6 +33,10 @@ public sealed class NewDocumentCommandTests
         Assert.DoesNotContain(
             "document:\n  question:",
             File.ReadAllText(path).Replace("\r\n", "\n"),
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "vslices:placeholder",
+            File.ReadAllText(path),
             StringComparison.Ordinal);
     }
 
@@ -326,6 +328,13 @@ public sealed class NewDocumentCommandTests
                   level:
                     strategy: semantic-depth
                     root: {{rootLevel}}
+                answer:
+                  empty: unanswered
+
+            reconstruction:
+              question-identity:
+                root:
+                  strategy: document-type-root-question
             """);
     }
 

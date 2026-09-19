@@ -19,8 +19,6 @@ public sealed class DocumentFrontMatterTests
             ---
 
             # Texto visible histórico
-
-            <!-- vslices:placeholder question=context -->
             """);
 
         var discovery = await project.Run(
@@ -31,6 +29,62 @@ public sealed class DocumentFrontMatterTests
         Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[1] ¿En qué contexto existe?", discovery.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("[1] Texto visible histórico", discovery.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Markerless_unanswered_root_rejects_significant_body_content()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root);
+
+        var path = Path.Combine(project.Root, "context.md");
+        File.WriteAllText(
+            path,
+            """
+            ---
+            artifact:
+              kind: document
+              type: context
+            ---
+
+            # ¿Dónde existe?
+
+            Esto ya es contenido significativo, pero todavía no está materializado como una respuesta.
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "discovery", "document", "context");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOCART025", result.StandardError, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Markerless_unanswered_root_must_match_configured_heading_geometry()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root);
+
+        var path = Path.Combine(project.Root, "context.md");
+        File.WriteAllText(
+            path,
+            """
+            ---
+            artifact:
+              kind: document
+              type: context
+            ---
+
+            ## ¿Dónde existe?
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "discovery", "document", "context");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOCART026", result.StandardError, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,6 +152,8 @@ public sealed class DocumentFrontMatterTests
         string projectRoot,
         string rootQuestion = "¿Dónde existe?")
     {
+        ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
+
         var standardRoot = Path.Combine(projectRoot, ".vslices", "docs-standard");
         var documentsRoot = Path.Combine(standardRoot, "documents");
         Directory.CreateDirectory(documentsRoot);

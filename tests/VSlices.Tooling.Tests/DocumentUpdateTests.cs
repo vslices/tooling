@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class DocumentUpdateTests
 {
     [Fact]
-    public async Task Root_placeholder_is_replaced_by_a_stable_answer_block()
+    public async Task Markerless_unanswered_root_becomes_a_stable_answer_block()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);

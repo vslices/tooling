@@ -12,6 +12,10 @@ public sealed class DocumentDiscoveryTests
             project.Root,
             "new", "document", "tooling-context", "--kind", "context");
         Assert.Equal(0, created.ExitCode);
+        Assert.DoesNotContain(
+            "vslices:placeholder",
+            File.ReadAllText(Path.Combine(project.Root, "tooling-context.md")),
+            StringComparison.Ordinal);
 
         var result = await project.Run(
             project.Root,

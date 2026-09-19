@@ -139,6 +139,13 @@ internal sealed class ToolingTestProject : IDisposable
                   level:
                     strategy: semantic-depth
                     root: {{rootLevel}}
+                answer:
+                  empty: unanswered
+
+            reconstruction:
+              question-identity:
+                root:
+                  strategy: document-type-root-question
             """);
     }
 
