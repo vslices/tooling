@@ -378,7 +378,7 @@ Unknown semantics remain unknown; Tooling does not infer target or domain author
 
 ## 17. Document materialization
 
-`new document` currently combines three authorities:
+`new document` and the materialization of newly activated questions during `update document` currently combine three authorities:
 
 ```text
 installed Docs Standard
@@ -407,7 +407,7 @@ representation:
         root: 1
 ```
 
-Tooling owns the execution mechanism. It no longer hardcodes the root Markdown heading level inside the Document template path.
+Tooling owns the execution mechanism. It no longer hardcodes Markdown heading depth independently in `new document` and `update document`: both project semantic depth through the same configured Template Standard definition.
 
 Front matter remains Tooling-owned in this slice:
 
