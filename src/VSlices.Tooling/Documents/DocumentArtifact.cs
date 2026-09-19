@@ -130,7 +130,7 @@ internal sealed class DocumentArtifact
                         "DOCART002: Document metadata refers to more than one document type.");
                 }
 
-                placeholder = new Placeholder(placeholderQuestion, index);
+                unansweredRoot = new UnansweredRoot(placeholderQuestion, null, index);
                 continue;
             }
 
@@ -466,7 +466,7 @@ internal sealed class DocumentArtifact
     {
         var surface = new List<DocumentQuestionAffordance>();
 
-        if (placeholder is not null)
+        if (unansweredRoot is not null)
         {
             surface.Add(new DocumentQuestionAffordance(
                 1,
