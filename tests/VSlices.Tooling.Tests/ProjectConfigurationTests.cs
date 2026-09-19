@@ -3,6 +3,41 @@ namespace VSlices.Tooling.Tests;
 public sealed class ProjectConfigurationTests
 {
     [Fact]
+    public async Task Default_configuration_does_not_claim_uninstalled_external_origins()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "vslices-project-config-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            await ProjectConfiguration.WriteAsync(
+                root,
+                ProjectConfiguration.Default(),
+                CancellationToken.None);
+
+            var loaded = ProjectConfiguration.LoadFromProjectRoot(root);
+            Assert.NotNull(loaded);
+            Assert.Null(loaded!.RulesetSource);
+            Assert.Null(loaded.RulesetRef);
+            Assert.Null(loaded.DocsStandardSource);
+            Assert.Null(loaded.DocsStandardRef);
+            Assert.Null(loaded.TemplateStandardSource);
+            Assert.Null(loaded.TemplateStandardRef);
+
+            var text = File.ReadAllText(Path.Combine(root, ".vslices", "config.yaml"));
+            Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Loads_CSharp_namespace_ignored_folders_and_patterns()
     {
         var root = Path.Combine(

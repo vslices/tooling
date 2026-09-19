@@ -38,13 +38,18 @@ if (!Console.IsOutputRedirected && args.Length > 0)
 
 var app = ConsoleApp.Create();
 
-app.Add("init", RulesetCommands.Init);
+app.Add("init", InitCommands.Init);
 app.Add("new vsir", NewCommands.Vsir);
+app.Add("new document", NewCommands.Document);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
+app.Add("discovery document", DocumentDiscoveryCommands.Discover);
 app.Add("search", SearchCommands.Search);
 app.Add("update vsir", UpdateCommands.Vsir);
+app.Add("update document", UpdateCommands.Document);
 app.Add("update self", UpdateCommands.Self);
 app.Add("update ruleset", UpdateCommands.Ruleset);
+app.Add("update docs-standard", UpdateCommands.DocsStandard);
+app.Add("update template-standard", UpdateCommands.TemplateStandard);
 app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);

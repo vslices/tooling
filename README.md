@@ -28,12 +28,28 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
+
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <N> --answer "<markdown>"
 
 vslices --version
 vslices -v
 ```
 
 `update` is a command group. There is deliberately no legacy `update --self`, `update --ruleset`, plain aggregate `update`, or combined update alias in the current public contract.
+
+
+`vslices init` now establishes only the minimum project surface:
+
+```text
+.vslices/config.yaml
+.vslices/.ignore
+```
+
+Ruleset, Docs Standard, and Template Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
 
 The current authoring loop is:
 
@@ -81,7 +97,13 @@ vslices/ruleset
   = project operating policy
 
 .vslices/ruleset/
-  = installed source-owned target-knowledge snapshot
+  = optional installed source-owned target-knowledge snapshot
+
+.vslices/docs-standard/
+  = optional installed normative documentary-vocabulary snapshot
+
+.vslices/template-standard/
+  = optional installed source-owned materialization-template snapshot
 
 .vslices/extensions/
   = project-owned semantic-extension overlay
@@ -123,7 +145,7 @@ src/VSlices.Tooling/
     UpdateCommands.cs
     SearchCommands.cs
     VsirCommands.cs
-    RulesetCommands.cs
+    InitCommands.cs
 
   IO/
     AtomicFile.cs
@@ -365,7 +387,7 @@ The language-level semantics live in `vslices/intermediate-representation`; Rule
 
 ## Project semantic extensions
 
-`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `init --force` and `vslices update ruleset` may replace the installed Ruleset snapshot, but they preserve the project-owned extension overlay.
+`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `vslices update ruleset` may replace the installed Ruleset snapshot, but it preserves the project-owned extension overlay. An `init` Ruleset shortcut delegates to that same update operation.
 
 Example:
 
@@ -548,28 +570,32 @@ refactor/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.d
 
 Startup health checks, same-build `vslices update self` repair, downloaded-archive validation, staging validation and the Windows installer share the same completeness rule. A root helper DLL without `BuildHost-netcore` is incomplete.
 
-## Ruleset lifecycle and updates
+## External knowledge lifecycle and updates
 
-`vslices init` and `vslices update ruleset` share Ruleset-source materialization and snapshot installation mechanisms:
+Ruleset, Docs Standard, and Template Standard are installed and refreshed independently from project initialization:
 
 ```text
-source
-  -> materialize
-  -> prepare selected-target snapshot
-  -> validate with the real target loader
-  -> atomic replace .vslices/ruleset with backup/rollback
+vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
 ```
 
-For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+Each resolves an origin, materializes a candidate, validates it against the currently recognized component contract, atomically replaces its project-local snapshot, and records successful provenance.
+
+For C#, a prepared Ruleset snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+
+`vslices init --ruleset-origin ...`, `--docs-standard-origin ...`, `--template-standard-origin ...`, and `--default-origin` are convenience composition only; they delegate to those same updater mechanisms.
 
 The independent updater surfaces are:
 
 ```text
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
 ```
 
-There is no aggregate update operation in v0.2.0.
+There is no aggregate `vslices update` operation.
 
 See [`docs/rulesets.md`](docs/rulesets.md).
 
