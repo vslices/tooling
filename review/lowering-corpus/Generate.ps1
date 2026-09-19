@@ -73,7 +73,7 @@ $toolingVersion = (Get-Content $versionStdout -Raw).Trim()
 Push-Location $workspace
 try {
     Invoke-VSlices `
-        -Arguments @('init', '--from', $rulesetRoot, '--target', 'C#') `
+        -Arguments @('init', '--ruleset-origin', $rulesetRoot, '--target', 'C#') `
         -StdoutPath (Join-Path $logs 'init.stdout.txt') `
         -StderrPath (Join-Path $logs 'init.stderr.txt')
 
