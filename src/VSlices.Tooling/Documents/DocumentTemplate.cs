@@ -18,7 +18,8 @@ internal static class DocumentTemplate
     public static DocumentTemplateResult Create(
         string name,
         string? kind,
-        DocsStandardCatalog catalog)
+        DocsStandardCatalog catalog,
+        MaterializationTemplateDefinition materializationTemplate)
     {
         if (string.IsNullOrWhiteSpace(name))
             return DocumentTemplateResult.Failure("NEW101: Document name is required.");
@@ -40,15 +41,21 @@ internal static class DocumentTemplate
                 $"Available kinds: {available}.");
         }
 
-        var newline = Environment.NewLine;
         var root = definition.RootQuestion;
+        var renderedRoot = DocumentMaterialization.RenderRootQuestion(
+            root,
+            materializationTemplate);
+        if (!renderedRoot.IsSuccess)
+            return DocumentTemplateResult.Failure(renderedRoot.Error!);
+
+        var newline = Environment.NewLine;
         var source =
             $"---{newline}" +
             $"artifact:{newline}" +
             $"  kind: document{newline}" +
             $"  type: {definition.Type}{newline}" +
             $"---{newline}{newline}" +
-            $"# {root.Text}{newline}{newline}" +
+            $"{renderedRoot.Source}{newline}{newline}" +
             $"<!-- vslices:placeholder question={root.Id} -->{newline}";
 
         return DocumentTemplateResult.Success(source);

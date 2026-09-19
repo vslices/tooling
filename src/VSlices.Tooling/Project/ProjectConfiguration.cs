@@ -15,7 +15,8 @@ internal sealed record ProjectConfiguration(
     string? DocsStandardSource = null,
     string? DocsStandardRef = null,
     string? TemplateStandardSource = null,
-    string? TemplateStandardRef = null)
+    string? TemplateStandardRef = null,
+    string? DocumentsTemplate = DefaultDocumentTemplate)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
@@ -25,6 +26,7 @@ internal sealed record ProjectConfiguration(
     public const string OfficialDocsStandardRef = "main";
     public const string OfficialTemplateStandardSource = "https://github.com/vslices/template-standard";
     public const string OfficialTemplateStandardRef = "main";
+    public const string DefaultDocumentTemplate = "markdown.question-tree";
     public const string DefaultUpdateChannel = "preview";
     public const string DefaultLineageBootstrapConvention = "existing-materialization";
 
@@ -42,7 +44,8 @@ internal sealed record ProjectConfiguration(
             null,
             null,
             null,
-            null);
+            null,
+            DefaultDocumentTemplate);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
@@ -86,6 +89,12 @@ internal sealed record ProjectConfiguration(
             { "version", configuration.Version },
             { "targets", targets }
         };
+
+        var documents = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.DocumentsTemplate))
+            documents.Add("template", configuration.DocumentsTemplate);
+        if (documents.Children.Count > 0)
+            root.Add("documents", documents);
 
         var ruleset = new YamlMappingNode();
         if (!string.IsNullOrWhiteSpace(configuration.RulesetSource))
@@ -178,7 +187,8 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "docs-standard", "source"),
             NestedScalar(root, "docs-standard", "ref"),
             NestedScalar(root, "template-standard", "source"),
-            NestedScalar(root, "template-standard", "ref"));
+            NestedScalar(root, "template-standard", "ref"),
+            NestedScalar(root, "documents", "template") ?? DefaultDocumentTemplate);
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)

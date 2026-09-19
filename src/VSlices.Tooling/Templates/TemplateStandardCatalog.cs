@@ -2,11 +2,18 @@ using YamlDotNet.RepresentationModel;
 
 namespace VSlices.Tooling;
 
+internal sealed record QuestionPresentationDefinition(
+    string Kind,
+    string TextSource,
+    string LevelStrategy,
+    int RootLevel);
+
 internal sealed record MaterializationTemplateDefinition(
     string Id,
     string ArtifactKind,
     string MediaType,
-    string RelativePath);
+    string RelativePath,
+    QuestionPresentationDefinition? QuestionPresentation);
 
 internal sealed record TemplateStandardCatalogResult(
     TemplateStandardCatalog? Catalog,
@@ -113,7 +120,72 @@ internal sealed class TemplateStandardCatalog
         if (!TryRequiredScalar(template, "media-type", out var mediaType))
             return TemplateDefinitionParseResult.Failure($"TMPL017: Materialization template '{id}' must declare template.media-type.");
 
-        return TemplateDefinitionParseResult.Success(new MaterializationTemplateDefinition(id, artifactKind, mediaType, relativePath));
+        var questionPresentation = ParseQuestionPresentation(root, id);
+        if (!questionPresentation.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(questionPresentation.Error!);
+
+        return TemplateDefinitionParseResult.Success(
+            new MaterializationTemplateDefinition(
+                id,
+                artifactKind,
+                mediaType,
+                relativePath,
+                questionPresentation.Definition));
+    }
+
+    private static QuestionPresentationParseResult ParseQuestionPresentation(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!root.Children.TryGetValue(new YamlScalarNode("representation"), out var representationNode))
+            return QuestionPresentationParseResult.Success(null);
+
+        if (representationNode is not YamlMappingNode representation)
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL018: Materialization template '{templateId}' representation must be a mapping.");
+
+        if (!representation.Children.TryGetValue(new YamlScalarNode("question"), out var questionNode))
+            return QuestionPresentationParseResult.Success(null);
+
+        if (questionNode is not YamlMappingNode question)
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL019: Materialization template '{templateId}' representation.question must be a mapping.");
+
+        if (!question.Children.TryGetValue(new YamlScalarNode("presentation"), out var presentationNode))
+            return QuestionPresentationParseResult.Success(null);
+
+        if (presentationNode is not YamlMappingNode presentation)
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL020: Materialization template '{templateId}' representation.question.presentation must be a mapping.");
+
+        if (!TryRequiredScalar(presentation, "kind", out var kind))
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL021: Materialization template '{templateId}' question presentation must declare kind.");
+
+        if (!presentation.Children.TryGetValue(new YamlScalarNode("text"), out var textNode) ||
+            textNode is not YamlMappingNode text ||
+            !TryRequiredScalar(text, "source", out var textSource))
+        {
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL022: Materialization template '{templateId}' question presentation must declare text.source.");
+        }
+
+        if (!presentation.Children.TryGetValue(new YamlScalarNode("level"), out var levelNode) ||
+            levelNode is not YamlMappingNode level ||
+            !TryRequiredScalar(level, "strategy", out var levelStrategy) ||
+            !TryRequiredScalar(level, "root", out var rootLevelText) ||
+            !int.TryParse(rootLevelText, out var rootLevel))
+        {
+            return QuestionPresentationParseResult.Failure(
+                $"TMPL023: Materialization template '{templateId}' question presentation must declare level.strategy and numeric level.root.");
+        }
+
+        return QuestionPresentationParseResult.Success(
+            new QuestionPresentationDefinition(
+                kind,
+                textSource,
+                levelStrategy,
+                rootLevel));
     }
 
     private static MappingLoadResult LoadMapping(string path, string code, string subject)
@@ -197,5 +269,19 @@ internal sealed class TemplateStandardCatalog
         public bool IsSuccess => Definition is not null && Error is null;
         public static TemplateDefinitionParseResult Success(MaterializationTemplateDefinition definition) => new(definition, null);
         public static TemplateDefinitionParseResult Failure(string error) => new(null, error);
+    }
+
+    private sealed record QuestionPresentationParseResult(
+        QuestionPresentationDefinition? Definition,
+        string? Error)
+    {
+        public bool IsSuccess => Error is null;
+
+        public static QuestionPresentationParseResult Success(
+            QuestionPresentationDefinition? definition) =>
+            new(definition, null);
+
+        public static QuestionPresentationParseResult Failure(string error) =>
+            new(null, error);
     }
 }
