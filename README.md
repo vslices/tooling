@@ -60,7 +60,7 @@ documents:
 
 That policy does not install Template Standard. Document authoring requires both the configured template id and an installed Template Standard snapshot that defines it. Creation and later materialization of newly activated questions use the same template geometry.
 
-New Documents materialize their unanswered root without a hidden placeholder marker. Root identity is reconstructed from front matter + Docs Standard, while Template Standard supplies the visible root geometry and defines an empty answer as unanswered. Historical placeholder markers remain readable for compatibility.
+New Documents materialize their root without hidden placeholder metadata. Root identity is reconstructed from front matter + Docs Standard, while Template Standard supplies the visible root geometry, answer-region boundaries, and the empty-answer state. Root answers are therefore markerless as well; historical placeholder/question representations remain readable where compatibility requires them. Descendant answer markers remain part of the current experimental boundary.
 
 The current authoring loop is:
 

@@ -169,7 +169,7 @@ Template Standard
 
 If the configured template is unavailable from the installed `.vslices/template-standard` snapshot, Document authoring and reconstruction fail closed and direct the user to install or update Template Standard.
 
-The current `markdown.question-tree` contract also defines that an empty question answer is `unanswered` and that root identity is reconstructed from the Document type. This allows a newly created root heading to remain markerless while preserving semantic identity.
+The current `markdown.question-tree` contract defines root identity from the Document type, an empty answer as `unanswered`, and the answer region as the content after a question heading and before the next materialized question heading. This allows both unanswered and answered roots to remain markerless while preserving semantic identity and update boundaries.
 
 The current preview intentionally has no per-command, per-artifact, per-document-type, or inferred template override. Those selection surfaces remain outside the current scope.
 

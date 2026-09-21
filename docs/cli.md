@@ -406,6 +406,9 @@ representation:
         strategy: semantic-depth
         root: 1
     answer:
+      region:
+        starts: after-question-heading
+        ends: before-next-materialized-question-heading
       empty: unanswered
 
 reconstruction:
@@ -450,6 +453,29 @@ artifact.type
 
 The visible root wording is presentation rather than durable identity; `artifact.type` and the Docs Standard define which root question the heading represents.
 
-Existing `vslices:placeholder` markers remain readable as historical compatibility. Answered-question markers remain in the current representation and are a later reconstruction boundary.
+Existing `vslices:placeholder` markers remain readable as historical compatibility.
 
-The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, and migration-aware template selection remain non-scope.
+Root answers are now markerless as well. For the current `markdown.question-tree` witness, Tooling reconstructs the root answer region from the Template Standard contract:
+
+```text
+after root heading
+→ root answer begins
+
+next materialized descendant heading
+→ root answer ends
+
+no materialized descendant
+→ root answer ends at EOF
+
+only whitespace in region
+→ unanswered
+
+significant content in region
+→ answered
+```
+
+Updating an already answered markerless root replaces only that region and preserves later materialized descendants.
+
+Answered descendant questions still use their current VSlices question markers in this slice. Arbitrary headings inside answer content are outside the current contract; Tooling does not attempt to infer whether such headings are documentary vocabulary. A future project-level Docs Standard extension mechanism is the intended direction when real documents require additional documentary vocabulary.
+
+The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, migration-aware template selection, arbitrary answer headings, branching markerless reconstruction, and Docs Standard extension authoring remain non-scope.
