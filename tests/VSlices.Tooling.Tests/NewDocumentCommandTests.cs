@@ -329,6 +329,9 @@ public sealed class NewDocumentCommandTests
                     strategy: semantic-depth
                     root: {{rootLevel}}
                 answer:
+                  region:
+                    starts: after-question-heading
+                    ends: before-next-materialized-question-heading
                   empty: unanswered
 
             reconstruction:

@@ -140,6 +140,9 @@ internal sealed class ToolingTestProject : IDisposable
                     strategy: semantic-depth
                     root: {{rootLevel}}
                 answer:
+                  region:
+                    starts: after-question-heading
+                    ends: before-next-materialized-question-heading
                   empty: unanswered
 
             reconstruction:

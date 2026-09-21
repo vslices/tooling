@@ -3,7 +3,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class DocumentUpdateTests
 {
     [Fact]
-    public async Task Markerless_unanswered_root_becomes_a_stable_answer_block()
+    public async Task Markerless_unanswered_root_becomes_a_markerless_answered_root()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
@@ -18,8 +18,8 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, result.ExitCode);
         var source = ReadDocument(project);
         Assert.DoesNotContain("vslices:placeholder", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "<!-- vslices:question question=context -->",
+        Assert.DoesNotContain(
+            "vslices:question question=context",
             source,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
@@ -27,7 +27,7 @@ public sealed class DocumentUpdateTests
             source,
             StringComparison.Ordinal);
         Assert.Contains("Existe dentro del experimento de authoring documental.", source, StringComparison.Ordinal);
-        Assert.Contains("<!-- /vslices:question -->", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("<!-- /vslices:question -->", source, StringComparison.Ordinal);
         Assert.DoesNotContain("¿Qué estamos asumiendo como cierto?", source, StringComparison.Ordinal);
     }
 
@@ -93,6 +93,14 @@ public sealed class DocumentUpdateTests
         Assert.Contains("Respuesta raíz revisada.", source, StringComparison.Ordinal);
         Assert.DoesNotContain("Respuesta inicial.", source, StringComparison.Ordinal);
         Assert.Contains("Respuesta hija que debe conservarse.", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "vslices:question question=context",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "<!-- vslices:question question=assumptions -->",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Fact]

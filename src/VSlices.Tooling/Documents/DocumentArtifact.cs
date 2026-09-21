@@ -236,6 +236,12 @@ internal sealed class DocumentArtifact
                 blocks.Add(definition.RootQuestion.Id, inferredRoot.AnsweredBlock);
             else
                 unansweredRoot = inferredRoot.UnansweredRoot;
+
+            if (unansweredRoot is not null && blocks.Count > 0)
+            {
+                return DocumentArtifactReadResult.Failure(
+                    "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
+            }
         }
 
         if (unansweredRoot is null)

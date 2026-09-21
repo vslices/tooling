@@ -46,6 +46,13 @@ public sealed class DocumentDiscoveryTests
             "--question-id", "1",
             "--answer", "Root answer")).ExitCode);
 
+        var sourceAfterRoot = File.ReadAllText(
+            Path.Combine(project.Root, "tooling-context.md"));
+        Assert.DoesNotContain(
+            "vslices:question question=context",
+            sourceAfterRoot,
+            StringComparison.Ordinal);
+
         var discovered = await project.Run(
             project.Root,
             "discovery", "document", "tooling-context");

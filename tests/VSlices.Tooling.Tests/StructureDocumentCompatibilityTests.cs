@@ -45,6 +45,10 @@ public sealed class StructureDocumentCompatibilityTests
             "--answer", "Se organiza como un conjunto de partes con responsabilidades explícitas.");
 
         Assert.Equal(0, rootUpdate.ExitCode);
+        Assert.DoesNotContain(
+            "vslices:question question=structure",
+            File.ReadAllText(path),
+            StringComparison.Ordinal);
 
         var nextDiscovery = await project.Run(
             project.Root,
