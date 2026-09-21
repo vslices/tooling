@@ -54,6 +54,22 @@ internal static class DocumentMaterialization
             return $"TMPL106: Configured template '{template.Id}' declares root heading level {presentation.RootLevel}; Markdown heading levels must be between 1 and 6.";
         }
 
+        if (!string.Equals(
+                template.AnswerRegionStart,
+                "after-question-heading",
+                StringComparison.Ordinal))
+        {
+            return $"TMPL110: Configured template '{template.Id}' must declare representation.question.answer.region.starts as 'after-question-heading'.";
+        }
+
+        if (!string.Equals(
+                template.AnswerRegionEnd,
+                "before-next-materialized-question-heading",
+                StringComparison.Ordinal))
+        {
+            return $"TMPL111: Configured template '{template.Id}' must declare representation.question.answer.region.ends as 'before-next-materialized-question-heading'.";
+        }
+
         if (!string.Equals(template.EmptyAnswerState, "unanswered", StringComparison.Ordinal))
         {
             return $"TMPL108: Configured template '{template.Id}' must declare representation.question.answer.empty as 'unanswered' for progressive Document authoring.";

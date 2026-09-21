@@ -222,15 +222,20 @@ internal sealed class DocumentArtifact
                     $"DOCART014: Answered Document must materialize root question '{definition.RootQuestion.Id}'.");
             }
 
-            var inferredRoot = ReadMarkerlessUnansweredRoot(
+            var inferredRoot = ReadMarkerlessRoot(
                 lines,
                 frontMatter.ClosingLine.Value,
                 definition.RootQuestion,
-                materializationTemplate);
+                materializationTemplate,
+                blocks,
+                questionIndex);
             if (!inferredRoot.IsSuccess)
                 return DocumentArtifactReadResult.Failure(inferredRoot.Error!);
 
-            unansweredRoot = inferredRoot.Root;
+            if (inferredRoot.AnsweredBlock is not null)
+                blocks.Add(definition.RootQuestion.Id, inferredRoot.AnsweredBlock);
+            else
+                unansweredRoot = inferredRoot.UnansweredRoot;
         }
 
         if (unansweredRoot is null)
@@ -316,21 +321,30 @@ internal sealed class DocumentArtifact
                     lines.RemoveRange(headingLine + 1, lines.Count - headingLine - 1);
 
                 lines.Add(string.Empty);
-                lines.AddRange(
-                    RenderAnswerBlock(
-                        definition.Type,
-                        selected.QuestionId,
-                        answerLines,
-                        usesFrontMatterIdentity));
+                lines.AddRange(answerLines);
                 lines.Add(string.Empty);
             }
         }
         else if (blocks.TryGetValue(selected.QuestionId, out var block))
         {
-            var answerLineCount = block.EndLine - block.StartLine - 1;
-            if (answerLineCount > 0)
-                lines.RemoveRange(block.StartLine + 1, answerLineCount);
-            lines.InsertRange(block.StartLine + 1, answerLines);
+            if (block.IsMarkerless)
+            {
+                var answerLineCount = block.EndLine - block.StartLine - 1;
+                if (answerLineCount > 0)
+                    lines.RemoveRange(block.StartLine + 1, answerLineCount);
+
+                var replacement = new List<string> { string.Empty };
+                replacement.AddRange(answerLines);
+                replacement.Add(string.Empty);
+                lines.InsertRange(block.StartLine + 1, replacement);
+            }
+            else
+            {
+                var answerLineCount = block.EndLine - block.StartLine - 1;
+                if (answerLineCount > 0)
+                    lines.RemoveRange(block.StartLine + 1, answerLineCount);
+                lines.InsertRange(block.StartLine + 1, answerLines);
+            }
         }
         else
         {
@@ -355,41 +369,107 @@ internal sealed class DocumentArtifact
         return DocumentArtifactMutationResult.Success(candidate, selected);
     }
 
-    private static MarkerlessRootReadResult ReadMarkerlessUnansweredRoot(
+    private static MarkerlessRootReadResult ReadMarkerlessRoot(
         IReadOnlyList<string> lines,
         int frontMatterClosingLine,
         DocumentQuestionDefinition rootQuestion,
-        MaterializationTemplateDefinition materializationTemplate)
+        MaterializationTemplateDefinition materializationTemplate,
+        IReadOnlyDictionary<string, QuestionBlock> blocks,
+        IReadOnlyDictionary<string, QuestionInfo> questionIndex)
     {
         var validationError = DocumentMaterialization.ValidateTemplate(materializationTemplate);
         if (validationError is not null)
             return MarkerlessRootReadResult.Failure(validationError);
 
-        var significant = lines
+        var rootLine = lines
             .Select((line, index) => new { Line = line, Index = index })
             .Skip(frontMatterClosingLine + 1)
-            .Where(item => !string.IsNullOrWhiteSpace(item.Line))
-            .ToArray();
-
-        if (significant.Length != 1)
+            .FirstOrDefault(item => !string.IsNullOrWhiteSpace(item.Line));
+        if (rootLine is null)
         {
             return MarkerlessRootReadResult.Failure(
-                "DOCART025: Markerless unanswered Document must contain exactly one significant body line: the materialized root question.");
+                "DOCART025: Markerless Document must materialize its root question after front matter.");
         }
 
-        var rootLine = significant[0];
         if (!TryReadHeadingLevel(rootLine.Line, out var headingLevel) ||
             headingLevel != materializationTemplate.QuestionPresentation!.RootLevel)
         {
             return MarkerlessRootReadResult.Failure(
-                $"DOCART026: Markerless unanswered root must use heading level {materializationTemplate.QuestionPresentation!.RootLevel} from the configured Template Standard.");
+                $"DOCART026: Markerless root must use heading level {materializationTemplate.QuestionPresentation!.RootLevel} from the configured Template Standard.");
         }
 
-        return MarkerlessRootReadResult.Success(
-            new UnansweredRoot(
-                rootQuestion.Id,
+        var answerEndLine = lines.Count;
+        foreach (var pair in blocks)
+        {
+            if (!questionIndex.TryGetValue(pair.Key, out var info))
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"DOCART015: Materialized question '{pair.Key}' is not defined by the installed Docs Standard.");
+            }
+
+            if (info.Depth == 0)
+                continue;
+
+            var expectedLevel = materializationTemplate.QuestionPresentation.RootLevel + info.Depth;
+            if (expectedLevel > 6)
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"TMPL107: Configured template '{materializationTemplate.Id}' maps semantic depth {info.Depth} to Markdown heading level {expectedLevel}, beyond the supported maximum of 6.");
+            }
+
+            var heading = FindQuestionHeadingLine(
+                lines,
+                pair.Value.StartLine,
+                expectedLevel,
+                frontMatterClosingLine + 1);
+            if (heading is null)
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"DOCART027: Materialized question '{pair.Key}' must be preceded by its configured heading level {expectedLevel}.");
+            }
+
+            answerEndLine = Math.Min(answerEndLine, heading.Value);
+        }
+
+        var hasAnswer = lines
+            .Skip(rootLine.Index + 1)
+            .Take(Math.Max(0, answerEndLine - rootLine.Index - 1))
+            .Any(line => !string.IsNullOrWhiteSpace(line));
+
+        if (!hasAnswer)
+        {
+            return MarkerlessRootReadResult.Unanswered(
+                new UnansweredRoot(
+                    rootQuestion.Id,
+                    rootLine.Index,
+                    PlaceholderLine: null));
+        }
+
+        return MarkerlessRootReadResult.Answered(
+            new QuestionBlock(
                 rootLine.Index,
-                PlaceholderLine: null));
+                answerEndLine,
+                IsMarkerless: true));
+    }
+
+    private static int? FindQuestionHeadingLine(
+        IReadOnlyList<string> lines,
+        int markerLine,
+        int expectedLevel,
+        int minimumLine)
+    {
+        for (var index = markerLine - 1; index >= minimumLine; index--)
+        {
+            if (string.IsNullOrWhiteSpace(lines[index]))
+                continue;
+
+            return TryReadHeadingLevel(lines[index], out var level) &&
+                   level == expectedLevel
+                ? index
+                : null;
+        }
+
+        return null;
     }
 
     private static bool TryReadHeadingLevel(string line, out int level)
@@ -456,7 +536,11 @@ internal sealed class DocumentArtifact
                 $"DOCART007: Materialized question '{questionId}' must contain a non-empty answer.");
         }
 
-        return QuestionBlockReadResult.Success(new QuestionBlock(startLine, endLine));
+        return QuestionBlockReadResult.Success(
+            new QuestionBlock(
+                startLine,
+                endLine,
+                IsMarkerless: false));
     }
 
     private static IReadOnlyList<DocumentQuestionAffordance> BuildSurface(
@@ -647,16 +731,29 @@ internal sealed class DocumentArtifact
         string QuestionId,
         int? HeadingLine,
         int? PlaceholderLine);
-    private sealed record QuestionBlock(int StartLine, int EndLine);
+    private sealed record QuestionBlock(
+        int StartLine,
+        int EndLine,
+        bool IsMarkerless);
     private sealed record QuestionInfo(string? ParentId, int Depth);
 
     private sealed record MarkerlessRootReadResult(
-        UnansweredRoot? Root,
+        UnansweredRoot? UnansweredRoot,
+        QuestionBlock? AnsweredBlock,
         string? Error)
     {
-        public bool IsSuccess => Root is not null && Error is null;
-        public static MarkerlessRootReadResult Success(UnansweredRoot root) => new(root, null);
-        public static MarkerlessRootReadResult Failure(string error) => new(null, error);
+        public bool IsSuccess =>
+            Error is null &&
+            ((UnansweredRoot is not null) != (AnsweredBlock is not null));
+
+        public static MarkerlessRootReadResult Unanswered(UnansweredRoot root) =>
+            new(root, null, null);
+
+        public static MarkerlessRootReadResult Answered(QuestionBlock block) =>
+            new(null, block, null);
+
+        public static MarkerlessRootReadResult Failure(string error) =>
+            new(null, null, error);
     }
 
     private sealed record QuestionBlockReadResult(

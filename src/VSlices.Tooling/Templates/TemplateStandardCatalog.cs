@@ -14,6 +14,8 @@ internal sealed record MaterializationTemplateDefinition(
     string MediaType,
     string RelativePath,
     QuestionPresentationDefinition? QuestionPresentation,
+    string? AnswerRegionStart,
+    string? AnswerRegionEnd,
     string? EmptyAnswerState,
     string? RootQuestionIdentityStrategy);
 
@@ -126,6 +128,14 @@ internal sealed class TemplateStandardCatalog
         if (!questionPresentation.IsSuccess)
             return TemplateDefinitionParseResult.Failure(questionPresentation.Error!);
 
+        var answerRegionStart = ParseAnswerRegionBoundary(root, id, "starts", "TMPL026");
+        if (!answerRegionStart.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(answerRegionStart.Error!);
+
+        var answerRegionEnd = ParseAnswerRegionBoundary(root, id, "ends", "TMPL027");
+        if (!answerRegionEnd.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(answerRegionEnd.Error!);
+
         var emptyAnswerState = ParseEmptyAnswerState(root, id);
         if (!emptyAnswerState.IsSuccess)
             return TemplateDefinitionParseResult.Failure(emptyAnswerState.Error!);
@@ -141,6 +151,8 @@ internal sealed class TemplateStandardCatalog
                 mediaType,
                 relativePath,
                 questionPresentation.Definition,
+                answerRegionStart.Value,
+                answerRegionEnd.Value,
                 emptyAnswerState.Value,
                 rootIdentityStrategy.Value));
     }
@@ -198,6 +210,24 @@ internal sealed class TemplateStandardCatalog
                 textSource,
                 levelStrategy,
                 rootLevel));
+    }
+
+    private static OptionalScalarParseResult ParseAnswerRegionBoundary(
+        YamlMappingNode root,
+        string templateId,
+        string key,
+        string diagnosticCode)
+    {
+        if (!TryNestedMapping(root, out var region, "representation", "question", "answer", "region"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(region, key, out var value))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"{diagnosticCode}: Materialization template '{templateId}' question answer region must declare region.{key}.");
+        }
+
+        return OptionalScalarParseResult.Success(value);
     }
 
     private static OptionalScalarParseResult ParseEmptyAnswerState(
