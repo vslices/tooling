@@ -32,7 +32,7 @@ public sealed class DocumentFrontMatterTests
     }
 
     [Fact]
-    public async Task Markerless_unanswered_root_rejects_significant_body_content()
+    public async Task Markerless_root_with_significant_body_content_is_answered()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
@@ -49,15 +49,19 @@ public sealed class DocumentFrontMatterTests
 
             # ¿Dónde existe?
 
-            Esto ya es contenido significativo, pero todavía no está materializado como una respuesta.
+            Esto es contenido significativo y por tanto la respuesta de la raíz.
             """);
 
         var result = await project.Run(
             project.Root,
             "discovery", "document", "context");
 
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("DOCART025", result.StandardError, StringComparison.Ordinal);
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("[1] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: answered", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: available", result.StandardOutput, StringComparison.Ordinal);
+        Assert.DoesNotContain("vslices:question", File.ReadAllText(path), StringComparison.Ordinal);
     }
 
     [Fact]
