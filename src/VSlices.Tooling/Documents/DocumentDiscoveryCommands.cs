@@ -66,12 +66,25 @@ internal static class DocumentDiscoveryCommands
             Console.WriteLine();
             Console.WriteLine($"[{question.Selection}] {question.Text}");
             Console.WriteLine($"  status: {DisplayStatus(question)}");
-            Console.WriteLine(
-                $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
+            Console.WriteLine($"  cardinality: {DisplayCardinality(question.Cardinality)}");
+            if (question.Cardinality == DocumentQuestionCardinality.Many)
+            {
+                Console.WriteLine("  action: multiple-answer authoring is not supported in the current preview");
+            }
+            else
+            {
+                Console.WriteLine(
+                    $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
+            }
         }
 
         return 0;
     }
+
+    private static string DisplayCardinality(DocumentQuestionCardinality cardinality) =>
+        cardinality == DocumentQuestionCardinality.Many
+            ? "many"
+            : "one";
 
     private static string DisplayStatus(DocumentQuestionAffordance question)
     {

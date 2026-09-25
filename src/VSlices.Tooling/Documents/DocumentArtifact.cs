@@ -5,6 +5,7 @@ internal sealed record DocumentQuestionAffordance(
     string QuestionId,
     string Text,
     int Depth,
+    DocumentQuestionCardinality Cardinality,
     bool IsMaterialized,
     bool IsAnswered);
 
@@ -298,6 +299,12 @@ internal sealed class DocumentArtifact
         }
 
         var selected = Surface[selection - 1];
+        if (selected.Cardinality == DocumentQuestionCardinality.Many)
+        {
+            return DocumentArtifactMutationResult.Failure(
+                $"UPDATE109: Question '{selected.QuestionId}' has cardinality 'many'. Multiple-answer authoring is not supported by the current Document preview yet.");
+        }
+
         var lines = normalizedSource.Split('\n').ToList();
         var answerLines = NormalizeNewlines(answer.Trim()).Split('\n').ToArray();
 
@@ -563,6 +570,7 @@ internal sealed class DocumentArtifact
                 definition.RootQuestion.Id,
                 definition.RootQuestion.Text,
                 0,
+                definition.RootQuestion.Cardinality,
                 IsMaterialized: true,
                 IsAnswered: false));
             return surface;
@@ -579,6 +587,7 @@ internal sealed class DocumentArtifact
                 question.Id,
                 question.Text,
                 depth,
+                question.Cardinality,
                 materialized,
                 IsAnswered: materialized));
 

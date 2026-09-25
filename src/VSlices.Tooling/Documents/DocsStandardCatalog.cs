@@ -2,9 +2,16 @@ using YamlDotNet.RepresentationModel;
 
 namespace VSlices.Tooling;
 
+internal enum DocumentQuestionCardinality
+{
+    One,
+    Many
+}
+
 internal sealed record DocumentQuestionDefinition(
     string Id,
     string Text,
+    DocumentQuestionCardinality Cardinality,
     IReadOnlyList<DocumentQuestionDefinition> Children);
 
 internal sealed record DocumentDefinition(
@@ -239,7 +246,7 @@ internal sealed class DocsStandardCatalog
                 $"DOCS021: A question in document type '{documentType}' must be a mapping.");
         }
 
-        var unknownKey = FirstUnknownKey(mapping, "id", "text", "children");
+        var unknownKey = FirstUnknownKey(mapping, "id", "text", "cardinality", "children");
         if (unknownKey is not null)
         {
             return DocumentQuestionParseResult.Failure(
@@ -264,6 +271,30 @@ internal sealed class DocsStandardCatalog
                 $"DOCS025: Question '{id}' in document type '{documentType}' must declare non-empty text.");
         }
 
+        var cardinality = DocumentQuestionCardinality.One;
+        if (mapping.Children.TryGetValue(new YamlScalarNode("cardinality"), out var cardinalityNode))
+        {
+            if (cardinalityNode is not YamlScalarNode cardinalityScalar ||
+                string.IsNullOrWhiteSpace(cardinalityScalar.Value))
+            {
+                return DocumentQuestionParseResult.Failure(
+                    $"DOCS027: Question '{id}' in document type '{documentType}' cardinality must be 'one' or 'many'.");
+            }
+
+            cardinality = cardinalityScalar.Value.Trim() switch
+            {
+                "one" => DocumentQuestionCardinality.One,
+                "many" => DocumentQuestionCardinality.Many,
+                _ => (DocumentQuestionCardinality)(-1)
+            };
+
+            if (!Enum.IsDefined(cardinality))
+            {
+                return DocumentQuestionParseResult.Failure(
+                    $"DOCS027: Question '{id}' in document type '{documentType}' cardinality must be 'one' or 'many'.");
+            }
+        }
+
         var children = new List<DocumentQuestionDefinition>();
         if (mapping.Children.TryGetValue(new YamlScalarNode("children"), out var childrenNode))
         {
@@ -284,7 +315,7 @@ internal sealed class DocsStandardCatalog
         }
 
         return DocumentQuestionParseResult.Success(
-            new DocumentQuestionDefinition(id, text, children));
+            new DocumentQuestionDefinition(id, text, cardinality, children));
     }
 
     private static MappingLoadResult LoadMapping(string path, string code, string subject)
