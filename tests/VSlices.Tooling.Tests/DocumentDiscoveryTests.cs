@@ -120,6 +120,50 @@ public sealed class DocumentDiscoveryTests
     }
 
     [Fact]
+    public async Task Discovery_exposes_many_cardinality_without_claiming_multiple_answer_authoring()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root, childCardinality: "many");
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+
+        var discovered = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, discovered.ExitCode);
+        Assert.Contains("[1] ¿Dónde existe?", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("cardinality: one", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("cardinality: many", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains(
+            "multiple-answer authoring is not supported in the current preview",
+            discovered.StandardOutput,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "vslices update document tooling-context --question-id 2 --answer",
+            discovered.StandardOutput,
+            StringComparison.Ordinal);
+
+        var updateMany = await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "First repeated answer");
+
+        Assert.NotEqual(0, updateMany.ExitCode);
+        Assert.Contains("UPDATE109", updateMany.StandardError, StringComparison.Ordinal);
+        Assert.Contains("cardinality 'many'", updateMany.StandardError, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Discovery_uses_question_wording_from_the_installed_standard()
     {
         using var project = new ToolingTestProject();
@@ -146,7 +190,8 @@ public sealed class DocumentDiscoveryTests
     private static void WriteDocsStandard(
         string projectRoot,
         bool includeGrandchild = false,
-        string childQuestion = "¿Qué estamos asumiendo como cierto?")
+        string childQuestion = "¿Qué estamos asumiendo como cierto?",
+        string? childCardinality = null)
     {
         ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
 
@@ -163,6 +208,9 @@ public sealed class DocumentDiscoveryTests
               - documents/context-document.yml
             """);
 
+        var cardinality = string.IsNullOrWhiteSpace(childCardinality)
+            ? string.Empty
+            : $"        cardinality: {childCardinality}\n";
         var grandchild = includeGrandchild
             ? "        children:\n          - id: assumption-risk\n            text: ¿Qué pasa si este supuesto cambia?\n"
             : string.Empty;
@@ -184,7 +232,7 @@ public sealed class DocumentDiscoveryTests
                 children:
                   - id: assumptions
                     text: {{childQuestion}}
-            {{grandchild}}
+            {{cardinality}}{{grandchild}}
             """);
     }
 }

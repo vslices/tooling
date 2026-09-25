@@ -166,6 +166,31 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
+    public async Task Invalid_question_cardinality_never_replaces_current_snapshot()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "invalid-cardinality-docs-standard");
+        WriteDocsStandard(source, "¿Dónde existe ahora?", childCardinality: "several");
+
+        var installed = Path.Combine(project.VslicesRoot, "docs-standard");
+        WriteDocsStandard(installed, "¿Dónde existía?");
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--origin", source);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOCS027", result.StandardError, StringComparison.Ordinal);
+
+        var installedDefinition = File.ReadAllText(
+            Path.Combine(installed, "documents", "context-document.yml"));
+        Assert.Contains("¿Dónde existía?", installedDefinition, StringComparison.Ordinal);
+        Assert.DoesNotContain("cardinality: several", installedDefinition, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Update_docs_standard_requires_a_vslices_project()
     {
         using var project = new ToolingTestProject();
@@ -180,7 +205,10 @@ public sealed class DocsStandardUpdateTests
         Assert.Contains("UPD030", result.StandardError, StringComparison.Ordinal);
     }
 
-    private static void WriteDocsStandard(string root, string rootQuestion)
+    private static void WriteDocsStandard(
+        string root,
+        string rootQuestion,
+        string? childCardinality = null)
     {
         var documents = Path.Combine(root, "documents");
         Directory.CreateDirectory(documents);
@@ -193,6 +221,10 @@ public sealed class DocsStandardUpdateTests
             documents:
               - documents/context-document.yml
             """);
+
+        var cardinality = string.IsNullOrWhiteSpace(childCardinality)
+            ? string.Empty
+            : $"        cardinality: {childCardinality}{Environment.NewLine}";
 
         File.WriteAllText(
             Path.Combine(documents, "context-document.yml"),
@@ -211,6 +243,6 @@ public sealed class DocsStandardUpdateTests
                 children:
                   - id: assumptions
                     text: ¿Qué estamos asumiendo como cierto?
-            """);
+            {{cardinality}}""");
     }
 }
