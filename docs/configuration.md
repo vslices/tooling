@@ -10,9 +10,6 @@ version: 0.1
 targets:
   default: csharp
 
-documents:
-  template: markdown.question-tree
-
 lineage:
   bootstrap:
     convention: existing-materialization
@@ -22,7 +19,7 @@ updates:
   channel: preview
 ```
 
-`vslices init` creates only the minimum project surface required for later VSlices operations. It records the project's default Document materialization policy, but it does not imply that Ruleset, Docs Standard, or Template Standard are already installed.
+`vslices init` creates only the minimum project surface required for later VSlices operations. It does not choose Document route or materialization policy before documentary authoring is actually introduced, and it does not imply that Ruleset, Docs Standard, or Template Standard are already installed.
 
 External knowledge is installed independently:
 
@@ -141,18 +138,48 @@ This lets physical organization be more expressive than target namespace organiz
 
 An explicit `--namespace` remains authoritative and bypasses derived namespace configuration.
 
-## Document materialization policy
+## Document authoring policy
 
-`documents.template` selects the project-default Document materialization template.
-
-The current default is:
+Document authoring policy currently has two independent project-level selections:
 
 ```yaml
 documents:
+  route: docs
   template: markdown.question-tree
 ```
 
-This is project policy, not evidence that the corresponding Template Standard snapshot is installed.
+`documents.route` is the default project-relative destination used when a Document command receives a bare name. The route must remain inside the VSlices project root.
+
+`documents.template` selects the project-default Document materialization template.
+
+Neither field is chosen by `vslices init`.
+
+On the first successful interactive `vslices update docs-standard`, Tooling asks for each missing value after the candidate Docs Standard has validated and before installation is committed. Existing configured values are preserved.
+
+When the first installation is non-interactive, Tooling does not block waiting for input. Missing values remain unconfigured and a warning directs the user to edit `.vslices/config.yaml` manually.
+
+Subsequent Docs Standard updates do not ask again. If either value was intentionally skipped during first install, it remains a manual project-policy decision.
+
+A bare Document name resolves through `documents.route` from the project root:
+
+```text
+documents.route: docs/knowledge
+vslices new document context --kind context
+→ <project>/docs/knowledge/context.md
+```
+
+The same resolution is shared by `new document`, `discovery document`, and `update document`.
+
+An explicit path bypasses the configured route:
+
+```text
+vslices new document ./experiments/context --kind context
+→ ./experiments/context.md
+```
+
+Projects that predate `documents.route` remain compatible: when no route is configured, bare names keep their historical current-working-directory behavior.
+
+The template selection is project policy, not evidence that the corresponding Template Standard snapshot is installed.
 
 Document authoring and reconstruction therefore resolve three independent inputs:
 
@@ -162,6 +189,9 @@ Docs Standard
 
 documents.template
   -> project-selected default materialization
+
+documents.route
+  -> project-selected default Document location
 
 Template Standard
   -> executable materialization definition

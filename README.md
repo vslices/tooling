@@ -64,6 +64,8 @@ New Documents materialize their root without hidden placeholder metadata. Root i
 
 Document question cardinality is now recognized from Docs Standard as `one` or `many`, with omitted cardinality defaulting to `one`. Discovery exposes cardinality explicitly. Multiple-answer materialization is intentionally not implemented yet: attempting to update a `many` question fails closed instead of degrading it to singular authoring.
 
+Document route and template policy are intentionally not chosen by `vslices init`. On the first interactive Docs Standard installation, Tooling asks for missing `documents.route` and `documents.template`; non-interactive installs leave them for manual configuration. Bare Document names then resolve through the configured project-relative route across new, discovery, and update.
+
 The current authoring loop is:
 
 ```text
