@@ -28,6 +28,68 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
+    public void First_install_prompt_populates_missing_document_route_and_template()
+    {
+        using var project = new ToolingTestProject();
+        var output = new StringWriter();
+
+        var configuration = DocumentPolicyBootstrap.PromptMissing(
+            ProjectConfiguration.Default(),
+            project.Root,
+            new StringReader(
+                "docs/documentation" + Environment.NewLine +
+                "markdown.question-tree" + Environment.NewLine),
+            output);
+
+        Assert.Equal("docs/documentation", configuration.DocumentsRoute);
+        Assert.Equal("markdown.question-tree", configuration.DocumentsTemplate);
+        Assert.Contains("Default Document route", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("Default Document template", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void First_install_prompt_preserves_existing_document_policy()
+    {
+        using var project = new ToolingTestProject();
+        var output = new StringWriter();
+
+        var configuration = DocumentPolicyBootstrap.PromptMissing(
+            ProjectConfiguration.Default() with
+            {
+                DocumentsRoute = "existing-docs",
+                DocumentsTemplate = "markdown.existing"
+            },
+            project.Root,
+            new StringReader(string.Empty),
+            output);
+
+        Assert.Equal("existing-docs", configuration.DocumentsRoute);
+        Assert.Equal("markdown.existing", configuration.DocumentsTemplate);
+        Assert.Equal(string.Empty, output.ToString());
+    }
+
+    [Fact]
+    public void Document_route_prompt_rejects_project_escape_before_accepting_relative_route()
+    {
+        using var project = new ToolingTestProject();
+        var output = new StringWriter();
+
+        var configuration = DocumentPolicyBootstrap.PromptMissing(
+            ProjectConfiguration.Default() with
+            {
+                DocumentsTemplate = "markdown.question-tree"
+            },
+            project.Root,
+            new StringReader(
+                ".." + Path.DirectorySeparatorChar + "outside" + Environment.NewLine +
+                "." + Path.DirectorySeparatorChar + "docs" + Environment.NewLine),
+            output);
+
+        Assert.Equal("docs", configuration.DocumentsRoute);
+        Assert.Contains("DOCPATH003", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Valid_local_source_replaces_snapshot_and_installs_only_manifest_reachable_files()
     {
         using var project = new ToolingTestProject();

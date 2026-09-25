@@ -80,6 +80,62 @@ public sealed class NewDocumentCommandTests
     }
 
     [Fact]
+    public async Task New_document_uses_configured_route_for_a_bare_name()
+    {
+        using var project = new ToolingTestProject();
+        await WriteDocumentAuthoringEnvironment(
+            project,
+            documentRoute: "docs/knowledge");
+
+        var result = await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(
+            Path.Combine(project.Root, "docs", "knowledge", "tooling-context.md")));
+        Assert.False(File.Exists(
+            Path.Combine(project.Root, "tooling-context.md")));
+
+        var discovery = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+        Assert.Equal(0, discovery.ExitCode);
+        Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
+
+        var update = await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Routed answer");
+        Assert.Equal(0, update.ExitCode);
+        Assert.Contains(
+            "Routed answer",
+            File.ReadAllText(
+                Path.Combine(project.Root, "docs", "knowledge", "tooling-context.md")),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Explicit_document_path_bypasses_configured_route()
+    {
+        using var project = new ToolingTestProject();
+        await WriteDocumentAuthoringEnvironment(
+            project,
+            documentRoute: "docs/knowledge");
+
+        var result = await project.Run(
+            project.Root,
+            "new", "document", "explicit/tooling-context", "--kind", "context");
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(
+            Path.Combine(project.Root, "explicit", "tooling-context.md")));
+        Assert.False(File.Exists(
+            Path.Combine(project.Root, "docs", "knowledge", "explicit", "tooling-context.md")));
+    }
+
+    [Fact]
     public async Task New_document_keeps_an_existing_md_extension()
     {
         using var project = new ToolingTestProject();
@@ -199,7 +255,10 @@ public sealed class NewDocumentCommandTests
         using var project = new ToolingTestProject();
         await ProjectConfiguration.WriteAsync(
             project.Root,
-            ProjectConfiguration.Default(),
+            ProjectConfiguration.Default() with
+            {
+                DocumentsTemplate = ProjectConfiguration.DefaultDocumentTemplate
+            },
             CancellationToken.None);
         WriteDocsStandard(project.Root);
         WriteTemplateStandardMetadataOnly(
@@ -236,13 +295,15 @@ public sealed class NewDocumentCommandTests
         string rootQuestion = "¿Dónde existe?",
         string configuredTemplate = ProjectConfiguration.DefaultDocumentTemplate,
         string? installedTemplate = null,
-        int rootLevel = 1)
+        int rootLevel = 1,
+        string? documentRoute = null)
     {
         await ProjectConfiguration.WriteAsync(
             project.Root,
             ProjectConfiguration.Default() with
             {
-                DocumentsTemplate = configuredTemplate
+                DocumentsTemplate = configuredTemplate,
+                DocumentsRoute = documentRoute
             },
             CancellationToken.None);
 
