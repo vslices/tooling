@@ -160,11 +160,16 @@ internal static class UpdateCommands
             return 2;
         }
 
-        var path = Path.GetFullPath(
-            document.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-                ? document
-                : document + ".md",
+        var resolvedPath = DocumentPathResolver.Resolve(
+            document,
             Environment.CurrentDirectory);
+        if (!resolvedPath.IsSuccess)
+        {
+            TerminalOutput.Error(resolvedPath.Error!);
+            return 2;
+        }
+
+        var path = resolvedPath.Path!;
         if (!File.Exists(path))
         {
             TerminalOutput.Error($"UPDATE102: Document '{path}' does not exist.");

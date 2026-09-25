@@ -10,11 +10,16 @@ internal static class DocumentDiscoveryCommands
         [Argument] string document,
         CancellationToken cancellationToken = default)
     {
-        var path = Path.GetFullPath(
-            document.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-                ? document
-                : document + ".md",
+        var resolved = DocumentPathResolver.Resolve(
+            document,
             Environment.CurrentDirectory);
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return 2;
+        }
+
+        var path = resolved.Path!;
         if (!File.Exists(path))
         {
             TerminalOutput.Error($"DISC100: Document '{path}' does not exist.");

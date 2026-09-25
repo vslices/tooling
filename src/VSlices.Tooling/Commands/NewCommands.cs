@@ -26,7 +26,7 @@ internal static class NewCommands
 
         return await CommandInfrastructure.WriteResult(
             result.Source!,
-            defaultPath,
+            path.Path!,
             output: null,
             stdout: false,
             overwrite: false,
@@ -75,11 +75,14 @@ internal static class NewCommands
             return 2;
         }
 
-        var defaultPath = Path.GetFullPath(
-            name.EndsWith(".md", StringComparison.OrdinalIgnoreCase)
-                ? name
-                : name + ".md",
+        var path = DocumentPathResolver.Resolve(
+            name,
             Environment.CurrentDirectory);
+        if (!path.IsSuccess)
+        {
+            TerminalOutput.Error(path.Error!);
+            return 2;
+        }
 
         return await CommandInfrastructure.WriteResult(
             result.Source!,

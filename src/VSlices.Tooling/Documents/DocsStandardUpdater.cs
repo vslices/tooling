@@ -65,9 +65,22 @@ internal static class DocsStandardUpdater
             }
 
             TerminalOutput.Success("✓ Docs Standard validated");
+
+            var firstInstall = !File.Exists(
+                Path.Combine(
+                    project.VslicesRoot,
+                    "docs-standard",
+                    "manifest.yaml"));
+
+            var configuration = firstInstall
+                ? DocumentPolicyBootstrap.ConfigureFirstInstall(
+                    project.Configuration,
+                    project.ProjectRoot)
+                : project.Configuration;
+
             DocsStandardSnapshotInstaller.Replace(project.VslicesRoot, prepared);
 
-            var configuration = project.Configuration with
+            configuration = configuration with
             {
                 DocsStandardSource = source,
                 DocsStandardRef = reference
