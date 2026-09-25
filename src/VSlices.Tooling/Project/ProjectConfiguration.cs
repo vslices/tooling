@@ -16,7 +16,8 @@ internal sealed record ProjectConfiguration(
     string? DocsStandardRef = null,
     string? TemplateStandardSource = null,
     string? TemplateStandardRef = null,
-    string? DocumentsTemplate = "markdown.question-tree")
+    string? DocumentsTemplate = null,
+    string? DocumentsRoute = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
@@ -45,7 +46,8 @@ internal sealed record ProjectConfiguration(
             null,
             null,
             null,
-            DefaultDocumentTemplate);
+            null,
+            null);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
@@ -91,6 +93,8 @@ internal sealed record ProjectConfiguration(
         };
 
         var documents = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.DocumentsRoute))
+            documents.Add("route", configuration.DocumentsRoute);
         if (!string.IsNullOrWhiteSpace(configuration.DocumentsTemplate))
             documents.Add("template", configuration.DocumentsTemplate);
         if (documents.Children.Count > 0)
@@ -188,7 +192,8 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "docs-standard", "ref"),
             NestedScalar(root, "template-standard", "source"),
             NestedScalar(root, "template-standard", "ref"),
-            NestedScalar(root, "documents", "template") ?? DefaultDocumentTemplate);
+            NestedScalar(root, "documents", "template"),
+            NestedScalar(root, "documents", "route"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)
