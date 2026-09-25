@@ -62,6 +62,8 @@ That policy does not install Template Standard. Document authoring requires both
 
 New Documents materialize their root without hidden placeholder metadata. Root identity is reconstructed from front matter + Docs Standard, while Template Standard supplies the visible root geometry, answer-region boundaries, and the empty-answer state. Root answers are therefore markerless as well; historical placeholder/question representations remain readable where compatibility requires them. Descendant answer markers remain part of the current experimental boundary.
 
+Document question cardinality is now recognized from Docs Standard as `one` or `many`, with omitted cardinality defaulting to `one`. Discovery exposes cardinality explicitly. Multiple-answer materialization is intentionally not implemented yet: attempting to update a `many` question fails closed instead of degrading it to singular authoring.
+
 The current authoring loop is:
 
 ```text

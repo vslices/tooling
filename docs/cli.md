@@ -479,3 +479,33 @@ Updating an already answered markerless root replaces only that region and prese
 Answered descendant questions still use their current VSlices question markers in this slice. Arbitrary headings inside answer content are outside the current contract; Tooling does not attempt to infer whether such headings are documentary vocabulary. A future project-level Docs Standard extension mechanism is the intended direction when real documents require additional documentary vocabulary.
 
 The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, migration-aware template selection, arbitrary answer headings, branching markerless reconstruction, and Docs Standard extension authoring remain non-scope.
+
+
+## 18. Document question cardinality
+
+Docs Standard questions may optionally declare:
+
+```yaml
+cardinality: many
+```
+
+Omitted cardinality and explicit `cardinality: one` both mean one AnswerInstance per question occurrence.
+
+The current CLI recognizes both values and exposes them through Document discovery:
+
+```text
+[2] ¿Qué términos usamos?
+  status: available
+  cardinality: many
+  action: multiple-answer authoring is not supported in the current preview
+```
+
+This slice deliberately does not materialize multiple AnswerInstances yet.
+
+For `cardinality: one`, existing authoring behavior remains unchanged.
+
+For `cardinality: many`, `update document` currently fails closed with `UPDATE109` rather than silently treating the question as singular. Discovery does not emit a mutation command that Tooling cannot yet honor.
+
+Any cardinality other than `one` or `many` is rejected while loading Docs Standard with `DOCS027`.
+
+The next pressure is not parsing cardinality but representing repeated AnswerInstances and the child QuestionOccurrences scoped through each answer.
