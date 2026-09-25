@@ -243,6 +243,7 @@ public sealed class DocsStandardUpdateTests
                 children:
                   - id: assumptions
                     text: ¿Qué estamos asumiendo como cierto?
-            {{cardinality}}""");
+            {{cardinality}}
+            """);
     }
 }
