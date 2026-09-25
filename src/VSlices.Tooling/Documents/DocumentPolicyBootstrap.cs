@@ -22,11 +22,11 @@ internal static class DocumentPolicyBootstrap
         if (string.IsNullOrWhiteSpace(configuration.DocumentsRoute) ||
             string.IsNullOrWhiteSpace(configuration.DocumentsTemplate))
         {
-            TerminalOutput.Warning("! Document authoring policy is not fully configured");
+            Console.WriteLine("! Document authoring policy is not fully configured");
             if (string.IsNullOrWhiteSpace(configuration.DocumentsRoute))
-                TerminalOutput.Muted("  Configure documents.route manually in .vslices/config.yaml.");
+                Console.WriteLine("  Configure documents.route manually in .vslices/config.yaml.");
             if (string.IsNullOrWhiteSpace(configuration.DocumentsTemplate))
-                TerminalOutput.Muted("  Configure documents.template manually in .vslices/config.yaml.");
+                Console.WriteLine("  Configure documents.template manually in .vslices/config.yaml.");
         }
 
         return configuration;
