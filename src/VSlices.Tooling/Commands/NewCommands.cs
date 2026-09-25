@@ -26,7 +26,7 @@ internal static class NewCommands
 
         return await CommandInfrastructure.WriteResult(
             result.Source!,
-            path.Path!,
+            defaultPath,
             output: null,
             stdout: false,
             overwrite: false,
@@ -86,7 +86,7 @@ internal static class NewCommands
 
         return await CommandInfrastructure.WriteResult(
             result.Source!,
-            defaultPath,
+            path.Path!,
             output: null,
             stdout: false,
             overwrite: false,
