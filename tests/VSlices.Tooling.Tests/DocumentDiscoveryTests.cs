@@ -358,6 +358,105 @@ public sealed class DocumentDiscoveryTests
     }
 
     [Fact]
+    public async Task Nested_many_answers_are_scoped_to_their_outer_answer_instance()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(
+            project.Root,
+            includeGrandchild: true,
+            includeGreatGrandchild: true,
+            greatGrandchildCardinality: "many",
+            childCardinality: "many");
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "Account")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "3",
+            "--answer", "Account identity")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "4",
+            "--answer", "Rut")).ExitCode);
+
+        var afterAccountProperty = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, afterAccountProperty.ExitCode);
+        var accountNested = SliceQuestion(afterAccountProperty.StandardOutput, 4);
+        Assert.Contains("status: answered", accountNested, StringComparison.Ordinal);
+        Assert.Contains("text: Rut", accountNested, StringComparison.Ordinal);
+        Assert.Contains("from:", accountNested, StringComparison.Ordinal);
+        Assert.Contains("text: Account", accountNested, StringComparison.Ordinal);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "6",
+            "--answer", "Service")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "7",
+            "--answer", "Service identity")).ExitCode);
+
+        var beforeServiceProperty = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, beforeServiceProperty.ExitCode);
+        var serviceNestedAvailable = SliceQuestion(beforeServiceProperty.StandardOutput, 8);
+        Assert.Contains("status: available", serviceNestedAvailable, StringComparison.Ordinal);
+        Assert.Contains("text: Service", serviceNestedAvailable, StringComparison.Ordinal);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "8",
+            "--answer", "Endpoint")).ExitCode);
+
+        var reconstructed = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, reconstructed.ExitCode);
+        Assert.Contains("text: Rut", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Endpoint", reconstructed.StandardOutput, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
+        Assert.Contains(
+            "vslices:answer-instance question=assumption-expression id=answer-",
+            source,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            source.Split(
+                "<!-- vslices:answer-instance question=assumption-expression ",
+                StringSplitOptions.None).Length - 1);
+        Assert.Equal(
+            2,
+            source.Split(" parent-answer-instance=answer-", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
     public async Task Repeated_answer_instance_identity_does_not_derive_from_answer_text()
     {
         using var project = new ToolingTestProject();
@@ -448,7 +547,8 @@ public sealed class DocumentDiscoveryTests
         bool includeGrandchild = false,
         bool includeGreatGrandchild = false,
         string childQuestion = "¿Qué estamos asumiendo como cierto?",
-        string? childCardinality = null)
+        string? childCardinality = null,
+        string? greatGrandchildCardinality = null)
     {
         ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
 
@@ -468,8 +568,12 @@ public sealed class DocumentDiscoveryTests
         var cardinality = string.IsNullOrWhiteSpace(childCardinality)
             ? string.Empty
             : $"        cardinality: {childCardinality}\n";
+        var greatGrandchildCardinalityLine = string.IsNullOrWhiteSpace(greatGrandchildCardinality)
+            ? string.Empty
+            : $"                cardinality: {greatGrandchildCardinality}\n";
         var greatGrandchild = includeGreatGrandchild
-            ? "            children:\n              - id: assumption-expression\n                text: ¿Cómo se expresa este supuesto?\n"
+            ? "            children:\n              - id: assumption-expression\n                text: ¿Cómo se expresa este supuesto?\n" +
+              greatGrandchildCardinalityLine
             : string.Empty;
         var grandchild = includeGrandchild
             ? "        children:\n          - id: assumption-risk\n            text: ¿Qué pasa si este supuesto cambia?\n" + greatGrandchild
