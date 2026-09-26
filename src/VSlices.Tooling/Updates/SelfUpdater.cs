@@ -71,6 +71,7 @@ internal static class SelfUpdater
                     repository!,
                     pullRequest!.Value,
                     rid,
+                    configurationOverridden,
                     checkOnly,
                     cancellationToken);
             }
@@ -82,6 +83,7 @@ internal static class SelfUpdater
                 source,
                 normalizedChannel,
                 rid,
+                configurationOverridden,
                 checkOnly,
                 cancellationToken);
         }
@@ -99,6 +101,7 @@ internal static class SelfUpdater
         string source,
         string channel,
         string rid,
+        bool configurationOverridden,
         bool checkOnly,
         CancellationToken cancellationToken)
     {
@@ -169,6 +172,7 @@ internal static class SelfUpdater
         string repository,
         int pullRequest,
         string rid,
+        bool configurationOverridden,
         bool checkOnly,
         CancellationToken cancellationToken)
     {
