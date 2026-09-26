@@ -11,6 +11,7 @@ internal sealed record DocumentQuestionAffordance(
     string? AnswerInstanceId,
     string? AnswerPreview,
     string? ScopeAnswerInstanceId,
+    int? ParentSelection,
     bool HasChildren);
 
 internal sealed record DocumentArtifactReadResult(
@@ -1107,14 +1108,18 @@ internal sealed class DocumentArtifact
                 AnswerInstanceId: null,
                 AnswerPreview: null,
                 ScopeAnswerInstanceId: null,
+                ParentSelection: null,
                 HasChildren: definition.RootQuestion.Children.Count > 0));
             return surface;
         }
 
-        Add(definition.RootQuestion, 0);
+        Add(definition.RootQuestion, 0, parentSelection: null);
         return surface;
 
-        void Add(DocumentQuestionDefinition question, int depth)
+        void Add(
+            DocumentQuestionDefinition question,
+            int depth,
+            int? parentSelection)
         {
             if (question.Cardinality == DocumentQuestionCardinality.Many)
             {
@@ -1122,8 +1127,9 @@ internal sealed class DocumentArtifact
                 {
                     foreach (var instance in instances.Where(instance => instance.ParentAnswerInstanceId is null))
                     {
+                        var selection = surface.Count + 1;
                         surface.Add(new DocumentQuestionAffordance(
-                            surface.Count + 1,
+                            selection,
                             question.Id,
                             question.Text,
                             depth,
@@ -1133,10 +1139,11 @@ internal sealed class DocumentArtifact
                             instance.Id,
                             instance.AnswerPreview,
                             ScopeAnswerInstanceId: null,
+                            ParentSelection: parentSelection,
                             HasChildren: question.Children.Count > 0));
 
                         foreach (var child in question.Children)
-                            AddScoped(child, depth + 1, instance.Id);
+                            AddScoped(child, depth + 1, instance.Id, selection);
                     }
                 }
 
@@ -1151,14 +1158,16 @@ internal sealed class DocumentArtifact
                     AnswerInstanceId: null,
                     AnswerPreview: null,
                     ScopeAnswerInstanceId: null,
+                    ParentSelection: parentSelection,
                     HasChildren: question.Children.Count > 0));
 
                 return;
             }
 
             var materialized = blocks.ContainsKey(question.Id);
+            var currentSelection = surface.Count + 1;
             surface.Add(new DocumentQuestionAffordance(
-                surface.Count + 1,
+                currentSelection,
                 question.Id,
                 question.Text,
                 depth,
@@ -1168,19 +1177,21 @@ internal sealed class DocumentArtifact
                 AnswerInstanceId: null,
                 AnswerPreview: null,
                 ScopeAnswerInstanceId: null,
+                ParentSelection: parentSelection,
                 HasChildren: question.Children.Count > 0));
 
             if (!materialized)
                 return;
 
             foreach (var child in question.Children)
-                Add(child, depth + 1);
+                Add(child, depth + 1, currentSelection);
         }
 
         void AddScoped(
             DocumentQuestionDefinition question,
             int depth,
-            string answerInstanceId)
+            string answerInstanceId,
+            int? parentSelection)
         {
             if (question.Cardinality == DocumentQuestionCardinality.Many)
             {
@@ -1192,8 +1203,9 @@ internal sealed class DocumentArtifact
                                      answerInstanceId,
                                      StringComparison.Ordinal)))
                     {
+                        var selection = surface.Count + 1;
                         surface.Add(new DocumentQuestionAffordance(
-                            surface.Count + 1,
+                            selection,
                             question.Id,
                             question.Text,
                             depth,
@@ -1203,10 +1215,11 @@ internal sealed class DocumentArtifact
                             instance.Id,
                             instance.AnswerPreview,
                             ScopeAnswerInstanceId: answerInstanceId,
+                            ParentSelection: parentSelection,
                             HasChildren: question.Children.Count > 0));
 
                         foreach (var child in question.Children)
-                            AddScoped(child, depth + 1, instance.Id);
+                            AddScoped(child, depth + 1, instance.Id, selection);
                     }
                 }
 
@@ -1221,14 +1234,16 @@ internal sealed class DocumentArtifact
                     AnswerInstanceId: null,
                     AnswerPreview: null,
                     ScopeAnswerInstanceId: answerInstanceId,
+                    ParentSelection: parentSelection,
                     HasChildren: question.Children.Count > 0));
                 return;
             }
 
             var key = new ScopedQuestionKey(answerInstanceId, question.Id);
             var materialized = scopedBlocks.ContainsKey(key);
+            var currentSelection = surface.Count + 1;
             surface.Add(new DocumentQuestionAffordance(
-                surface.Count + 1,
+                currentSelection,
                 question.Id,
                 question.Text,
                 depth,
@@ -1238,13 +1253,14 @@ internal sealed class DocumentArtifact
                 AnswerInstanceId: null,
                 AnswerPreview: null,
                 ScopeAnswerInstanceId: answerInstanceId,
+                ParentSelection: parentSelection,
                 HasChildren: question.Children.Count > 0));
 
             if (!materialized)
                 return;
 
             foreach (var child in question.Children)
-                AddScoped(child, depth + 1, answerInstanceId);
+                AddScoped(child, depth + 1, answerInstanceId, currentSelection);
         }
     }
 
