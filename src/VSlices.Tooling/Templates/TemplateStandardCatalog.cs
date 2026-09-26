@@ -17,7 +17,9 @@ internal sealed record MaterializationTemplateDefinition(
     string? AnswerRegionStart,
     string? AnswerRegionEnd,
     string? EmptyAnswerState,
-    string? RootQuestionIdentityStrategy);
+    string? RootQuestionIdentityStrategy,
+    string? MultipleAnswerStrategy,
+    string? AnswerInstanceStrategy);
 
 internal sealed record TemplateStandardCatalogResult(
     TemplateStandardCatalog? Catalog,
@@ -144,6 +146,14 @@ internal sealed class TemplateStandardCatalog
         if (!rootIdentityStrategy.IsSuccess)
             return TemplateDefinitionParseResult.Failure(rootIdentityStrategy.Error!);
 
+        var multipleAnswerStrategy = ParseMultipleAnswerStrategy(root, id);
+        if (!multipleAnswerStrategy.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(multipleAnswerStrategy.Error!);
+
+        var answerInstanceStrategy = ParseAnswerInstanceStrategy(root, id);
+        if (!answerInstanceStrategy.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(answerInstanceStrategy.Error!);
+
         return TemplateDefinitionParseResult.Success(
             new MaterializationTemplateDefinition(
                 id,
@@ -154,7 +164,9 @@ internal sealed class TemplateStandardCatalog
                 answerRegionStart.Value,
                 answerRegionEnd.Value,
                 emptyAnswerState.Value,
-                rootIdentityStrategy.Value));
+                rootIdentityStrategy.Value,
+                multipleAnswerStrategy.Value,
+                answerInstanceStrategy.Value));
     }
 
     private static QuestionPresentationParseResult ParseQuestionPresentation(
@@ -244,6 +256,38 @@ internal sealed class TemplateStandardCatalog
         }
 
         return OptionalScalarParseResult.Success(empty);
+    }
+
+    private static OptionalScalarParseResult ParseMultipleAnswerStrategy(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var multiple, "representation", "question", "answer", "multiple"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(multiple, "strategy", out var strategy))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL028: Materialization template '{templateId}' multiple-answer contract must declare strategy.");
+        }
+
+        return OptionalScalarParseResult.Success(strategy);
+    }
+
+    private static OptionalScalarParseResult ParseAnswerInstanceStrategy(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var answerInstance, "reconstruction", "answer-instance"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(answerInstance, "strategy", out var strategy))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL029: Materialization template '{templateId}' answer-instance reconstruction must declare strategy.");
+        }
+
+        return OptionalScalarParseResult.Success(strategy);
     }
 
     private static OptionalScalarParseResult ParseRootQuestionIdentityStrategy(
