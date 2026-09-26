@@ -73,6 +73,14 @@ internal static class DocumentDiscoveryCommands
                 question => question.AnswerPreview,
                 StringComparer.Ordinal);
 
+        var scopedChildren = artifact.Surface
+            .Where(question => question.ScopeAnswerInstanceId is not null)
+            .GroupBy(question => question.ScopeAnswerInstanceId!, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(question => question.Selection).ToArray(),
+                StringComparer.Ordinal);
+
         foreach (var question in artifact.Surface)
         {
             Console.WriteLine();
@@ -82,19 +90,26 @@ internal static class DocumentDiscoveryCommands
             if (question.Cardinality == DocumentQuestionCardinality.Many &&
                 question.AnswerInstanceId is not null)
             {
-                Console.WriteLine($"  answer-instance: {question.AnswerInstanceId}");
-                Console.WriteLine($"  answer: {question.AnswerPreview}");
+                Console.WriteLine("  answer:");
+                Console.WriteLine($"    instance: {question.AnswerInstanceId}");
+                Console.WriteLine($"    text: {question.AnswerPreview}");
+                if (scopedChildren.TryGetValue(question.AnswerInstanceId, out var children) &&
+                    children.Length > 0)
+                {
+                    Console.WriteLine($"    sub-questions: [{string.Join(", ", children)}]");
+                }
                 Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
             }
             else
             {
                 if (question.ScopeAnswerInstanceId is not null)
                 {
-                    Console.WriteLine($"  scope: answer-instance {question.ScopeAnswerInstanceId}");
+                    Console.WriteLine("  from:");
+                    Console.WriteLine($"    instance: {question.ScopeAnswerInstanceId}");
                     if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var scopeAnswer) &&
                         !string.IsNullOrWhiteSpace(scopeAnswer))
                     {
-                        Console.WriteLine($"  scope-answer: {scopeAnswer}");
+                        Console.WriteLine($"    text: {scopeAnswer}");
                     }
                 }
 
