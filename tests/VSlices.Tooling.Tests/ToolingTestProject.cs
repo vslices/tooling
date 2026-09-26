@@ -147,12 +147,17 @@ internal sealed class ToolingTestProject : IDisposable
                   multiple:
                     strategy: marked-instances
 
+                scoped-child:
+                  strategy: parent-answer-instance-marker
+
             reconstruction:
               question-identity:
                 root:
                   strategy: document-type-root-question
               answer-instance:
                 strategy: explicit-marker
+              scoped-question:
+                strategy: explicit-parent-answer-instance-marker
             """);
     }
 
