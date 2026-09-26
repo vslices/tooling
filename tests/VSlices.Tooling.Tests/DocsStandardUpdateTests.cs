@@ -228,6 +228,94 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
+    public async Task Document_definition_without_scopes_is_valid()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "scope-less-docs-standard");
+        var documents = Path.Combine(source, "documents");
+        Directory.CreateDirectory(documents);
+
+        File.WriteAllText(
+            Path.Combine(source, "manifest.yaml"),
+            """
+            kind: vslices-docs-standard
+            version: 0.1
+            documents:
+              - documents/behavior-document.yml
+            """);
+
+        File.WriteAllText(
+            Path.Combine(documents, "behavior-document.yml"),
+            """
+            kind: vslices-document-definition
+            version: 0.1
+
+            document:
+              type: behavior
+              question:
+                id: behavior
+                text: ¿Qué debe ocurrir?
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--origin", source);
+
+        Assert.Equal(0, result.ExitCode);
+
+        var installed = Path.Combine(
+            project.VslicesRoot,
+            "docs-standard",
+            "documents",
+            "behavior-document.yml");
+        Assert.True(File.Exists(installed));
+        Assert.Contains("type: behavior", File.ReadAllText(installed), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Declared_document_scopes_must_still_be_a_sequence()
+    {
+        using var project = new ToolingTestProject();
+        project.WriteConfiguration();
+
+        var source = Path.Combine(project.Root, "invalid-scopes-docs-standard");
+        var documents = Path.Combine(source, "documents");
+        Directory.CreateDirectory(documents);
+
+        File.WriteAllText(
+            Path.Combine(source, "manifest.yaml"),
+            """
+            kind: vslices-docs-standard
+            version: 0.1
+            documents:
+              - documents/behavior-document.yml
+            """);
+
+        File.WriteAllText(
+            Path.Combine(documents, "behavior-document.yml"),
+            """
+            kind: vslices-document-definition
+            version: 0.1
+
+            document:
+              type: behavior
+              scopes: capability
+              question:
+                id: behavior
+                text: ¿Qué debe ocurrir?
+            """);
+
+        var result = await project.Run(
+            project.Root,
+            "update", "docs-standard", "--origin", source);
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOCS018", result.StandardError, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Invalid_question_cardinality_never_replaces_current_snapshot()
     {
         using var project = new ToolingTestProject();

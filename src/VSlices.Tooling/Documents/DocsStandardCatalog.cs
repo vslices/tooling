@@ -201,23 +201,25 @@ internal sealed class DocsStandardCatalog
                 "DOCS017: document.type must be a stable identifier beginning with a letter and containing only letters, digits, '-' or '_'.");
         }
 
-        if (!document.Children.TryGetValue(new YamlScalarNode("scopes"), out var scopesNode) ||
-            scopesNode is not YamlSequenceNode scopesSequence)
-        {
-            return DocumentDefinitionParseResult.Failure(
-                $"DOCS018: Document type '{type}' must declare scopes as a sequence.");
-        }
-
         var scopes = new List<string>();
-        foreach (var scopeNode in scopesSequence.Children)
+        if (document.Children.TryGetValue(new YamlScalarNode("scopes"), out var scopesNode))
         {
-            if (scopeNode is not YamlScalarNode scopeScalar || string.IsNullOrWhiteSpace(scopeScalar.Value))
+            if (scopesNode is not YamlSequenceNode scopesSequence)
             {
                 return DocumentDefinitionParseResult.Failure(
-                    $"DOCS019: Document type '{type}' contains a non-scalar or empty scope.");
+                    $"DOCS018: Document type '{type}' scopes must be a sequence when declared.");
             }
 
-            scopes.Add(scopeScalar.Value.Trim());
+            foreach (var scopeNode in scopesSequence.Children)
+            {
+                if (scopeNode is not YamlScalarNode scopeScalar || string.IsNullOrWhiteSpace(scopeScalar.Value))
+                {
+                    return DocumentDefinitionParseResult.Failure(
+                        $"DOCS019: Document type '{type}' contains a non-scalar or empty scope.");
+                }
+
+                scopes.Add(scopeScalar.Value.Trim());
+            }
         }
 
         if (!document.Children.TryGetValue(new YamlScalarNode("question"), out var questionNode))

@@ -10,7 +10,7 @@ public sealed class DocumentDiscoveryTests
 
         var created = await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context");
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling");
         Assert.Equal(0, created.ExitCode);
         Assert.DoesNotContain(
             "vslices:placeholder",
@@ -39,7 +39,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -87,7 +87,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -130,7 +130,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -221,7 +221,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -288,7 +288,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -377,7 +377,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -481,7 +481,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
@@ -527,7 +527,7 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, (await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",

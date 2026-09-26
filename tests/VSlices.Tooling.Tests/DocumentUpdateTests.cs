@@ -257,7 +257,7 @@ public sealed class DocumentUpdateTests
     {
         var created = await project.Run(
             project.Root,
-            "new", "document", "tooling-context", "--kind", "context");
+            "new", "document", "tooling-context", "--kind", "context", "--target", "Tooling");
         Assert.Equal(0, created.ExitCode);
     }
 

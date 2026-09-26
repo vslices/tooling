@@ -14,6 +14,7 @@ internal static class SelfUpdater
         string source,
         string channel,
         int? pullRequest,
+        bool configurationOverridden,
         bool checkOnly,
         CancellationToken cancellationToken)
     {
@@ -70,6 +71,7 @@ internal static class SelfUpdater
                     repository!,
                     pullRequest!.Value,
                     rid,
+                    configurationOverridden,
                     checkOnly,
                     cancellationToken);
             }
@@ -81,6 +83,7 @@ internal static class SelfUpdater
                 source,
                 normalizedChannel,
                 rid,
+                configurationOverridden,
                 checkOnly,
                 cancellationToken);
         }
@@ -98,6 +101,7 @@ internal static class SelfUpdater
         string source,
         string channel,
         string rid,
+        bool configurationOverridden,
         bool checkOnly,
         CancellationToken cancellationToken)
     {
@@ -121,7 +125,7 @@ internal static class SelfUpdater
         var needsCompanionRepair = sameVersion && !SemanticRefactoringCompanionHealth.IsInstalled();
         if (sameVersion && !needsCompanionRepair)
         {
-            ShowResolvedUpdate(currentVersion, release.TagName, rid);
+            ShowResolvedUpdate(currentVersion, release.TagName, rid, configurationOverridden);
             TerminalOutput.BlankLine();
             TerminalOutput.Success("✓ VSlices is up to date");
             return 0;
@@ -139,7 +143,7 @@ internal static class SelfUpdater
             return 1;
         }
 
-        ShowResolvedUpdate(currentVersion, release.TagName, rid);
+        ShowResolvedUpdate(currentVersion, release.TagName, rid, configurationOverridden);
         TerminalOutput.BlankLine();
 
         if (checkOnly)
@@ -168,6 +172,7 @@ internal static class SelfUpdater
         string repository,
         int pullRequest,
         string rid,
+        bool configurationOverridden,
         bool checkOnly,
         CancellationToken cancellationToken)
     {
@@ -192,7 +197,7 @@ internal static class SelfUpdater
         var needsCompanionRepair = sameBuild && !SemanticRefactoringCompanionHealth.IsInstalled();
         if (sameBuild && !needsCompanionRepair)
         {
-            ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
+            ShowResolvedUpdate(currentIdentity, buildIdentity, rid, configurationOverridden);
             TerminalOutput.BlankLine();
             TerminalOutput.Success("✓ VSlices is up to date");
             return 0;
@@ -214,7 +219,7 @@ internal static class SelfUpdater
             return 1;
         }
 
-        ShowResolvedUpdate(currentIdentity, buildIdentity, rid);
+        ShowResolvedUpdate(currentIdentity, buildIdentity, rid, configurationOverridden);
         TerminalOutput.BlankLine();
 
         if (checkOnly)
@@ -453,11 +458,26 @@ internal static class SelfUpdater
         }
     }
 
-    private static void ShowResolvedUpdate(string current, string latest, string rid)
+    private static void ShowResolvedUpdate(
+        string current,
+        string latest,
+        string rid,
+        bool configurationOverridden)
     {
         TerminalOutput.Detail("Current", current);
         TerminalOutput.Detail("Latest", latest);
         TerminalOutput.Detail("Runtime", rid);
+        TerminalOutput.BlankLine();
+
+        if (configurationOverridden)
+        {
+            TerminalOutput.Warning("! Default configuration overridden by command parameters");
+            TerminalOutput.Muted("  To persist these update settings, edit .vslices/config.yaml.");
+        }
+        else
+        {
+            TerminalOutput.Info("→ Using default configuration");
+        }
     }
 
     private static async Task<GitHubRelease?> ResolveRelease(

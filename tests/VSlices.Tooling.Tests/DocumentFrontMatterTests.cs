@@ -7,11 +7,7 @@ public sealed class DocumentFrontMatterTests
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root, rootQuestion: "¿En qué contexto existe?");
-
-        var path = Path.Combine(project.Root, "context.md");
-        File.WriteAllText(
-            path,
-            """
+        File.WriteAllText(Path.Combine(project.Root, "context.md"), """
             ---
             artifact:
               kind: document
@@ -20,11 +16,7 @@ public sealed class DocumentFrontMatterTests
 
             # Texto visible histórico
             """);
-
-        var discovery = await project.Run(
-            project.Root,
-            "discovery", "document", "context");
-
+        var discovery = await project.Run(project.Root, "discovery", "document", "context");
         Assert.Equal(0, discovery.ExitCode);
         Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[1] ¿En qué contexto existe?", discovery.StandardOutput, StringComparison.Ordinal);
@@ -36,11 +28,8 @@ public sealed class DocumentFrontMatterTests
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
-
         var path = Path.Combine(project.Root, "context.md");
-        File.WriteAllText(
-            path,
-            """
+        File.WriteAllText(path, """
             ---
             artifact:
               kind: document
@@ -51,11 +40,7 @@ public sealed class DocumentFrontMatterTests
 
             Esto es contenido significativo y por tanto la respuesta de la raíz.
             """);
-
-        var result = await project.Run(
-            project.Root,
-            "discovery", "document", "context");
-
+        var result = await project.Run(project.Root, "discovery", "document", "context");
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("[1] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", result.StandardOutput, StringComparison.Ordinal);
@@ -69,11 +54,7 @@ public sealed class DocumentFrontMatterTests
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
-
-        var path = Path.Combine(project.Root, "context.md");
-        File.WriteAllText(
-            path,
-            """
+        File.WriteAllText(Path.Combine(project.Root, "context.md"), """
             ---
             artifact:
               kind: document
@@ -82,11 +63,7 @@ public sealed class DocumentFrontMatterTests
 
             ## ¿Dónde existe?
             """);
-
-        var result = await project.Run(
-            project.Root,
-            "discovery", "document", "context");
-
+        var result = await project.Run(project.Root, "discovery", "document", "context");
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("DOCART026", result.StandardError, StringComparison.Ordinal);
     }
@@ -96,11 +73,8 @@ public sealed class DocumentFrontMatterTests
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
-
         var path = Path.Combine(project.Root, "context.md");
-        File.WriteAllText(
-            path,
-            """
+        File.WriteAllText(path, """
             ---
             artifact:
               kind: document
@@ -111,69 +85,77 @@ public sealed class DocumentFrontMatterTests
 
             <!-- vslices:placeholder document=structure question=context -->
             """);
-
         var before = File.ReadAllText(path);
-        var result = await project.Run(
-            project.Root,
-            "discovery", "document", "context");
-
+        var result = await project.Run(project.Root, "discovery", "document", "context");
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("DOCART002", result.StandardError, StringComparison.Ordinal);
         Assert.Equal(before, File.ReadAllText(path));
     }
 
     [Fact]
-    public async Task Unsupported_front_matter_fields_fail_closed_until_their_semantics_are_promoted()
+    public async Task Promoted_front_matter_fields_are_readable_without_becoming_document_answers()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root);
-
-        var path = Path.Combine(project.Root, "context.md");
-        File.WriteAllText(
-            path,
-            """
+        File.WriteAllText(Path.Combine(project.Root, "context.md"), """
             ---
             artifact:
               kind: document
               type: context
               scope: project
+              target: Tooling
+            metadata:
+              status: draft
+              relates: []
+            tooling:
+              version: historical
+              schema:
+                version: 0.1.0
+              template:
+                name: markdown.question-tree
+                version: 0.1.0
             ---
 
             # ¿Dónde existe?
-
-            <!-- vslices:placeholder question=context -->
             """);
-
-        var result = await project.Run(
-            project.Root,
-            "discovery", "document", "context");
-
-        Assert.NotEqual(0, result.ExitCode);
-        Assert.Contains("DOCART021", result.StandardError, StringComparison.Ordinal);
+        var result = await project.Run(project.Root, "discovery", "document", "context");
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("scope: project", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("target: Tooling", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: unanswered", result.StandardOutput, StringComparison.Ordinal);
     }
 
-    private static void WriteDocsStandard(
-        string projectRoot,
-        string rootQuestion = "¿Dónde existe?")
+    [Theory]
+    [InlineData("artifact:\n  kind: document\n  type: context\n  invented: hidden\n")]
+    [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  relates: broken\n")]
+    [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  relates:\n    - not-a-relation\n")]
+    [InlineData("artifact:\n  kind: document\n  type: context\ntooling:\n  schema:\n    version: 99.0.0\n")]
+    public async Task Unknown_or_malformed_promoted_metadata_still_fails_closed(string header)
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root);
+        var path = Path.Combine(project.Root, "context.md");
+        File.WriteAllText(path, "---\n" + header + "---\n\n# ¿Dónde existe?\n");
+        var before = File.ReadAllBytes(path);
+        var result = await project.Run(project.Root, "discovery", "document", "context");
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("RELART", result.StandardError, StringComparison.Ordinal);
+        Assert.Equal(before, File.ReadAllBytes(path));
+    }
+
+    private static void WriteDocsStandard(string projectRoot, string rootQuestion = "¿Dónde existe?")
     {
         ToolingTestProject.WriteDocumentAuthoringSupport(projectRoot);
-
         var standardRoot = Path.Combine(projectRoot, ".vslices", "docs-standard");
         var documentsRoot = Path.Combine(standardRoot, "documents");
         Directory.CreateDirectory(documentsRoot);
-
-        File.WriteAllText(
-            Path.Combine(standardRoot, "manifest.yaml"),
-            """
+        File.WriteAllText(Path.Combine(standardRoot, "manifest.yaml"), """
             kind: vslices-docs-standard
             version: 0.1
             documents:
               - documents/context-document.yml
             """);
-
-        File.WriteAllText(
-            Path.Combine(documentsRoot, "context-document.yml"),
-            $$"""
+        File.WriteAllText(Path.Combine(documentsRoot, "context-document.yml"), $$"""
             kind: vslices-document-definition
             version: 0.1
 
