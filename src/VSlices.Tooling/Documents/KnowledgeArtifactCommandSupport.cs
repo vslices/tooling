@@ -46,6 +46,13 @@ internal static class KnowledgeArtifactCommandSupport
         var resolved = DocumentPathResolver.Resolve(artifact, start);
         if (!resolved.IsSuccess) return ExistingArtifactResolutionResult.Failure(resolved.Error!);
         var path = resolved.Path!;
+        if (!File.Exists(path))
+        {
+            var directoryCandidate = Path.ChangeExtension(path, null);
+            var readmeCandidate = Path.Combine(directoryCandidate, "README.md");
+            if (File.Exists(readmeCandidate))
+                path = readmeCandidate;
+        }
         try
         {
             if (!File.Exists(path)) return ExistingArtifactResolutionResult.Failure($"RELCLI002: Related artifact '{path}' does not exist.");
