@@ -138,7 +138,7 @@ public sealed class DocumentUpdateTests
         var tooEarly = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "3",
+            "--question-id", "2.1",
             "--answer", "Todavía no corresponde.");
         Assert.NotEqual(0, tooEarly.ExitCode);
         Assert.Contains("UPDATE105", tooEarly.StandardError, StringComparison.Ordinal);
@@ -152,7 +152,7 @@ public sealed class DocumentUpdateTests
         var risk = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "3",
+            "--question-id", "2.1",
             "--answer", "Si cambia, discovery debe reconstruir otra superficie.");
 
         Assert.Equal(0, risk.ExitCode);
