@@ -453,7 +453,15 @@ public sealed class DocumentDiscoveryTests
                 StringSplitOptions.None).Length - 1);
         Assert.Equal(
             2,
-            source.Split(" parent-answer-instance=answer-", StringSplitOptions.None).Length - 1);
+            source
+                .Split('\n')
+                .Count(line =>
+                    line.Contains(
+                        "vslices:answer-instance question=assumption-expression",
+                        StringComparison.Ordinal) &&
+                    line.Contains(
+                        " parent-answer-instance=answer-",
+                        StringComparison.Ordinal)));
     }
 
     [Fact]
