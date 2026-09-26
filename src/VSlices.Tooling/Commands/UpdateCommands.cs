@@ -140,17 +140,17 @@ internal static class UpdateCommands
 
     /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
     /// <param name="document">Document name or path. The .md extension is added when omitted.</param>
-    /// <param name="questionId">Ephemeral 1-based selection from the current Document authoring surface.</param>
+    /// <param name="questionId">Ephemeral structured selection path from the current Document authoring surface, for example 2.1.1.</param>
     /// <param name="answer">Non-empty Markdown answer for the selected question.</param>
     public static async Task<int> Document(
         [Argument] string document,
-        int? questionId = null,
+        string? questionId = null,
         string? answer = null,
         CancellationToken cancellationToken = default)
     {
-        if (questionId is null || questionId <= 0)
+        if (string.IsNullOrWhiteSpace(questionId))
         {
-            TerminalOutput.Error("UPDATE100: --question-id <number> is required and must be greater than zero.");
+            TerminalOutput.Error("UPDATE100: --question-id <path> is required, for example 2 or 2.1.1.");
             return 2;
         }
 
@@ -210,7 +210,7 @@ internal static class UpdateCommands
         }
 
         var candidate = state.Artifact!.Update(
-            questionId.Value,
+            questionId,
             answer,
             materialization.Template!);
         if (!candidate.IsSuccess)
@@ -221,7 +221,7 @@ internal static class UpdateCommands
 
         await CommandInfrastructure.AtomicWrite(path, candidate.Source!, cancellationToken);
         Console.WriteLine(
-            $"Updated question [{questionId.Value}] '{candidate.Question!.Text}' in '{path}'.");
+            $"Updated question [{questionId}] '{candidate.Question!.Text}' in '{path}'.");
         return 0;
     }
 
