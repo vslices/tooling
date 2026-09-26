@@ -235,7 +235,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "4",
+            "--question-id", "3",
             "--answer", "Service")).ExitCode);
 
         var before = await project.Run(
