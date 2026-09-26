@@ -31,10 +31,16 @@ internal static class UpdateCommands
         TerminalOutput.Detail("Mode", check ? "check only" : "install");
         TerminalOutput.BlankLine();
 
+        var configurationOverridden =
+            channel is not null ||
+            source is not null ||
+            pullRequest is not null;
+
         return SelfUpdater.Update(
             resolvedSource,
             resolvedChannel,
             resolvedPullRequest,
+            configurationOverridden,
             check,
             cancellationToken);
     }
