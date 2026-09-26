@@ -164,10 +164,12 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, afterFirst.ExitCode);
         Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", afterFirst.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("answer-instance: answer-", afterFirst.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("instance: answer-", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("sub-questions: [3]", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", afterFirst.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("from:", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[4] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains(
@@ -188,12 +190,12 @@ public sealed class DocumentDiscoveryTests
             "discovery", "document", "tooling-context");
 
         Assert.Equal(0, reconstructed.ExitCode);
-        Assert.Contains("answer: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("answer: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", reconstructed.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[5] ¿Qué pasa si este supuesto cambia?", reconstructed.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[6] ¿Qué estamos asumiendo como cierto?", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", reconstructed.StandardOutput, StringComparison.Ordinal);
 
@@ -240,9 +242,9 @@ public sealed class DocumentDiscoveryTests
 
         Assert.Equal(0, before.ExitCode);
         Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", before.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Account", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Account", before.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[5] ¿Qué pasa si este supuesto cambia?", before.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Service", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("text: Service", before.StandardOutput, StringComparison.Ordinal);
 
         Assert.Equal(0, (await project.Run(
             project.Root,
@@ -260,9 +262,9 @@ public sealed class DocumentDiscoveryTests
         var serviceChild = SliceQuestion(after.StandardOutput, 5);
 
         Assert.Contains("status: answered", accountChild, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Account", accountChild, StringComparison.Ordinal);
+        Assert.Contains("text: Account", accountChild, StringComparison.Ordinal);
         Assert.Contains("status: available", serviceChild, StringComparison.Ordinal);
-        Assert.Contains("scope-answer: Service", serviceChild, StringComparison.Ordinal);
+        Assert.Contains("text: Service", serviceChild, StringComparison.Ordinal);
 
         var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
         Assert.Contains(
@@ -306,11 +308,11 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, discovered.ExitCode);
         Assert.Equal(
             2,
-            discovered.StandardOutput.Split("answer: Account", StringSplitOptions.None).Length - 1);
+            discovered.StandardOutput.Split("text: Account", StringSplitOptions.None).Length - 1);
 
         var instanceLines = discovered.StandardOutput
             .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => line.TrimStart().StartsWith("answer-instance: answer-", StringComparison.Ordinal))
+            .Where(line => line.TrimStart().StartsWith("instance: answer-", StringComparison.Ordinal))
             .Select(line => line.Trim())
             .ToArray();
 
