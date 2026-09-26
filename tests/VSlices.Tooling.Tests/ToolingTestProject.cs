@@ -146,6 +146,8 @@ internal sealed class ToolingTestProject : IDisposable
                   empty: unanswered
                   multiple:
                     strategy: marked-instances
+                    scoped:
+                      strategy: parent-answer-instance-marker
 
                 scoped-child:
                   strategy: parent-answer-instance-marker
@@ -156,6 +158,8 @@ internal sealed class ToolingTestProject : IDisposable
                   strategy: document-type-root-question
               answer-instance:
                 strategy: explicit-marker
+                scope:
+                  strategy: optional-parent-answer-instance-marker
               scoped-question:
                 strategy: explicit-parent-answer-instance-marker
             """);
