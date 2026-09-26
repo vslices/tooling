@@ -95,7 +95,16 @@ internal static class RelationalTestSupport
         """;
 
     public static string StandardRoot(ToolingTestProject project) => Path.Combine(project.Root, ".vslices", "docs-standard");
-    public static string Read(ToolingTestProject project, string name) => File.ReadAllText(Path.Combine(project.Root, name + ".md")).Replace("\r\n", "\n", StringComparison.Ordinal);
+    public static string ArtifactPath(ToolingTestProject project, string name)
+    {
+        var normalized = name.Replace('/', Path.DirectorySeparatorChar);
+        var markdown = Path.Combine(project.Root, normalized.EndsWith(".md", StringComparison.OrdinalIgnoreCase) ? normalized : normalized + ".md");
+        if (File.Exists(markdown)) return markdown;
+
+        var readme = Path.Combine(project.Root, normalized, "README.md");
+        return File.Exists(readme) ? readme : markdown;
+    }
+    public static string Read(ToolingTestProject project, string name) => File.ReadAllText(ArtifactPath(project, name)).Replace("\r\n", "\n", StringComparison.Ordinal);
     public static YamlMappingNode Metadata(ToolingTestProject project, string name) => ArtifactTestMetadata.Read(Read(project, name));
     public static YamlMappingNode[] Relations(ToolingTestProject project, string name) =>
         Assert.IsType<YamlSequenceNode>(ArtifactTestMetadata.Node(Metadata(project, name), "metadata", "relates"))

@@ -26,7 +26,6 @@ internal static class RelationalDiscoveryCommands
         RelationalArtifactStateResult state;
         IReadOnlyList<(string Id, RelationalRecommendation Recommendation)> recommendations;
         string context;
-        string? graph = null;
         if (expectedKind == "nexus")
         {
             if (!standards.Relational.TryGetNexus(metadata.Type, out var definition) || definition is null)
@@ -44,7 +43,6 @@ internal static class RelationalDiscoveryCommands
             if (!state.IsSuccess) return Fail(state.Error!);
             recommendations = RelationalArtifact.EnumerateRecommendations(definition, state.State!);
             context = RelationalArtifact.RecommendationContext(definition);
-            graph = RelationalArtifact.RenderContinuityGraph(definition);
         }
         var contextError = RelationalArtifact.ValidateRecommendationContext(metadata, context);
         if (contextError is not null) return Fail(contextError);
@@ -62,11 +60,17 @@ internal static class RelationalDiscoveryCommands
         Console.WriteLine($"  target: {metadata.Target ?? "<unset>"}");
         Console.WriteLine($"  status: {metadata.Status}");
         Console.WriteLine($"  tooling: {metadata.ToolingVersion}");
-        if (graph is not null)
+        if (expectedKind == "continuity-path")
         {
+            var graphQuestions = state.State!.Questions
+                .Where(question => question.Id is not "__purpose" and not "__recommended-traversal")
+                .ToArray();
             Console.WriteLine();
-            Console.WriteLine("Continuity graph (current definition):");
-            Console.Write(graph);
+            Console.WriteLine("Continuity graph summary:");
+            Console.WriteLine($"  nodes: {graphQuestions.Length}");
+            Console.WriteLine($"  connections: {graphQuestions.Count(question => question.ParentSelectionPath is not null)}");
+            Console.WriteLine($"  recommendations: {recommendations.Count}");
+            Console.WriteLine("  diagram: preserved in the Continuity Path Markdown artifact");
         }
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");

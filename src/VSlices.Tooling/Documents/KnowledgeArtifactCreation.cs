@@ -58,11 +58,18 @@ internal static class KnowledgeArtifactCreation
             return KnowledgeArtifactCreationResult.Failure("NEW102: Artifact kind is required. Use --kind <type> or a recommendation.");
         if (string.IsNullOrWhiteSpace(target))
             return KnowledgeArtifactCreationResult.Failure("NEW105: Artifact target is required. Use --target <target> or a recommendation whose source has artifact.target.");
-        var name = string.IsNullOrWhiteSpace(request.Name) ? KnowledgeArtifactCommandSupport.SuggestedName(target, kind) : request.Name;
-        var pathResult = DocumentPathResolver.Resolve(name!, start);
+        var name = string.IsNullOrWhiteSpace(request.Name)
+            ? recommendation is not null
+                ? KnowledgeArtifactCommandSupport.SuggestedName(string.Empty, kind)
+                : KnowledgeArtifactCommandSupport.SuggestedName(target, kind)
+            : request.Name;
+        var pathResult = ResolveCreationPath(name!, request.Family, start, recommendation, !string.IsNullOrWhiteSpace(request.Name));
         if (!pathResult.IsSuccess) return KnowledgeArtifactCreationResult.Failure(pathResult.Error!);
         var path = pathResult.Path!;
-        if (File.Exists(path) || Directory.Exists(path))
+        var legacyFlatPath = request.Family is "nexus" or "continuity-path"
+            ? Path.ChangeExtension(Path.GetDirectoryName(path)!, ".md")
+            : null;
+        if (File.Exists(path) || Directory.Exists(path) || (legacyFlatPath is not null && File.Exists(legacyFlatPath)))
             return KnowledgeArtifactCreationResult.Failure($"RELWRITE001: '{path}' already exists; artifact creation never overwrites it.");
 
         var role = related is null ? null : !string.IsNullOrWhiteSpace(request.Role) ? request.Role.Trim() : recommendation!.Recommendation.Role;
@@ -115,5 +122,31 @@ internal static class KnowledgeArtifactCreation
             recommendationContext: recommendation?.Context);
         var writeError = await KnowledgeArtifactWriter.Create(path, source, related, reciprocal, cancellationToken);
         return writeError is null ? KnowledgeArtifactCreationResult.Success(path) : KnowledgeArtifactCreationResult.Failure(writeError);
+    }
+
+    private static DocumentPathResolution ResolveCreationPath(
+        string name,
+        string family,
+        string start,
+        RecommendationResolution? recommendation,
+        bool hasExplicitName)
+    {
+        DocumentPathResolution resolved;
+        if (recommendation is not null && !hasExplicitName)
+        {
+            var sourceDirectory = Path.GetDirectoryName(recommendation.Source.Path)!;
+            var childName = KnowledgeArtifactCommandSupport.SuggestedName(string.Empty, name);
+            resolved = DocumentPathResolution.Success(Path.GetFullPath(childName + ".md", sourceDirectory));
+        }
+        else
+        {
+            resolved = DocumentPathResolver.Resolve(name, start);
+            if (!resolved.IsSuccess) return resolved;
+        }
+
+        if (family == "document") return resolved;
+
+        var surfaceDirectory = Path.ChangeExtension(resolved.Path!, null)!;
+        return DocumentPathResolution.Success(Path.Combine(surfaceDirectory, "README.md"));
     }
 }

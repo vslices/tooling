@@ -23,13 +23,13 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("vslices new document --from-nexus origin:1", available, StringComparison.Ordinal);
         Assert.DoesNotContain("vslices discovery", available, StringComparison.Ordinal);
 
-        await Success(project, "new", "document", "context", "--from-nexus", "origin:1");
-        Assert.Equal("Tooling", Value(Metadata(project, "context"), "artifact", "target"));
-        Assert.Equal("project", Value(Metadata(project, "context"), "artifact", "scope"));
+        await Success(project, "new", "document", "--from-nexus", "origin:1");
+        Assert.Equal("Tooling", Value(Metadata(project, "origin/context"), "artifact", "target"));
+        Assert.Equal("project", Value(Metadata(project, "origin/context"), "artifact", "scope"));
         var outgoing = Assert.Single(Relations(project, "origin"));
-        var incoming = Assert.Single(Relations(project, "context"));
+        var incoming = Assert.Single(Relations(project, "origin/context"));
         Assert.Equal("context.md", Value(outgoing, "target"));
-        Assert.Equal("origin.md", Value(incoming, "target"));
+        Assert.Equal("README.md", Value(incoming, "target"));
         Assert.Equal("Explains the context", Value(outgoing, "role"));
         Assert.Equal("Explains the context", Value(incoming, "role"));
         Assert.Equal("1", Value(outgoing, "recommendation"));
@@ -39,19 +39,19 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("status: created", created, StringComparison.Ordinal);
         Assert.Contains("vslices discovery document", created, StringComparison.Ordinal);
         Assert.DoesNotContain("vslices new", created, StringComparison.Ordinal);
-        Assert.Contains("origin.md", await Success(project, "discovery", "document", "context"), StringComparison.Ordinal);
+        Assert.Contains("README.md", await Success(project, "discovery", "document", "origin/context"), StringComparison.Ordinal);
 
-        await Success(project, "new", "nexus", "nested", "--from-nexus", "origin:2", "--target", "Specific target", "--role", "Concrete perspective");
-        Assert.Equal("Specific target", Value(Metadata(project, "nested"), "artifact", "target"));
-        Assert.Equal("Concrete perspective", Value(Assert.Single(Relations(project, "nested")), "role"));
-        var nestedDiscovery = await Success(project, "discovery", "nexus", "nested");
-        Assert.Contains("origin.md", nestedDiscovery, StringComparison.Ordinal);
+        await Success(project, "new", "nexus", "--from-nexus", "origin:2", "--target", "Specific target", "--role", "Concrete perspective");
+        Assert.Equal("Specific target", Value(Metadata(project, "origin/detail"), "artifact", "target"));
+        Assert.Equal("Concrete perspective", Value(Assert.Single(Relations(project, "origin/detail")), "role"));
+        var nestedDiscovery = await Success(project, "discovery", "nexus", "origin/detail");
+        Assert.Contains("../README.md", nestedDiscovery, StringComparison.Ordinal);
         Assert.Contains("Concrete perspective", nestedDiscovery, StringComparison.Ordinal);
         Assert.Equal(2, Relations(project, "origin").Length);
         Assert.Contains("Concrete perspective", Read(project, "origin"), StringComparison.Ordinal);
 
         // Discovery describes this Nexus; it must not recursively read its associated Document.
-        File.WriteAllText(Path.Combine(project.Root, "context.md"), "deliberately invalid child artifact");
+        File.WriteAllText(ArtifactPath(project, "origin/context"), "deliberately invalid child artifact");
         await Success(project, "discovery", "nexus", "origin");
     }
 
@@ -101,18 +101,23 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("document: context", graph, StringComparison.Ordinal);
         Assert.Contains("nexus: capability", graph, StringComparison.Ordinal);
         var discovery = await Success(project, "discovery", "continuity-path", "journey");
+        Assert.Contains("Continuity graph summary:", discovery, StringComparison.Ordinal);
+        Assert.Contains("nodes: 3", discovery, StringComparison.Ordinal);
+        Assert.Contains("connections: 2", discovery, StringComparison.Ordinal);
+        Assert.Contains("recommendations: 2", discovery, StringComparison.Ordinal);
+        Assert.DoesNotContain("flowchart TD", discovery, StringComparison.Ordinal);
         Assert.Contains("status: available", Selection(discovery, "3"), StringComparison.Ordinal);
         Assert.Contains("parent: [3.1]", Selection(discovery, "3.1.1"), StringComparison.Ordinal);
         Assert.Contains("vslices new document --from-path journey:3.1.1", discovery, StringComparison.Ordinal);
         Assert.Contains("vslices new nexus --from-path journey:3.1.2.1", discovery, StringComparison.Ordinal);
         Assert.Contains("connection: composes", discovery, StringComparison.Ordinal);
 
-        await Success(project, "new", "document", "knowledge", "--from-path", "journey:3.1.1");
-        await Success(project, "new", "nexus", "composition", "--from-path", "journey:3.1.2.1");
-        Assert.Equal("Tooling", Value(Metadata(project, "knowledge"), "artifact", "target"));
-        Assert.Equal("Tooling", Value(Metadata(project, "composition"), "artifact", "target"));
-        Assert.Equal("journey.md", Value(Assert.Single(Relations(project, "knowledge")), "target"));
-        Assert.Equal("journey.md", Value(Assert.Single(Relations(project, "composition")), "target"));
+        await Success(project, "new", "document", "--from-path", "journey:3.1.1");
+        await Success(project, "new", "nexus", "--from-path", "journey:3.1.2.1");
+        Assert.Equal("Tooling", Value(Metadata(project, "journey/context"), "artifact", "target"));
+        Assert.Equal("Tooling", Value(Metadata(project, "journey/capability"), "artifact", "target"));
+        Assert.Equal("README.md", Value(Assert.Single(Relations(project, "journey/context")), "target"));
+        Assert.Equal("../README.md", Value(Assert.Single(Relations(project, "journey/capability")), "target"));
         Assert.Equal(2, Relations(project, "journey").Length);
         var after = await Success(project, "discovery", "continuity-path", "journey");
         Assert.Contains("vslices discovery document", Selection(after, "3.1.1"), StringComparison.Ordinal);
@@ -169,7 +174,8 @@ public sealed class RelationalArtifactCommandTests
         Assert.Equal(role, Value(Assert.Single(Relations(project, "unrelated")), "role"));
         Assert.Equal("project-owned-scope", Value(Metadata(project, "associated"), "artifact", "scope"));
         Assert.Contains("unrelated.md", await Success(project, "discovery", family, "associated"), StringComparison.Ordinal);
-        Assert.Contains("associated.md", await Success(project, "discovery", "document", "unrelated"), StringComparison.Ordinal);
+        var expectedReciprocal = family == "document" ? "associated.md" : "associated/README.md";
+        Assert.Contains(expectedReciprocal, await Success(project, "discovery", "document", "unrelated"), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -185,9 +191,9 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("RELCLI004", await Failure(project, "new", "document", "wrong-source", "--from-path", "origin:1"), StringComparison.Ordinal);
         Assert.Contains("NEW106", await Failure(project, "new", "document", "conflicting", "--from-nexus", "origin:1", "--related-to", "origin", "--role", "x"), StringComparison.Ordinal);
         Assert.Equal(before, Read(project, "origin"));
-        Assert.Single(Directory.GetFiles(project.Root, "*.md"));
+        Assert.Single(Directory.GetFiles(project.Root, "README.md", SearchOption.AllDirectories));
 
-        var sourcePath = Path.Combine(project.Root, "origin.md");
+        var sourcePath = ArtifactPath(project, "origin");
         File.WriteAllText(sourcePath, before.Replace("  target: Tooling\n", string.Empty, StringComparison.Ordinal));
         var legacy = File.ReadAllText(sourcePath);
         Assert.Contains("NEW105", await Failure(project, "new", "document", "no-target", "--from-nexus", "origin:1"), StringComparison.Ordinal);
@@ -211,7 +217,7 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("RELART030", await Failure(project, "discovery", "nexus", "origin"), StringComparison.Ordinal);
         Assert.Contains("RELART030", await Failure(project, "new", "nexus", "nested", "--from-nexus", "origin:2"), StringComparison.Ordinal);
         Assert.Equal(before, Read(project, "origin"));
-        Assert.False(File.Exists(Path.Combine(project.Root, "nested.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "nested", "README.md")));
     }
 
     [Fact]
@@ -224,7 +230,7 @@ public sealed class RelationalArtifactCommandTests
         Assert.Contains("RELART024", await Failure(project, "update", "nexus", "detail", "--question-id", "1",
             "--answer", "Injected\n<!-- /vslices:artifact-question -->"), StringComparison.Ordinal);
         Assert.Equal(before, Read(project, "detail"));
-        var path = Path.Combine(project.Root, "detail.md");
+        var path = ArtifactPath(project, "detail");
         File.WriteAllText(path, before.Replace("<!-- vslices:artifact-question id=boundaries -->", "<!-- missing marker -->", StringComparison.Ordinal));
         var malformed = Read(project, "detail");
         Assert.Contains("RELART025", await Failure(project, "update", "nexus", "detail", "--question-id", "1", "--answer", "Replacement"), StringComparison.Ordinal);
@@ -242,10 +248,10 @@ public sealed class RelationalArtifactCommandTests
         using var project = new ToolingTestProject();
         WriteEnvironment(project);
         await Success(project, "new", "nexus", "origin", "--kind", "capability", "--target", "Tooling");
-        var before = File.ReadAllBytes(Path.Combine(project.Root, "origin.md"));
+        var before = File.ReadAllBytes(ArtifactPath(project, "origin"));
         File.WriteAllText(Path.Combine(project.Root, "blocked"), "not a directory");
         Assert.Contains("RELWRITE", await Failure(project, "new", "document", "blocked/child", "--from-nexus", "origin:1"), StringComparison.Ordinal);
-        Assert.Equal(before, File.ReadAllBytes(Path.Combine(project.Root, "origin.md")));
+        Assert.Equal(before, File.ReadAllBytes(ArtifactPath(project, "origin")));
         Assert.False(File.Exists(Path.Combine(project.Root, "blocked", "child.md")));
         Assert.Empty(Directory.GetFiles(project.Root, "*.candidate", SearchOption.AllDirectories));
         Assert.Empty(Directory.GetFiles(project.Root, "*.backup", SearchOption.AllDirectories));
