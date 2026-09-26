@@ -78,6 +78,11 @@ internal static class DocumentDiscoveryCommands
                 Console.WriteLine($"  answer-instance: {question.AnswerInstanceId}");
                 Console.WriteLine($"  answer: {question.AnswerPreview}");
                 Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
+                if (question.HasChildren)
+                {
+                    Console.WriteLine(
+                        "  children: scoped authoring through this AnswerInstance is not supported in the current preview");
+                }
             }
             else
             {
