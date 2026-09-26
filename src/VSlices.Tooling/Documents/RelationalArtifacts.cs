@@ -103,7 +103,7 @@ internal static class RelationalArtifact
             surfaces.Add(new("2", "__recommended-traversal", "Recorrido recomendado", HasAnswer(answers, "__recommended-traversal"), Answer(answers, "__recommended-traversal"), null, []));
         }
         for (var index = 0; index < roots.Count; index++)
-            AddProgressiveQuestion(roots[index], (index + (isPath ? 3 : 1)).ToString(), null, answers, surfaces);
+            AddQuestionSurface(roots[index], (index + (isPath ? 3 : 1)).ToString(), null, answers, surfaces, revealTraversal: isPath);
         return RelationalArtifactStateResult.Success(new RelationalArtifactState(metadata.Metadata, surfaces, source));
     }
 
@@ -215,15 +215,16 @@ internal static class RelationalArtifact
     private static void Token(StringBuilder sb, string value) => sb.Append(value.Length).Append(':').Append(value).Append(';');
     private static string Fingerprint(StringBuilder sb) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString())));
 
-    private static void AddProgressiveQuestion(
+    private static void AddQuestionSurface(
         RelationalQuestionDefinition question, string path, string? parentPath,
-        IReadOnlyDictionary<string, string> answers, List<RelationalQuestionSurface> result)
+        IReadOnlyDictionary<string, string> answers, List<RelationalQuestionSurface> result, bool revealTraversal)
     {
         var answered = HasAnswer(answers, question.Id);
         result.Add(new(path, question.Id, question.Text, answered, Answer(answers, question.Id), parentPath, question.Recommendations, question.Connection));
-        if (!answered) return;
+        // A Path is a navigable trajectory, not a prerequisite checklist. Its complete graph is available before answers exist.
+        if (!answered && !revealTraversal) return;
         for (var index = 0; index < question.Children.Count; index++)
-            AddProgressiveQuestion(question.Children[index], $"{path}.{question.Recommendations.Count + index + 1}", path, answers, result);
+            AddQuestionSurface(question.Children[index], $"{path}.{question.Recommendations.Count + index + 1}", path, answers, result, revealTraversal);
     }
 
     private static Dictionary<string, string> ReadQuestionAnswers(string source, HashSet<string> expected, out string? error)
