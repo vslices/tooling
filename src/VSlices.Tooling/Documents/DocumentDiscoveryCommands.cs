@@ -72,9 +72,12 @@ internal static class DocumentDiscoveryCommands
             Console.WriteLine($"[{question.Selection}] {question.Text}");
             Console.WriteLine($"  status: {DisplayStatus(question)}");
             Console.WriteLine($"  cardinality: {DisplayCardinality(question.Cardinality)}");
-            if (question.Cardinality == DocumentQuestionCardinality.Many)
+            if (question.Cardinality == DocumentQuestionCardinality.Many &&
+                question.AnswerInstanceId is not null)
             {
-                Console.WriteLine("  action: multiple-answer authoring is not supported in the current preview");
+                Console.WriteLine($"  answer-instance: {question.AnswerInstanceId}");
+                Console.WriteLine($"  answer: {question.AnswerPreview}");
+                Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
             }
             else
             {
