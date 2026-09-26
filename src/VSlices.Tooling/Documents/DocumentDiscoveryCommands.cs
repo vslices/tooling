@@ -105,6 +105,18 @@ internal static class DocumentDiscoveryCommands
                 {
                     Console.WriteLine($"    sub-questions: [{string.Join(", ", children)}]");
                 }
+
+                if (question.ScopeAnswerInstanceId is not null)
+                {
+                    Console.WriteLine("  from:");
+                    Console.WriteLine($"    instance: {question.ScopeAnswerInstanceId}");
+                    if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var parentAnswer) &&
+                        !string.IsNullOrWhiteSpace(parentAnswer))
+                    {
+                        Console.WriteLine($"    text: {parentAnswer}");
+                    }
+                }
+
                 Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
             }
             else
