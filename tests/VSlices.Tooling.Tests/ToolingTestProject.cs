@@ -144,11 +144,15 @@ internal sealed class ToolingTestProject : IDisposable
                     starts: after-question-heading
                     ends: before-next-materialized-question-heading
                   empty: unanswered
+                  multiple:
+                    strategy: marked-instances
 
             reconstruction:
               question-identity:
                 root:
                   strategy: document-type-root-question
+              answer-instance:
+                strategy: explicit-marker
             """);
     }
 
