@@ -444,10 +444,26 @@ internal sealed class DocumentArtifact
                         $"DOCART046: Scoped question '{key.QuestionId}' refers to unknown AnswerInstance '{key.AnswerInstanceId}'.");
                 }
 
-                if (!parentInstance.QuestionId.Equals(info.ParentId, StringComparison.Ordinal))
+                var parentInfo = questionIndex[info.ParentId];
+                if (parentInfo.Definition.Cardinality == DocumentQuestionCardinality.Many)
                 {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART047: Scoped question '{key.QuestionId}' belongs to parent question '{info.ParentId}', not AnswerInstance '{key.AnswerInstanceId}' of question '{parentInstance.QuestionId}'.");
+                    if (!parentInstance.QuestionId.Equals(info.ParentId, StringComparison.Ordinal))
+                    {
+                        return DocumentArtifactReadResult.Failure(
+                            $"DOCART047: Scoped question '{key.QuestionId}' belongs to repeated parent question '{info.ParentId}', not AnswerInstance '{key.AnswerInstanceId}' of question '{parentInstance.QuestionId}'.");
+                    }
+                }
+                else
+                {
+                    var scopedParentKey = new ScopedQuestionKey(
+                        key.AnswerInstanceId,
+                        info.ParentId);
+
+                    if (!scopedBlocks.ContainsKey(scopedParentKey))
+                    {
+                        return DocumentArtifactReadResult.Failure(
+                            $"DOCART051: Scoped question '{key.QuestionId}' requires answered scoped parent '{info.ParentId}' under AnswerInstance '{key.AnswerInstanceId}'.");
+                    }
                 }
             }
         }
@@ -618,12 +634,43 @@ internal sealed class DocumentArtifact
                         selected.ScopeAnswerInstanceId,
                         StringComparison.Ordinal));
 
-                var insertionAfter = scopedBlocks
-                    .Where(pair => pair.Key.AnswerInstanceId.Equals(
+                var questionIndex = BuildQuestionIndex(definition.RootQuestion);
+                var selectedInfo = questionIndex[selected.QuestionId];
+                var parentQuestionId = selectedInfo.ParentId
+                    ?? throw new InvalidOperationException(
+                        $"Scoped question '{selected.QuestionId}' must have a parent.");
+
+                int insertionBase;
+                if (questionIndex[parentQuestionId].Definition.Cardinality ==
+                    DocumentQuestionCardinality.Many)
+                {
+                    insertionBase = parentInstance.EndLine;
+                }
+                else
+                {
+                    var scopedParentKey = new ScopedQuestionKey(
                         selected.ScopeAnswerInstanceId,
-                        StringComparison.Ordinal))
+                        parentQuestionId);
+                    if (!scopedBlocks.TryGetValue(scopedParentKey, out var scopedParent))
+                    {
+                        return DocumentArtifactMutationResult.Failure(
+                            $"UPDATE114: Scoped question '{selected.QuestionId}' requires answered scoped parent '{parentQuestionId}' under AnswerInstance '{selected.ScopeAnswerInstanceId}'.");
+                    }
+
+                    insertionBase = scopedParent.EndLine;
+                }
+
+                var insertionAfter = scopedBlocks
+                    .Where(pair =>
+                        pair.Key.AnswerInstanceId.Equals(
+                            selected.ScopeAnswerInstanceId,
+                            StringComparison.Ordinal) &&
+                        IsDescendantOf(
+                            pair.Key.QuestionId,
+                            parentQuestionId,
+                            questionIndex))
                     .Select(pair => pair.Value.EndLine)
-                    .Append(parentInstance.EndLine)
+                    .Append(insertionBase)
                     .Max();
 
                 InsertScopedQuestionAfter(
@@ -1055,9 +1102,35 @@ internal sealed class DocumentArtifact
                 ScopeAnswerInstanceId: answerInstanceId,
                 HasChildren: question.Children.Count > 0));
 
-            // Descendants of an answered scoped child are intentionally withheld
-            // until scoped ancestry beyond one repeated-parent edge is proven.
+            if (!materialized)
+                return;
+
+            foreach (var child in question.Children)
+                AddScoped(child, depth + 1, answerInstanceId);
         }
+    }
+
+    private static bool IsDescendantOf(
+        string candidateQuestionId,
+        string ancestorQuestionId,
+        IReadOnlyDictionary<string, QuestionInfo> questionIndex)
+    {
+        if (!questionIndex.TryGetValue(candidateQuestionId, out var current))
+            return false;
+
+        var parentId = current.ParentId;
+        while (parentId is not null)
+        {
+            if (parentId.Equals(ancestorQuestionId, StringComparison.Ordinal))
+                return true;
+
+            if (!questionIndex.TryGetValue(parentId, out current))
+                return false;
+
+            parentId = current.ParentId;
+        }
+
+        return false;
     }
 
     private static IReadOnlyDictionary<string, QuestionInfo> BuildQuestionIndex(
