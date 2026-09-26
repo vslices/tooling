@@ -19,7 +19,9 @@ internal sealed record MaterializationTemplateDefinition(
     string? EmptyAnswerState,
     string? RootQuestionIdentityStrategy,
     string? MultipleAnswerStrategy,
-    string? AnswerInstanceStrategy);
+    string? AnswerInstanceStrategy,
+    string? ScopedChildStrategy,
+    string? ScopedQuestionStrategy);
 
 internal sealed record TemplateStandardCatalogResult(
     TemplateStandardCatalog? Catalog,
@@ -154,6 +156,14 @@ internal sealed class TemplateStandardCatalog
         if (!answerInstanceStrategy.IsSuccess)
             return TemplateDefinitionParseResult.Failure(answerInstanceStrategy.Error!);
 
+        var scopedChildStrategy = ParseScopedChildStrategy(root, id);
+        if (!scopedChildStrategy.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(scopedChildStrategy.Error!);
+
+        var scopedQuestionStrategy = ParseScopedQuestionStrategy(root, id);
+        if (!scopedQuestionStrategy.IsSuccess)
+            return TemplateDefinitionParseResult.Failure(scopedQuestionStrategy.Error!);
+
         return TemplateDefinitionParseResult.Success(
             new MaterializationTemplateDefinition(
                 id,
@@ -166,7 +176,9 @@ internal sealed class TemplateStandardCatalog
                 emptyAnswerState.Value,
                 rootIdentityStrategy.Value,
                 multipleAnswerStrategy.Value,
-                answerInstanceStrategy.Value));
+                answerInstanceStrategy.Value,
+                scopedChildStrategy.Value,
+                scopedQuestionStrategy.Value));
     }
 
     private static QuestionPresentationParseResult ParseQuestionPresentation(
@@ -269,6 +281,38 @@ internal sealed class TemplateStandardCatalog
         {
             return OptionalScalarParseResult.Failure(
                 $"TMPL028: Materialization template '{templateId}' multiple-answer contract must declare strategy.");
+        }
+
+        return OptionalScalarParseResult.Success(strategy);
+    }
+
+    private static OptionalScalarParseResult ParseScopedChildStrategy(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var scopedChild, "representation", "question", "scoped-child"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(scopedChild, "strategy", out var strategy))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL030: Materialization template '{templateId}' scoped-child contract must declare strategy.");
+        }
+
+        return OptionalScalarParseResult.Success(strategy);
+    }
+
+    private static OptionalScalarParseResult ParseScopedQuestionStrategy(
+        YamlMappingNode root,
+        string templateId)
+    {
+        if (!TryNestedMapping(root, out var scopedQuestion, "reconstruction", "scoped-question"))
+            return OptionalScalarParseResult.Success(null);
+
+        if (!TryRequiredScalar(scopedQuestion, "strategy", out var strategy))
+        {
+            return OptionalScalarParseResult.Failure(
+                $"TMPL031: Materialization template '{templateId}' scoped-question reconstruction must declare strategy.");
         }
 
         return OptionalScalarParseResult.Success(strategy);
