@@ -174,7 +174,8 @@ public sealed class RelationalArtifactCommandTests
         Assert.Equal(role, Value(Assert.Single(Relations(project, "unrelated")), "role"));
         Assert.Equal("project-owned-scope", Value(Metadata(project, "associated"), "artifact", "scope"));
         Assert.Contains("unrelated.md", await Success(project, "discovery", family, "associated"), StringComparison.Ordinal);
-        Assert.Contains("associated/README.md", await Success(project, "discovery", "document", "unrelated"), StringComparison.Ordinal);
+        var expectedReciprocal = family == "document" ? "associated.md" : "associated/README.md";
+        Assert.Contains(expectedReciprocal, await Success(project, "discovery", "document", "unrelated"), StringComparison.Ordinal);
     }
 
     [Fact]
