@@ -198,6 +198,52 @@ public sealed class DocumentDiscoveryTests
     }
 
     [Fact]
+    public async Task Repeated_answer_instance_identity_does_not_derive_from_answer_text()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(project.Root, childCardinality: "many");
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "Account")).ExitCode);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "3",
+            "--answer", "Account")).ExitCode);
+
+        var discovered = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, discovered.ExitCode);
+        Assert.Equal(
+            2,
+            discovered.StandardOutput.Split("answer: Account", StringSplitOptions.None).Length - 1);
+
+        var instanceLines = discovered.StandardOutput
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => line.TrimStart().StartsWith("answer-instance: answer-", StringComparison.Ordinal))
+            .Select(line => line.Trim())
+            .ToArray();
+
+        Assert.Equal(2, instanceLines.Length);
+        Assert.NotEqual(instanceLines[0], instanceLines[1]);
+    }
+
+    [Fact]
     public async Task Discovery_uses_question_wording_from_the_installed_standard()
     {
         using var project = new ToolingTestProject();
