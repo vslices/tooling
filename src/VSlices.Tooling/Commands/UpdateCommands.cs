@@ -199,6 +199,13 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(path, cancellationToken);
+        var metadata = KnowledgeArtifactFrontMatter.Read(source);
+        if (!metadata.IsSuccess)
+        {
+            TerminalOutput.Error(metadata.Error!);
+            return 2;
+        }
+
         var state = DocumentArtifact.Read(
             source,
             catalog.Catalog!,
@@ -219,7 +226,12 @@ internal static class UpdateCommands
             return 2;
         }
 
-        await CommandInfrastructure.AtomicWrite(path, candidate.Source!, cancellationToken);
+        var withMetadata = KnowledgeArtifactFrontMatter.WithMetadata(
+            candidate.Source!,
+            metadata.Metadata!,
+            metadata.Metadata!.Relations);
+
+        await CommandInfrastructure.AtomicWrite(path, withMetadata, cancellationToken);
         Console.WriteLine(
             $"Updated question [{questionId}] '{candidate.Question!.Text}' in '{path}'.");
         return 0;
