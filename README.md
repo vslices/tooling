@@ -33,7 +33,7 @@ vslices update template-standard
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
-vslices update document <name> --question-id <N> --answer "<markdown>"
+vslices update document <name> --question-id <path> --answer "<markdown>"
 
 vslices --version
 vslices -v
@@ -61,6 +61,8 @@ documents:
 That policy does not install Template Standard. Document authoring requires both the configured template id and an installed Template Standard snapshot that defines it. Creation and later materialization of newly activated questions use the same template geometry.
 
 New Documents materialize their root without hidden placeholder metadata. Root identity is reconstructed from front matter + Docs Standard, while Template Standard supplies the visible root geometry, answer-region boundaries, and the empty-answer state. Root answers are therefore markerless as well; historical placeholder/question representations remain readable where compatibility requires them. Descendant answer markers remain part of the current experimental boundary.
+
+Structured selections are ephemeral navigation paths projected by discovery, for example `2`, `2.1`, or `2.1.1`. They make parent/child relationships usable from the CLI without becoming persisted identity; stable question identity remains the Docs Standard question id and repeated materialization identity remains AnswerInstance metadata.
 
 Document question cardinality is recognized from Docs Standard as `one` or `many`, with omitted cardinality defaulting to `one`. `many` questions now support the first repeated-answer slice: Tooling can create multiple independently identified AnswerInstances, reconstruct them from the Markdown artifact, and keep the QuestionOccurrence available for another answer. The configured Template Standard must explicitly authorize the repeated-answer materialization/reconstruction strategy. AnswerInstance identity is technical materialization identity and is deliberately independent from answer text; it does not define semantic subject identity, uniqueness, or ordering. Editing/removing a specific repeated instance and authoring child QuestionOccurrences scoped through that instance remain explicit unsupported boundaries.
 
