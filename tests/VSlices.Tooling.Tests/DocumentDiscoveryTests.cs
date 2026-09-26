@@ -275,6 +275,89 @@ public sealed class DocumentDiscoveryTests
     }
 
     [Fact]
+    public async Task AnswerInstance_scope_flows_through_deeper_descendants()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(
+            project.Root,
+            includeGrandchild: true,
+            includeGreatGrandchild: true,
+            childCardinality: "many");
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "Account")).ExitCode);
+
+        var beforeChild = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, beforeChild.ExitCode);
+        Assert.Contains("sub-questions: [3]", beforeChild.StandardOutput, StringComparison.Ordinal);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "3",
+            "--answer", "Account identity")).ExitCode);
+
+        var afterChild = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, afterChild.ExitCode);
+        Assert.Contains("[4] ¿Cómo se expresa este supuesto?", afterChild.StandardOutput, StringComparison.Ordinal);
+
+        var deeper = SliceQuestion(afterChild.StandardOutput, 4);
+        Assert.Contains("status: available", deeper, StringComparison.Ordinal);
+        Assert.Contains("from:", deeper, StringComparison.Ordinal);
+        Assert.Contains("text: Account", deeper, StringComparison.Ordinal);
+
+        var accountInstanceLine = afterChild.StandardOutput
+            .Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+            .First(line => line.TrimStart().StartsWith("instance: answer-", StringComparison.Ordinal))
+            .Trim();
+        var accountInstanceId = accountInstanceLine["instance: ".Length..];
+
+        Assert.Contains(
+            $"instance: {accountInstanceId}",
+            deeper,
+            StringComparison.Ordinal);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "4",
+            "--answer", "Preferred account wording")).ExitCode);
+
+        var reconstructed = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, reconstructed.ExitCode);
+        var reconstructedDeeper = SliceQuestion(reconstructed.StandardOutput, 4);
+        Assert.Contains("status: answered", reconstructedDeeper, StringComparison.Ordinal);
+        Assert.Contains("text: Account", reconstructedDeeper, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
+        Assert.Contains(
+            $"vslices:scoped-question question=assumption-expression parent-answer-instance={accountInstanceId}",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("Preferred account wording", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Repeated_answer_instance_identity_does_not_derive_from_answer_text()
     {
         using var project = new ToolingTestProject();
@@ -363,6 +446,7 @@ public sealed class DocumentDiscoveryTests
     private static void WriteDocsStandard(
         string projectRoot,
         bool includeGrandchild = false,
+        bool includeGreatGrandchild = false,
         string childQuestion = "¿Qué estamos asumiendo como cierto?",
         string? childCardinality = null)
     {
@@ -384,8 +468,11 @@ public sealed class DocumentDiscoveryTests
         var cardinality = string.IsNullOrWhiteSpace(childCardinality)
             ? string.Empty
             : $"        cardinality: {childCardinality}\n";
+        var greatGrandchild = includeGreatGrandchild
+            ? "            children:\n              - id: assumption-expression\n                text: ¿Cómo se expresa este supuesto?\n"
+            : string.Empty;
         var grandchild = includeGrandchild
-            ? "        children:\n          - id: assumption-risk\n            text: ¿Qué pasa si este supuesto cambia?\n"
+            ? "        children:\n          - id: assumption-risk\n            text: ¿Qué pasa si este supuesto cambia?\n" + greatGrandchild
             : string.Empty;
 
         File.WriteAllText(
