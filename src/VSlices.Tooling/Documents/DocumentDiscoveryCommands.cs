@@ -78,7 +78,14 @@ internal static class DocumentDiscoveryCommands
             .GroupBy(question => question.ScopeAnswerInstanceId!, StringComparer.Ordinal)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(question => question.Selection).ToArray(),
+                group =>
+                {
+                    var directDepth = group.Min(question => question.Depth);
+                    return group
+                        .Where(question => question.Depth == directDepth)
+                        .Select(question => question.Selection)
+                        .ToArray();
+                },
                 StringComparer.Ordinal);
 
         foreach (var question in artifact.Surface)
