@@ -97,13 +97,13 @@ internal static class RelationalDiscoveryCommands
 
         var entries = new List<DiscoveryEntry>();
         entries.AddRange(state.State!.Questions.Select(question =>
-            DiscoveryEntry.Question(question)));
+            DiscoveryEntry.FromQuestion(question)));
 
         foreach (var (id, recommendation) in recommendations)
         {
             var relation = metadata.Relations.FirstOrDefault(candidate =>
                 string.Equals(candidate.RecommendationId, id, StringComparison.Ordinal));
-            entries.Add(DiscoveryEntry.Recommendation(id, recommendation, relation));
+            entries.Add(DiscoveryEntry.FromRecommendation(id, recommendation, relation));
         }
 
         foreach (var entry in entries.OrderBy(entry => entry.SelectionPath, SelectionPathComparer.Instance))
@@ -186,7 +186,7 @@ internal static class RelationalDiscoveryCommands
         RelationalRecommendation? Recommendation,
         ArtifactRelation? Relation)
     {
-        public static DiscoveryEntry Question(RelationalQuestionSurface question) =>
+        public static DiscoveryEntry FromQuestion(RelationalQuestionSurface question) =>
             new(
                 question.SelectionPath,
                 question.Text,
@@ -195,7 +195,7 @@ internal static class RelationalDiscoveryCommands
                 null,
                 null);
 
-        public static DiscoveryEntry Recommendation(
+        public static DiscoveryEntry FromRecommendation(
             string selectionPath,
             RelationalRecommendation recommendation,
             ArtifactRelation? relation) =>
