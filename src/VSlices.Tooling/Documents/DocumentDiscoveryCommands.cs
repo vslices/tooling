@@ -73,20 +73,15 @@ internal static class DocumentDiscoveryCommands
                 question => question.AnswerPreview,
                 StringComparer.Ordinal);
 
-        var scopedChildren = artifact.Surface
-            .Where(question => question.ScopeAnswerInstanceId is not null)
-            .GroupBy(question => question.ScopeAnswerInstanceId!, StringComparer.Ordinal)
+        var questionsBySelection = artifact.Surface
+            .ToDictionary(question => question.Selection);
+
+        var directChildren = artifact.Surface
+            .Where(question => question.ParentSelection is not null)
+            .GroupBy(question => question.ParentSelection!.Value)
             .ToDictionary(
                 group => group.Key,
-                group =>
-                {
-                    var directDepth = group.Min(question => question.Depth);
-                    return group
-                        .Where(question => question.Depth == directDepth)
-                        .Select(question => question.Selection)
-                        .ToArray();
-                },
-                StringComparer.Ordinal);
+                group => group.Select(question => question.Selection).ToArray());
 
         foreach (var question in artifact.Surface)
         {
@@ -94,47 +89,48 @@ internal static class DocumentDiscoveryCommands
             Console.WriteLine($"[{question.Selection}] {question.Text}");
             Console.WriteLine($"  status: {DisplayStatus(question)}");
             Console.WriteLine($"  cardinality: {DisplayCardinality(question.Cardinality)}");
+
             if (question.Cardinality == DocumentQuestionCardinality.Many &&
                 question.AnswerInstanceId is not null)
             {
                 Console.WriteLine("  answer:");
                 Console.WriteLine($"    instance: {question.AnswerInstanceId}");
                 Console.WriteLine($"    text: {question.AnswerPreview}");
-                if (scopedChildren.TryGetValue(question.AnswerInstanceId, out var children) &&
-                    children.Length > 0)
-                {
-                    Console.WriteLine($"    sub-questions: [{string.Join(", ", children)}]");
-                }
+            }
 
-                if (question.ScopeAnswerInstanceId is not null)
-                {
-                    Console.WriteLine("  from:");
-                    Console.WriteLine($"    instance: {question.ScopeAnswerInstanceId}");
-                    if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var parentAnswer) &&
-                        !string.IsNullOrWhiteSpace(parentAnswer))
-                    {
-                        Console.WriteLine($"    text: {parentAnswer}");
-                    }
-                }
+            if (question.ParentSelection is int parentSelection &&
+                questionsBySelection.TryGetValue(parentSelection, out var parent))
+            {
+                Console.WriteLine("  parent:");
+                Console.WriteLine($"    question: [{parent.Selection}] {parent.Text}");
+            }
 
+            if (question.ScopeAnswerInstanceId is not null)
+            {
+                Console.WriteLine("  scope:");
+                Console.WriteLine($"    instance: {question.ScopeAnswerInstanceId}");
+                if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var scopeAnswer) &&
+                    !string.IsNullOrWhiteSpace(scopeAnswer))
+                {
+                    Console.WriteLine($"    text: {scopeAnswer}");
+                }
+            }
+
+            if (directChildren.TryGetValue(question.Selection, out var children) &&
+                children.Length > 0)
+            {
+                Console.WriteLine($"  sub-questions: [{string.Join(", ", children)}]");
+            }
+
+            if (question.Cardinality == DocumentQuestionCardinality.Many &&
+                question.AnswerInstanceId is not null)
+            {
                 Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
             }
             else
             {
-                if (question.ScopeAnswerInstanceId is not null)
-                {
-                    Console.WriteLine("  from:");
-                    Console.WriteLine($"    instance: {question.ScopeAnswerInstanceId}");
-                    if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var scopeAnswer) &&
-                        !string.IsNullOrWhiteSpace(scopeAnswer))
-                    {
-                        Console.WriteLine($"    text: {scopeAnswer}");
-                    }
-                }
-
                 Console.WriteLine(
                     $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
-
             }
         }
 
