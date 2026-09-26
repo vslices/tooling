@@ -213,7 +213,7 @@ internal static class KnowledgeArtifactCommandSupport
 
         return admittedScopes.FirstOrDefault()
                ?? sourceScope
-               ?? "general";
+               ?? string.Empty;
     }
 
     public static string SuggestedName(
