@@ -120,7 +120,7 @@ public sealed class DocumentDiscoveryTests
     }
 
     [Fact]
-    public async Task Discovery_exposes_many_cardinality_without_claiming_multiple_answer_authoring()
+    public async Task Many_question_materializes_repeated_answer_instances_and_remains_available()
     {
         using var project = new ToolingTestProject();
         WriteDocsStandard(project.Root, childCardinality: "many");
@@ -134,33 +134,67 @@ public sealed class DocumentDiscoveryTests
             "--question-id", "1",
             "--answer", "Root answer")).ExitCode);
 
-        var discovered = await project.Run(
+        var before = await project.Run(
             project.Root,
             "discovery", "document", "tooling-context");
 
-        Assert.Equal(0, discovered.ExitCode);
-        Assert.Contains("[1] ¿Dónde existe?", discovered.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("cardinality: one", discovered.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("cardinality: many", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Equal(0, before.ExitCode);
+        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("cardinality: many", before.StandardOutput, StringComparison.Ordinal);
         Assert.Contains(
-            "multiple-answer authoring is not supported in the current preview",
-            discovered.StandardOutput,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "vslices update document tooling-context --question-id 2 --answer",
-            discovered.StandardOutput,
+            "vslices update document tooling-context --question-id 2 --answer \"<answer>\"",
+            before.StandardOutput,
             StringComparison.Ordinal);
 
-        var updateMany = await project.Run(
+        var first = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
             "--question-id", "2",
-            "--answer", "First repeated answer");
+            "--answer", "Account");
 
-        Assert.NotEqual(0, updateMany.ExitCode);
-        Assert.Contains("UPDATE109", updateMany.StandardError, StringComparison.Ordinal);
-        Assert.Contains("cardinality 'many'", updateMany.StandardError, StringComparison.Ordinal);
+        Assert.Equal(0, first.ExitCode);
+
+        var afterFirst = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, afterFirst.ExitCode);
+        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: answered", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("answer-instance: answer-", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[3] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: available", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains(
+            "vslices update document tooling-context --question-id 3 --answer \"<answer>\"",
+            afterFirst.StandardOutput,
+            StringComparison.Ordinal);
+
+        var second = await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "3",
+            "--answer", "Service");
+
+        Assert.Equal(0, second.ExitCode);
+
+        var reconstructed = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, reconstructed.ExitCode);
+        Assert.Contains("answer: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("answer: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[4] ¿Qué estamos asumiendo como cierto?", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("status: available", reconstructed.StandardOutput, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
+        Assert.Contains("vslices:answer-instance question=assumptions id=answer-", source, StringComparison.Ordinal);
+        Assert.Equal(
+            2,
+            source.Split("<!-- vslices:answer-instance question=assumptions ", StringSplitOptions.None).Length - 1);
+        Assert.Contains("Account", source, StringComparison.Ordinal);
+        Assert.Contains("Service", source, StringComparison.Ordinal);
     }
 
     [Fact]
