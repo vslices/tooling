@@ -168,7 +168,9 @@ public sealed class DocumentDiscoveryTests
         Assert.Contains("text: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("sub-questions: [3]", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", afterFirst.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("from:", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("parent:", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("question: [2] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope:", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("text: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[4] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", afterFirst.StandardOutput, StringComparison.Ordinal);
@@ -318,9 +320,14 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, afterChild.ExitCode);
         Assert.Contains("[4] ¿Cómo se expresa este supuesto?", afterChild.StandardOutput, StringComparison.Ordinal);
 
+        var child = SliceQuestion(afterChild.StandardOutput, 3);
+        Assert.Contains("sub-questions: [4]", child, StringComparison.Ordinal);
+
         var deeper = SliceQuestion(afterChild.StandardOutput, 4);
         Assert.Contains("status: available", deeper, StringComparison.Ordinal);
-        Assert.Contains("from:", deeper, StringComparison.Ordinal);
+        Assert.Contains("parent:", deeper, StringComparison.Ordinal);
+        Assert.Contains("question: [3] ¿Qué pasa si este supuesto cambia?", deeper, StringComparison.Ordinal);
+        Assert.Contains("scope:", deeper, StringComparison.Ordinal);
         Assert.Contains("text: Account", deeper, StringComparison.Ordinal);
 
         var accountInstanceLine = afterChild.StandardOutput
@@ -403,7 +410,9 @@ public sealed class DocumentDiscoveryTests
         var accountNested = SliceQuestion(afterAccountProperty.StandardOutput, 4);
         Assert.Contains("status: answered", accountNested, StringComparison.Ordinal);
         Assert.Contains("text: Rut", accountNested, StringComparison.Ordinal);
-        Assert.Contains("from:", accountNested, StringComparison.Ordinal);
+        Assert.Contains("parent:", accountNested, StringComparison.Ordinal);
+        Assert.Contains("question: [3] ¿Qué pasa si este supuesto cambia?", accountNested, StringComparison.Ordinal);
+        Assert.Contains("scope:", accountNested, StringComparison.Ordinal);
         Assert.Contains("text: Account", accountNested, StringComparison.Ordinal);
 
         Assert.Equal(0, (await project.Run(
