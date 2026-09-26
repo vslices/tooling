@@ -10,6 +10,7 @@ internal sealed record DocumentQuestionAffordance(
     bool IsAnswered,
     string? AnswerInstanceId,
     string? AnswerPreview,
+    string? ScopeAnswerInstanceId,
     bool HasChildren);
 
 internal sealed record DocumentArtifactReadResult(
@@ -56,12 +57,17 @@ internal sealed class DocumentArtifact
     private const string AnswerInstanceStem = "<!-- vslices:answer-instance";
     private const string AnswerInstanceIdSeparator = " id=";
     private const string AnswerInstanceEndMarker = "<!-- /vslices:answer-instance -->";
+    private const string ScopedQuestionPrefix = "<!-- vslices:scoped-question question=";
+    private const string ScopedQuestionStem = "<!-- vslices:scoped-question";
+    private const string ScopedQuestionParentSeparator = " parent-answer-instance=";
+    private const string ScopedQuestionEndMarker = "<!-- /vslices:scoped-question -->";
 
     private readonly string normalizedSource;
     private readonly string newline;
     private readonly DocumentDefinition definition;
     private readonly IReadOnlyDictionary<string, QuestionBlock> blocks;
     private readonly IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances;
+    private readonly IReadOnlyDictionary<ScopedQuestionKey, ScopedQuestionBlock> scopedBlocks;
     private readonly UnansweredRoot? unansweredRoot;
     private readonly bool usesFrontMatterIdentity;
 
@@ -71,6 +77,7 @@ internal sealed class DocumentArtifact
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
         IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances,
+        IReadOnlyDictionary<ScopedQuestionKey, ScopedQuestionBlock> scopedBlocks,
         UnansweredRoot? unansweredRoot,
         bool usesFrontMatterIdentity,
         IReadOnlyList<DocumentQuestionAffordance> surface)
@@ -80,6 +87,7 @@ internal sealed class DocumentArtifact
         this.definition = definition;
         this.blocks = blocks;
         this.answerInstances = answerInstances;
+        this.scopedBlocks = scopedBlocks;
         this.unansweredRoot = unansweredRoot;
         this.usesFrontMatterIdentity = usesFrontMatterIdentity;
         Surface = surface;
@@ -107,6 +115,7 @@ internal sealed class DocumentArtifact
         var blocks = new Dictionary<string, QuestionBlock>(StringComparer.Ordinal);
         var answerInstances = new Dictionary<string, List<AnswerInstanceBlock>>(StringComparer.Ordinal);
         var answerInstanceIds = new HashSet<string>(StringComparer.Ordinal);
+        var scopedBlocks = new Dictionary<ScopedQuestionKey, ScopedQuestionBlock>();
         string? documentType = frontMatter.DocumentType;
 
         for (var index = 0; index < lines.Count; index++)
@@ -183,6 +192,43 @@ internal sealed class DocumentArtifact
                 continue;
             }
 
+            if (TryParseScopedQuestionMarker(
+                    trimmed,
+                    out var scopedQuestionId,
+                    out var scopedParentAnswerInstanceId))
+            {
+                var key = new ScopedQuestionKey(scopedParentAnswerInstanceId, scopedQuestionId);
+                if (scopedBlocks.ContainsKey(key))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART040: Duplicate scoped materialization for question '{scopedQuestionId}' under AnswerInstance '{scopedParentAnswerInstanceId}'.");
+                }
+
+                var scoped = ReadScopedQuestionBlock(
+                    lines,
+                    index,
+                    scopedQuestionId,
+                    scopedParentAnswerInstanceId);
+                if (!scoped.IsSuccess)
+                    return DocumentArtifactReadResult.Failure(scoped.Error!);
+
+                scopedBlocks.Add(key, scoped.Block!);
+                index = scoped.Block!.EndLine;
+                continue;
+            }
+
+            if (trimmed.StartsWith(ScopedQuestionStem, StringComparison.Ordinal))
+            {
+                return DocumentArtifactReadResult.Failure(
+                    $"DOCART041: Malformed scoped question metadata at line {index + 1}.");
+            }
+
+            if (trimmed.Equals(ScopedQuestionEndMarker, StringComparison.Ordinal))
+            {
+                return DocumentArtifactReadResult.Failure(
+                    $"DOCART042: Orphan scoped question closing marker at line {index + 1}.");
+            }
+
             if (trimmed.StartsWith(AnswerInstanceStem, StringComparison.Ordinal))
             {
                 return DocumentArtifactReadResult.Failure(
@@ -255,6 +301,74 @@ internal sealed class DocumentArtifact
 
         var questionIndex = BuildQuestionIndex(definition.RootQuestion);
 
+        if (selected.ScopeAnswerInstanceId is not null)
+        {
+            if (!string.Equals(
+                    materializationTemplate.ScopedChildStrategy,
+                    "parent-answer-instance-marker",
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    materializationTemplate.ScopedQuestionStrategy,
+                    "explicit-parent-answer-instance-marker",
+                    StringComparison.Ordinal))
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE112: Configured template '{materializationTemplate.Id}' does not define the scoped-child materialization contract required below a repeated AnswerInstance.");
+            }
+
+            var key = new ScopedQuestionKey(
+                selected.ScopeAnswerInstanceId,
+                selected.QuestionId);
+
+            if (scopedBlocks.TryGetValue(key, out var scopedBlock))
+            {
+                var answerLineCount = scopedBlock.EndLine - scopedBlock.StartLine - 1;
+                if (answerLineCount > 0)
+                    lines.RemoveRange(scopedBlock.StartLine + 1, answerLineCount);
+                lines.InsertRange(scopedBlock.StartLine + 1, answerLines);
+            }
+            else
+            {
+                var renderedQuestion = DocumentMaterialization.RenderQuestion(
+                    selected.Text,
+                    selected.Depth,
+                    materializationTemplate);
+                if (!renderedQuestion.IsSuccess)
+                    return DocumentArtifactMutationResult.Failure(renderedQuestion.Error!);
+
+                var renderedScoped = RenderScopedQuestionBlock(
+                    selected.QuestionId,
+                    selected.ScopeAnswerInstanceId,
+                    answerLines);
+
+                var parentInstance = answerInstances
+                    .SelectMany(pair => pair.Value)
+                    .Single(instance => instance.Id.Equals(
+                        selected.ScopeAnswerInstanceId,
+                        StringComparison.Ordinal));
+
+                var insertionAfter = scopedBlocks
+                    .Where(pair => pair.Key.AnswerInstanceId.Equals(
+                        selected.ScopeAnswerInstanceId,
+                        StringComparison.Ordinal))
+                    .Select(pair => pair.Value.EndLine)
+                    .Append(parentInstance.EndLine)
+                    .Max();
+
+                InsertScopedQuestionAfter(
+                    lines,
+                    insertionAfter,
+                    renderedQuestion.Source!,
+                    renderedScoped);
+            }
+
+            var scopedCandidate = string.Join("\n", lines);
+            if (!newline.Equals("\n", StringComparison.Ordinal))
+                scopedCandidate = scopedCandidate.Replace("\n", newline, StringComparison.Ordinal);
+
+            return DocumentArtifactMutationResult.Success(scopedCandidate, selected);
+        }
+
         if (unansweredRoot is not null)
         {
             if (!unansweredRoot.QuestionId.Equals(definition.RootQuestion.Id, StringComparison.Ordinal))
@@ -263,7 +377,7 @@ internal sealed class DocumentArtifact
                     $"DOCART012: Root placeholder question '{unansweredRoot.QuestionId}' does not match Docs Standard root '{definition.RootQuestion.Id}'.");
             }
 
-            if (blocks.Count > 0 || answerInstances.Count > 0)
+            if (blocks.Count > 0 || answerInstances.Count > 0 || scopedBlocks.Count > 0)
             {
                 return DocumentArtifactReadResult.Failure(
                     "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
@@ -293,7 +407,7 @@ internal sealed class DocumentArtifact
             else
                 unansweredRoot = inferredRoot.UnansweredRoot;
 
-            if (unansweredRoot is not null && (blocks.Count > 0 || answerInstances.Count > 0))
+            if (unansweredRoot is not null && (blocks.Count > 0 || answerInstances.Count > 0 || scopedBlocks.Count > 0))
             {
                 return DocumentArtifactReadResult.Failure(
                     "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
@@ -366,6 +480,44 @@ internal sealed class DocumentArtifact
                         $"DOCART016: Materialized question '{pair.Key}' requires answered parent '{info.ParentId}'.");
                 }
             }
+
+            var instancesById = answerInstances
+                .SelectMany(pair => pair.Value)
+                .ToDictionary(instance => instance.Id, StringComparer.Ordinal);
+
+            foreach (var pair in scopedBlocks)
+            {
+                var key = pair.Key;
+                if (!questionIndex.TryGetValue(key.QuestionId, out var info))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART043: Scoped question '{key.QuestionId}' is not defined by the installed Docs Standard.");
+                }
+
+                if (info.Definition.Cardinality != DocumentQuestionCardinality.One)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART044: Scoped question '{key.QuestionId}' has cardinality 'many'. Nested repeated authoring is not supported by the current preview.");
+                }
+
+                if (info.ParentId is null)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART045: Root question '{key.QuestionId}' cannot be scoped through an AnswerInstance.");
+                }
+
+                if (!instancesById.TryGetValue(key.AnswerInstanceId, out var parentInstance))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART046: Scoped question '{key.QuestionId}' refers to unknown AnswerInstance '{key.AnswerInstanceId}'.");
+                }
+
+                if (!parentInstance.QuestionId.Equals(info.ParentId, StringComparison.Ordinal))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART047: Scoped question '{key.QuestionId}' belongs to parent question '{info.ParentId}', not AnswerInstance '{key.AnswerInstanceId}' of question '{parentInstance.QuestionId}'.");
+                }
+            }
         }
 
         var readonlyAnswerInstances = answerInstances.ToDictionary(
@@ -375,7 +527,16 @@ internal sealed class DocumentArtifact
                 .ToArray(),
             StringComparer.Ordinal);
 
-        var surface = BuildSurface(definition, blocks, readonlyAnswerInstances, unansweredRoot);
+        var readonlyScopedBlocks = scopedBlocks.ToDictionary(
+            pair => pair.Key,
+            pair => pair.Value);
+
+        var surface = BuildSurface(
+            definition,
+            blocks,
+            readonlyAnswerInstances,
+            readonlyScopedBlocks,
+            unansweredRoot);
         return DocumentArtifactReadResult.Success(
             new DocumentArtifact(
                 normalized,
@@ -383,6 +544,7 @@ internal sealed class DocumentArtifact
                 definition,
                 blocks,
                 readonlyAnswerInstances,
+                readonlyScopedBlocks,
                 unansweredRoot,
                 frontMatter.IsPresent,
                 surface));
@@ -761,6 +923,7 @@ internal sealed class DocumentArtifact
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
         IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances,
+        IReadOnlyDictionary<ScopedQuestionKey, ScopedQuestionBlock> scopedBlocks,
         UnansweredRoot? unansweredRoot)
     {
         var surface = new List<DocumentQuestionAffordance>();
@@ -777,6 +940,7 @@ internal sealed class DocumentArtifact
                 IsAnswered: false,
                 AnswerInstanceId: null,
                 AnswerPreview: null,
+                ScopeAnswerInstanceId: null,
                 HasChildren: definition.RootQuestion.Children.Count > 0));
             return surface;
         }
@@ -802,7 +966,11 @@ internal sealed class DocumentArtifact
                             IsAnswered: true,
                             instance.Id,
                             instance.AnswerPreview,
+                            ScopeAnswerInstanceId: null,
                             HasChildren: question.Children.Count > 0));
+
+                        foreach (var child in question.Children)
+                            AddScoped(child, depth + 1, instance.Id);
                     }
                 }
 
@@ -816,10 +984,9 @@ internal sealed class DocumentArtifact
                     IsAnswered: false,
                     AnswerInstanceId: null,
                     AnswerPreview: null,
+                    ScopeAnswerInstanceId: null,
                     HasChildren: question.Children.Count > 0));
 
-                // Children of a repeated question are scoped through a concrete
-                // AnswerInstance. That is the next deliberate authoring slice.
                 return;
             }
 
@@ -834,6 +1001,7 @@ internal sealed class DocumentArtifact
                 IsAnswered: materialized,
                 AnswerInstanceId: null,
                 AnswerPreview: null,
+                ScopeAnswerInstanceId: null,
                 HasChildren: question.Children.Count > 0));
 
             if (!materialized)
@@ -841,6 +1009,48 @@ internal sealed class DocumentArtifact
 
             foreach (var child in question.Children)
                 Add(child, depth + 1);
+        }
+
+        void AddScoped(
+            DocumentQuestionDefinition question,
+            int depth,
+            string answerInstanceId)
+        {
+            if (question.Cardinality == DocumentQuestionCardinality.Many)
+            {
+                // Nested repeated answers are the next recursion pressure.
+                surface.Add(new DocumentQuestionAffordance(
+                    surface.Count + 1,
+                    question.Id,
+                    question.Text,
+                    depth,
+                    question.Cardinality,
+                    IsMaterialized: false,
+                    IsAnswered: false,
+                    AnswerInstanceId: null,
+                    AnswerPreview: null,
+                    ScopeAnswerInstanceId: answerInstanceId,
+                    HasChildren: question.Children.Count > 0));
+                return;
+            }
+
+            var key = new ScopedQuestionKey(answerInstanceId, question.Id);
+            var materialized = scopedBlocks.ContainsKey(key);
+            surface.Add(new DocumentQuestionAffordance(
+                surface.Count + 1,
+                question.Id,
+                question.Text,
+                depth,
+                question.Cardinality,
+                IsMaterialized: materialized,
+                IsAnswered: materialized,
+                AnswerInstanceId: null,
+                AnswerPreview: null,
+                ScopeAnswerInstanceId: answerInstanceId,
+                HasChildren: question.Children.Count > 0));
+
+            // Descendants of an answered scoped child are intentionally withheld
+            // until scoped ancestry beyond one repeated-parent edge is proven.
         }
     }
 
@@ -875,6 +1085,20 @@ internal sealed class DocumentArtifact
         return result;
     }
 
+    private static IReadOnlyList<string> RenderScopedQuestionBlock(
+        string questionId,
+        string answerInstanceId,
+        IReadOnlyList<string> answerLines)
+    {
+        var result = new List<string>
+        {
+            $"<!-- vslices:scoped-question question={questionId} parent-answer-instance={answerInstanceId} -->"
+        };
+        result.AddRange(answerLines);
+        result.Add(ScopedQuestionEndMarker);
+        return result;
+    }
+
     private static IReadOnlyList<string> RenderAnswerInstanceBlock(
         string questionId,
         string answerInstanceId,
@@ -904,6 +1128,23 @@ internal sealed class DocumentArtifact
         lines.Add(string.Empty);
         lines.AddRange(renderedInstance);
         lines.Add(string.Empty);
+    }
+
+    private static void InsertScopedQuestionAfter(
+        List<string> lines,
+        int endLine,
+        string renderedQuestion,
+        IReadOnlyList<string> renderedBlock)
+    {
+        var insertion = new List<string>
+        {
+            string.Empty,
+            renderedQuestion,
+            string.Empty
+        };
+        insertion.AddRange(renderedBlock);
+        insertion.Add(string.Empty);
+        lines.InsertRange(endLine + 1, insertion);
     }
 
     private static void InsertAnswerInstanceAfter(
@@ -948,14 +1189,42 @@ internal sealed class DocumentArtifact
             if (trimmed.StartsWith(PlaceholderStem, StringComparison.Ordinal) ||
                 trimmed.StartsWith(QuestionStem, StringComparison.Ordinal) ||
                 trimmed.StartsWith(AnswerInstanceStem, StringComparison.Ordinal) ||
+                trimmed.StartsWith(ScopedQuestionStem, StringComparison.Ordinal) ||
                 trimmed.Equals(QuestionEndMarker, StringComparison.Ordinal) ||
-                trimmed.Equals(AnswerInstanceEndMarker, StringComparison.Ordinal))
+                trimmed.Equals(AnswerInstanceEndMarker, StringComparison.Ordinal) ||
+                trimmed.Equals(ScopedQuestionEndMarker, StringComparison.Ordinal))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool TryParseScopedQuestionMarker(
+        string value,
+        out string questionId,
+        out string answerInstanceId)
+    {
+        questionId = string.Empty;
+        answerInstanceId = string.Empty;
+
+        if (!value.StartsWith(ScopedQuestionPrefix, StringComparison.Ordinal) ||
+            !value.EndsWith(MarkerSuffix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var payload = value[ScopedQuestionPrefix.Length..^MarkerSuffix.Length];
+        var separator = payload.IndexOf(ScopedQuestionParentSeparator, StringComparison.Ordinal);
+        if (separator <= 0)
+            return false;
+
+        questionId = payload[..separator];
+        answerInstanceId = payload[(separator + ScopedQuestionParentSeparator.Length)..];
+
+        return IsStableIdentifier(questionId) &&
+               IsStableIdentifier(answerInstanceId);
     }
 
     private static bool TryParseAnswerInstanceMarker(
@@ -1071,6 +1340,14 @@ internal sealed class DocumentArtifact
         int StartLine,
         int EndLine,
         string AnswerPreview);
+    private sealed record ScopedQuestionKey(
+        string AnswerInstanceId,
+        string QuestionId);
+    private sealed record ScopedQuestionBlock(
+        string QuestionId,
+        string AnswerInstanceId,
+        int StartLine,
+        int EndLine);
     private sealed record QuestionInfo(
         string? ParentId,
         int Depth,
@@ -1102,6 +1379,66 @@ internal sealed class DocumentArtifact
         public bool IsSuccess => Block is not null && Error is null;
         public static QuestionBlockReadResult Success(QuestionBlock block) => new(block, null);
         public static QuestionBlockReadResult Failure(string error) => new(null, error);
+    }
+
+    private static ScopedQuestionBlockReadResult ReadScopedQuestionBlock(
+        IReadOnlyList<string> lines,
+        int startLine,
+        string questionId,
+        string answerInstanceId)
+    {
+        var endLine = -1;
+        for (var candidate = startLine + 1; candidate < lines.Count; candidate++)
+        {
+            var nested = lines[candidate].Trim();
+            if (nested.Equals(ScopedQuestionEndMarker, StringComparison.Ordinal))
+            {
+                endLine = candidate;
+                break;
+            }
+
+            if (nested.StartsWith(QuestionStem, StringComparison.Ordinal) ||
+                nested.StartsWith(PlaceholderStem, StringComparison.Ordinal) ||
+                nested.StartsWith(AnswerInstanceStem, StringComparison.Ordinal) ||
+                nested.StartsWith(ScopedQuestionStem, StringComparison.Ordinal))
+            {
+                return ScopedQuestionBlockReadResult.Failure(
+                    $"DOCART048: Scoped question '{questionId}' under AnswerInstance '{answerInstanceId}' contains nested VSlices metadata before its closing marker.");
+            }
+        }
+
+        if (endLine < 0)
+        {
+            return ScopedQuestionBlockReadResult.Failure(
+                $"DOCART049: Scoped question '{questionId}' under AnswerInstance '{answerInstanceId}' is missing '{ScopedQuestionEndMarker}'.");
+        }
+
+        var answer = string.Join(
+            "\n",
+            lines.Skip(startLine + 1).Take(endLine - startLine - 1));
+        if (string.IsNullOrWhiteSpace(answer))
+        {
+            return ScopedQuestionBlockReadResult.Failure(
+                $"DOCART050: Scoped question '{questionId}' under AnswerInstance '{answerInstanceId}' must contain a non-empty answer.");
+        }
+
+        return ScopedQuestionBlockReadResult.Success(
+            new ScopedQuestionBlock(
+                questionId,
+                answerInstanceId,
+                startLine,
+                endLine));
+    }
+
+    private sealed record ScopedQuestionBlockReadResult(
+        ScopedQuestionBlock? Block,
+        string? Error)
+    {
+        public bool IsSuccess => Block is not null && Error is null;
+        public static ScopedQuestionBlockReadResult Success(ScopedQuestionBlock block) =>
+            new(block, null);
+        public static ScopedQuestionBlockReadResult Failure(string error) =>
+            new(null, error);
     }
 
     private static AnswerInstanceBlockReadResult ReadAnswerInstanceBlock(
