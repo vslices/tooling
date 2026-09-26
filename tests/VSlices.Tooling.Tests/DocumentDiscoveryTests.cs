@@ -123,7 +123,10 @@ public sealed class DocumentDiscoveryTests
     public async Task Many_question_materializes_repeated_answer_instances_and_remains_available()
     {
         using var project = new ToolingTestProject();
-        WriteDocsStandard(project.Root, childCardinality: "many");
+        WriteDocsStandard(
+            project.Root,
+            includeGrandchild: true,
+            childCardinality: "many");
 
         Assert.Equal(0, (await project.Run(
             project.Root,
@@ -163,6 +166,14 @@ public sealed class DocumentDiscoveryTests
         Assert.Contains("status: answered", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("answer-instance: answer-", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains(
+            "children: scoped authoring through this AnswerInstance is not supported in the current preview",
+            afterFirst.StandardOutput,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "¿Qué pasa si este supuesto cambia?",
+            afterFirst.StandardOutput,
+            StringComparison.Ordinal);
         Assert.Contains("[3] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains(
