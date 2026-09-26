@@ -579,6 +579,12 @@ internal sealed class DocumentArtifact
 
         if (selected.Cardinality == DocumentQuestionCardinality.Many)
         {
+            if (selected.ScopeAnswerInstanceId is not null)
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE113: Nested repeated question '{selected.QuestionId}' is scoped through AnswerInstance '{selected.ScopeAnswerInstanceId}'. Recursive many authoring is not supported by the current preview yet.");
+            }
+
             if (selected.AnswerInstanceId is not null)
             {
                 return DocumentArtifactMutationResult.Failure(
