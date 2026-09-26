@@ -301,74 +301,6 @@ internal sealed class DocumentArtifact
 
         var questionIndex = BuildQuestionIndex(definition.RootQuestion);
 
-        if (selected.ScopeAnswerInstanceId is not null)
-        {
-            if (!string.Equals(
-                    materializationTemplate.ScopedChildStrategy,
-                    "parent-answer-instance-marker",
-                    StringComparison.Ordinal) ||
-                !string.Equals(
-                    materializationTemplate.ScopedQuestionStrategy,
-                    "explicit-parent-answer-instance-marker",
-                    StringComparison.Ordinal))
-            {
-                return DocumentArtifactMutationResult.Failure(
-                    $"UPDATE112: Configured template '{materializationTemplate.Id}' does not define the scoped-child materialization contract required below a repeated AnswerInstance.");
-            }
-
-            var key = new ScopedQuestionKey(
-                selected.ScopeAnswerInstanceId,
-                selected.QuestionId);
-
-            if (scopedBlocks.TryGetValue(key, out var scopedBlock))
-            {
-                var answerLineCount = scopedBlock.EndLine - scopedBlock.StartLine - 1;
-                if (answerLineCount > 0)
-                    lines.RemoveRange(scopedBlock.StartLine + 1, answerLineCount);
-                lines.InsertRange(scopedBlock.StartLine + 1, answerLines);
-            }
-            else
-            {
-                var renderedQuestion = DocumentMaterialization.RenderQuestion(
-                    selected.Text,
-                    selected.Depth,
-                    materializationTemplate);
-                if (!renderedQuestion.IsSuccess)
-                    return DocumentArtifactMutationResult.Failure(renderedQuestion.Error!);
-
-                var renderedScoped = RenderScopedQuestionBlock(
-                    selected.QuestionId,
-                    selected.ScopeAnswerInstanceId,
-                    answerLines);
-
-                var parentInstance = answerInstances
-                    .SelectMany(pair => pair.Value)
-                    .Single(instance => instance.Id.Equals(
-                        selected.ScopeAnswerInstanceId,
-                        StringComparison.Ordinal));
-
-                var insertionAfter = scopedBlocks
-                    .Where(pair => pair.Key.AnswerInstanceId.Equals(
-                        selected.ScopeAnswerInstanceId,
-                        StringComparison.Ordinal))
-                    .Select(pair => pair.Value.EndLine)
-                    .Append(parentInstance.EndLine)
-                    .Max();
-
-                InsertScopedQuestionAfter(
-                    lines,
-                    insertionAfter,
-                    renderedQuestion.Source!,
-                    renderedScoped);
-            }
-
-            var scopedCandidate = string.Join("\n", lines);
-            if (!newline.Equals("\n", StringComparison.Ordinal))
-                scopedCandidate = scopedCandidate.Replace("\n", newline, StringComparison.Ordinal);
-
-            return DocumentArtifactMutationResult.Success(scopedCandidate, selected);
-        }
-
         if (unansweredRoot is not null)
         {
             if (!unansweredRoot.QuestionId.Equals(definition.RootQuestion.Id, StringComparison.Ordinal))
@@ -638,6 +570,74 @@ internal sealed class DocumentArtifact
                 repeatedCandidate = repeatedCandidate.Replace("\n", newline, StringComparison.Ordinal);
 
             return DocumentArtifactMutationResult.Success(repeatedCandidate, selected);
+        }
+
+        if (selected.ScopeAnswerInstanceId is not null)
+        {
+            if (!string.Equals(
+                    materializationTemplate.ScopedChildStrategy,
+                    "parent-answer-instance-marker",
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    materializationTemplate.ScopedQuestionStrategy,
+                    "explicit-parent-answer-instance-marker",
+                    StringComparison.Ordinal))
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE112: Configured template '{materializationTemplate.Id}' does not define the scoped-child materialization contract required below a repeated AnswerInstance.");
+            }
+
+            var key = new ScopedQuestionKey(
+                selected.ScopeAnswerInstanceId,
+                selected.QuestionId);
+
+            if (scopedBlocks.TryGetValue(key, out var scopedBlock))
+            {
+                var answerLineCount = scopedBlock.EndLine - scopedBlock.StartLine - 1;
+                if (answerLineCount > 0)
+                    lines.RemoveRange(scopedBlock.StartLine + 1, answerLineCount);
+                lines.InsertRange(scopedBlock.StartLine + 1, answerLines);
+            }
+            else
+            {
+                var renderedQuestion = DocumentMaterialization.RenderQuestion(
+                    selected.Text,
+                    selected.Depth,
+                    materializationTemplate);
+                if (!renderedQuestion.IsSuccess)
+                    return DocumentArtifactMutationResult.Failure(renderedQuestion.Error!);
+
+                var renderedScoped = RenderScopedQuestionBlock(
+                    selected.QuestionId,
+                    selected.ScopeAnswerInstanceId,
+                    answerLines);
+
+                var parentInstance = answerInstances
+                    .SelectMany(pair => pair.Value)
+                    .Single(instance => instance.Id.Equals(
+                        selected.ScopeAnswerInstanceId,
+                        StringComparison.Ordinal));
+
+                var insertionAfter = scopedBlocks
+                    .Where(pair => pair.Key.AnswerInstanceId.Equals(
+                        selected.ScopeAnswerInstanceId,
+                        StringComparison.Ordinal))
+                    .Select(pair => pair.Value.EndLine)
+                    .Append(parentInstance.EndLine)
+                    .Max();
+
+                InsertScopedQuestionAfter(
+                    lines,
+                    insertionAfter,
+                    renderedQuestion.Source!,
+                    renderedScoped);
+            }
+
+            var scopedCandidate = string.Join("\n", lines);
+            if (!newline.Equals("\n", StringComparison.Ordinal))
+                scopedCandidate = scopedCandidate.Replace("\n", newline, StringComparison.Ordinal);
+
+            return DocumentArtifactMutationResult.Success(scopedCandidate, selected);
         }
 
         if (unansweredRoot is not null)
