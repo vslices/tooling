@@ -3,6 +3,80 @@ namespace VSlices.Tooling.Tests;
 public sealed class ProjectConfigurationTests
 {
     [Fact]
+    public async Task Default_configuration_does_not_claim_uninstalled_external_origins()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "vslices-project-config-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            await ProjectConfiguration.WriteAsync(
+                root,
+                ProjectConfiguration.Default(),
+                CancellationToken.None);
+
+            var loaded = ProjectConfiguration.LoadFromProjectRoot(root);
+            Assert.NotNull(loaded);
+            Assert.Null(loaded!.RulesetSource);
+            Assert.Null(loaded.RulesetRef);
+            Assert.Null(loaded.DocsStandardSource);
+            Assert.Null(loaded.DocsStandardRef);
+            Assert.Null(loaded.TemplateStandardSource);
+            Assert.Null(loaded.TemplateStandardRef);
+            Assert.Null(loaded.DocumentsTemplate);
+            Assert.Null(loaded.DocumentsRoute);
+
+            var text = File.ReadAllText(Path.Combine(root, ".vslices", "config.yaml"));
+            Assert.DoesNotContain("ruleset:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("docs-standard:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("template-standard:", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("documents:", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task Document_policy_round_trips_route_and_template_when_configured()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(),
+            "vslices-project-config-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        try
+        {
+            await ProjectConfiguration.WriteAsync(
+                root,
+                ProjectConfiguration.Default() with
+                {
+                    DocumentsRoute = "docs/knowledge",
+                    DocumentsTemplate = "markdown.question-tree"
+                },
+                CancellationToken.None);
+
+            var loaded = ProjectConfiguration.LoadFromProjectRoot(root);
+
+            Assert.NotNull(loaded);
+            Assert.Equal("docs/knowledge", loaded!.DocumentsRoute);
+            Assert.Equal("markdown.question-tree", loaded.DocumentsTemplate);
+
+            var text = File.ReadAllText(Path.Combine(root, ".vslices", "config.yaml"));
+            Assert.Contains("documents:", text, StringComparison.Ordinal);
+            Assert.Contains("route: docs/knowledge", text, StringComparison.Ordinal);
+            Assert.Contains("template: markdown.question-tree", text, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void Loads_CSharp_namespace_ignored_folders_and_patterns()
     {
         var root = Path.Combine(

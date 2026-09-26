@@ -28,11 +28,11 @@ A missing rule means unsupported/unresolved lowering. It never authorizes an emb
 ```text
 .vslices/ruleset
   source-owned
-  replaceable by init --force / update --ruleset
+  replaceable by vslices update ruleset
 
 .vslices/extensions
   project-owned
-  preserved by init --force / update --ruleset
+  preserved by vslices update ruleset
 ```
 
 This prevents a Ruleset refresh from deleting project semantics while keeping installed Ruleset knowledge reproducible from its configured source.
@@ -118,26 +118,25 @@ Consequently a typo such as `{banana}` is an invalid Ruleset at load/update time
 
 A constant renderer can explicitly declare `bindings: []`.
 
-## Shared Ruleset acquisition pipeline
+## Ruleset acquisition pipeline
 
-`vslices init` and `vslices update --ruleset` share the same lower-level Ruleset mechanisms:
+`vslices update ruleset` owns both first installation and later refresh:
 
 ```text
-RulesetSourceMaterializer
-  -> materialize source
-
-RulesetSnapshotInstaller.Prepare
-  -> copy root files + selected target
+origin
+  -> source + optional ref
+  -> RulesetSourceMaterializer
+  -> RulesetSnapshotInstaller.Prepare
   -> validate prepared snapshot
-
-RulesetSnapshotInstaller.Replace
-  -> atomic move of .vslices/ruleset
-  -> backup / rollback on failure
+  -> RulesetSnapshotInstaller.Replace
+  -> record successful provenance
 ```
 
 The project extension overlay does not participate in this replacement.
 
-`init` owns initialization policy. `update --ruleset` owns update policy. Source materialization and snapshot installation are shared mechanism rather than duplicated command behavior.
+`vslices init` does not install Ruleset by default. Its `--ruleset-origin` and `--default-origin` shortcuts delegate to the same update operation rather than implementing another acquisition path.
+
+The preferred compact GitHub origin is `owner/repository:ref`. Existing local directories and direct ZIP URLs may be used directly. The CLI exposes one explicit acquisition surface: `--origin`.
 
 ## Source and ref semantics
 

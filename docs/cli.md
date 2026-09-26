@@ -1,6 +1,6 @@
 # VSlices CLI specification
 
-Status: v0.2.0 interaction contract for progressive VSIR authoring and lowering.
+Status: v0.3.0-preview interaction contract under active experiment.
 
 VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset`](https://github.com/vslices/ruleset). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
 
@@ -20,12 +20,20 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
+
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <N> --answer "<markdown>"
 
 vslices --version
 vslices -v
 ```
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
+
+`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset, Docs Standard, and Template Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin` are convenience composition over those same operations.
 
 ## 2. Core authoring protocol
 
@@ -366,3 +374,138 @@ TicketTrayFilter
 ```
 
 Unknown semantics remain unknown; Tooling does not infer target or domain authority from convenience conventions.
+
+
+## 17. Document materialization
+
+`new document` and the materialization of newly activated questions during `update document` currently combine three authorities:
+
+```text
+installed Docs Standard
+  -> Document type + root question
+
+project configuration
+  -> documents.template
+
+installed Template Standard
+  -> materialization definition
+```
+
+The first executable materialization witness is `markdown.question-tree`.
+
+For its current supported surface, Tooling reads the template's question presentation and initial reconstruction contract:
+
+```yaml
+representation:
+  question:
+    presentation:
+      kind: heading
+      text:
+        source: question.text
+      level:
+        strategy: semantic-depth
+        root: 1
+    answer:
+      region:
+        starts: after-question-heading
+        ends: before-next-materialized-question-heading
+      empty: unanswered
+
+reconstruction:
+  question-identity:
+    root:
+      strategy: document-type-root-question
+```
+
+Tooling owns the execution mechanism. It no longer hardcodes Markdown heading depth independently in `new document` and `update document`: both project semantic depth through the same configured Template Standard definition.
+
+Front matter remains Tooling-owned in this slice:
+
+```yaml
+---
+artifact:
+  kind: document
+  type: context
+---
+```
+
+New Documents no longer persist a root placeholder marker. The minimal unanswered form is now:
+
+```markdown
+---
+artifact:
+  kind: document
+  type: context
+---
+
+# ¿Dónde existe?
+```
+
+For this first markerless reconstruction slice, Tooling combines:
+
+```text
+artifact.type
++ Docs Standard root identity
++ configured Template Standard root geometry
++ no significant body content after the root heading
+-> root is materialized + unanswered
+```
+
+The visible root wording is presentation rather than durable identity; `artifact.type` and the Docs Standard define which root question the heading represents.
+
+Existing `vslices:placeholder` markers remain readable as historical compatibility.
+
+Root answers are now markerless as well. For the current `markdown.question-tree` witness, Tooling reconstructs the root answer region from the Template Standard contract:
+
+```text
+after root heading
+→ root answer begins
+
+next materialized descendant heading
+→ root answer ends
+
+no materialized descendant
+→ root answer ends at EOF
+
+only whitespace in region
+→ unanswered
+
+significant content in region
+→ answered
+```
+
+Updating an already answered markerless root replaces only that region and preserves later materialized descendants.
+
+Answered descendant questions still use their current VSlices question markers in this slice. Arbitrary headings inside answer content are outside the current contract; Tooling does not attempt to infer whether such headings are documentary vocabulary. A future project-level Docs Standard extension mechanism is the intended direction when real documents require additional documentary vocabulary.
+
+The current CLI intentionally exposes no `--template` or `--format` override. Per-artifact, per-type, inferred, migration-aware template selection, arbitrary answer headings, branching markerless reconstruction, and Docs Standard extension authoring remain non-scope.
+
+
+## 18. Document question cardinality
+
+Docs Standard questions may optionally declare:
+
+```yaml
+cardinality: many
+```
+
+Omitted cardinality and explicit `cardinality: one` both mean one AnswerInstance per question occurrence.
+
+The current CLI recognizes both values and exposes them through Document discovery:
+
+```text
+[2] ¿Qué términos usamos?
+  status: available
+  cardinality: many
+  action: multiple-answer authoring is not supported in the current preview
+```
+
+This slice deliberately does not materialize multiple AnswerInstances yet.
+
+For `cardinality: one`, existing authoring behavior remains unchanged.
+
+For `cardinality: many`, `update document` currently fails closed with `UPDATE109` rather than silently treating the question as singular. Discovery does not emit a mutation command that Tooling cannot yet honor.
+
+Any cardinality other than `one` or `many` is rejected while loading Docs Standard with `DOCS027`.
+
+The next pressure is not parsing cardinality but representing repeated AnswerInstances and the child QuestionOccurrences scoped through each answer.
