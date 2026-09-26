@@ -18,6 +18,9 @@ internal static class DocumentTemplate
     public static DocumentTemplateResult Create(
         string name,
         string? kind,
+        string? target,
+        string? scope,
+        IReadOnlyList<ArtifactRelation> relations,
         DocsStandardCatalog catalog,
         MaterializationTemplateDefinition materializationTemplate)
     {
@@ -26,6 +29,10 @@ internal static class DocumentTemplate
 
         if (string.IsNullOrWhiteSpace(kind))
             return DocumentTemplateResult.Failure("NEW102: Document kind is required. Use --kind <type>.");
+
+        if (string.IsNullOrWhiteSpace(target))
+            return DocumentTemplateResult.Failure(
+                "NEW105: Document target is required. Use --target <target> or create it from a Nexus/Continuity Path recommendation.");
 
         var normalizedKind = kind.Trim();
         if (!catalog.TryGetDocument(normalizedKind, out var definition) || definition is null)
@@ -49,14 +56,23 @@ internal static class DocumentTemplate
         if (!renderedRoot.IsSuccess)
             return DocumentTemplateResult.Failure(renderedRoot.Error!);
 
+        var resolvedScope = string.IsNullOrWhiteSpace(scope)
+            ? definition.Scopes.FirstOrDefault()
+            : scope.Trim();
+
         var newline = Environment.NewLine;
+        var frontMatter = KnowledgeArtifactFrontMatter.Render(
+            "document",
+            definition.Type,
+            resolvedScope,
+            target.Trim(),
+            status: "draft",
+            templateName: materializationTemplate.Id,
+            relations);
+
         var source =
-            $"---{newline}" +
-            $"artifact:{newline}" +
-            $"  kind: document{newline}" +
-            $"  type: {definition.Type}{newline}" +
-            $"---{newline}{newline}" +
-            $"{renderedRoot.Source}{newline}";
+            frontMatter.Replace("\n", newline, StringComparison.Ordinal) +
+            $"{newline}{newline}{renderedRoot.Source}{newline}";
 
         return DocumentTemplateResult.Success(source);
     }
