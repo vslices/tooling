@@ -588,6 +588,20 @@ internal sealed class DocumentArtifact
                     $"UPDATE111: Configured template '{materializationTemplate.Id}' does not define the repeated AnswerInstance materialization contract required for cardinality 'many'.");
             }
 
+            if (selected.ScopeAnswerInstanceId is not null &&
+                (!string.Equals(
+                    materializationTemplate.RepeatedAnswerScopeStrategy,
+                    "parent-answer-instance-marker",
+                    StringComparison.Ordinal) ||
+                 !string.Equals(
+                    materializationTemplate.AnswerInstanceScopeStrategy,
+                    "optional-parent-answer-instance-marker",
+                    StringComparison.Ordinal)))
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE115: Configured template '{materializationTemplate.Id}' does not define the nested repeated AnswerInstance scope contract.");
+            }
+
             var renderedQuestion = DocumentMaterialization.RenderQuestion(
                 selected.Text,
                 selected.Depth,
