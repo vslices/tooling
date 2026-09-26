@@ -66,6 +66,13 @@ internal static class DocumentDiscoveryCommands
         Console.WriteLine();
         Console.WriteLine("Current document surface:");
 
+        var answerLabels = artifact.Surface
+            .Where(question => question.AnswerInstanceId is not null)
+            .ToDictionary(
+                question => question.AnswerInstanceId!,
+                question => question.AnswerPreview,
+                StringComparer.Ordinal);
+
         foreach (var question in artifact.Surface)
         {
             Console.WriteLine();
@@ -78,16 +85,29 @@ internal static class DocumentDiscoveryCommands
                 Console.WriteLine($"  answer-instance: {question.AnswerInstanceId}");
                 Console.WriteLine($"  answer: {question.AnswerPreview}");
                 Console.WriteLine("  action: repeated AnswerInstance editing is not supported in the current preview");
-                if (question.HasChildren)
-                {
-                    Console.WriteLine(
-                        "  children: scoped authoring through this AnswerInstance is not supported in the current preview");
-                }
             }
             else
             {
+                if (question.ScopeAnswerInstanceId is not null)
+                {
+                    Console.WriteLine($"  scope: answer-instance {question.ScopeAnswerInstanceId}");
+                    if (answerLabels.TryGetValue(question.ScopeAnswerInstanceId, out var scopeAnswer) &&
+                        !string.IsNullOrWhiteSpace(scopeAnswer))
+                    {
+                        Console.WriteLine($"  scope-answer: {scopeAnswer}");
+                    }
+                }
+
                 Console.WriteLine(
                     $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
+
+                if (question.ScopeAnswerInstanceId is not null &&
+                    question.IsAnswered &&
+                    question.HasChildren)
+                {
+                    Console.WriteLine(
+                        "  children: deeper scoped authoring is not supported in the current preview");
+                }
             }
         }
 
