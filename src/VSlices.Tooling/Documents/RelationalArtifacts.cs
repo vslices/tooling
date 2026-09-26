@@ -560,6 +560,7 @@ internal static class RelationalArtifact
             new("1", "__purpose", "Propósito del recorrido", HasAnswer(answers, "__purpose"), Answer(answers, "__purpose"), null, []),
             new("2", "__recommended-traversal", "Recorrido recomendado", HasAnswer(answers, "__recommended-traversal"), Answer(answers, "__recommended-traversal"), null, [])
         };
+        AddProgressiveQuestion(definition.RootQuestion, "3", null, answers, surfaces);
         return RelationalArtifactStateResult.Success(new RelationalArtifactState(metadata.Metadata, surfaces, source));
     }
 
@@ -615,20 +616,38 @@ internal static class RelationalArtifact
         return ReplaceAssociatedArtifacts(updated, relations);
     }
 
-    public static IReadOnlyList<(string Id, RelationalRecommendation Recommendation)> EnumerateRecommendations(NexusDefinition definition)
+    public static IReadOnlyList<(string Id, RelationalRecommendation Recommendation)> EnumerateRecommendations(
+        NexusDefinition definition,
+        RelationalArtifactState state)
     {
         var result = new List<(string, RelationalRecommendation)>();
-        var index = 1;
-        foreach (var recommendation in definition.Recommendations) result.Add(((index++).ToString(), recommendation));
-        foreach (var question in definition.Questions) EnumerateQuestionRecommendations(question, result, ref index);
+
+        foreach (var question in state.Questions)
+        {
+            for (var index = 0; index < question.Recommendations.Count; index++)
+                result.Add(($"{question.SelectionPath}.{index + 1}", question.Recommendations[index]));
+        }
+
+        var rootOffset = definition.Questions.Count;
+        for (var index = 0; index < definition.Recommendations.Count; index++)
+            result.Add(((rootOffset + index + 1).ToString(), definition.Recommendations[index]));
+
         return result;
     }
 
-    public static IReadOnlyList<(string Id, RelationalRecommendation Recommendation)> EnumerateRecommendations(ContinuityPathDefinition definition)
+    public static IReadOnlyList<(string Id, RelationalRecommendation Recommendation)> EnumerateRecommendations(
+        ContinuityPathDefinition definition,
+        RelationalArtifactState state)
     {
         var result = new List<(string, RelationalRecommendation)>();
-        var index = 1;
-        EnumerateQuestionRecommendations(definition.RootQuestion, result, ref index);
+
+        foreach (var question in state.Questions.Where(question =>
+                     question.Id is not "__purpose" and not "__recommended-traversal"))
+        {
+            for (var index = 0; index < question.Recommendations.Count; index++)
+                result.Add(($"{question.SelectionPath}.{index + 1}", question.Recommendations[index]));
+        }
+
         return result;
     }
 
@@ -655,8 +674,14 @@ internal static class RelationalArtifact
             path, question.Id, question.Text, answered, Answer(answers, question.Id), parentPath, question.Recommendations));
 
         if (!answered) return;
+        var childOffset = question.Recommendations.Count;
         for (var index = 0; index < question.Children.Count; index++)
-            AddProgressiveQuestion(question.Children[index], $"{path}.{index + 1}", path, answers, result);
+            AddProgressiveQuestion(
+                question.Children[index],
+                $"{path}.{childOffset + index + 1}",
+                path,
+                answers,
+                result);
     }
 
     private static Dictionary<string, string> ReadQuestionAnswers(string source)
@@ -717,15 +742,6 @@ internal static class RelationalArtifact
 
     private static string MermaidId(string id) => "q_" + new string(id.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
     private static string EscapeMermaid(string value) => value.Replace("\"", "'", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
-
-    private static void EnumerateQuestionRecommendations(
-        RelationalQuestionDefinition question,
-        List<(string Id, RelationalRecommendation Recommendation)> result,
-        ref int index)
-    {
-        foreach (var recommendation in question.Recommendations) result.Add(((index++).ToString(), recommendation));
-        foreach (var child in question.Children) EnumerateQuestionRecommendations(child, result, ref index);
-    }
 
     private static void RenderAssociatedArtifacts(StringBuilder sb, IReadOnlyList<ArtifactRelation> relations)
     {
