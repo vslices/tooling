@@ -166,25 +166,19 @@ public sealed class DocumentDiscoveryTests
         Assert.Contains("status: answered", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("answer-instance: answer-", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains(
-            "children: scoped authoring through this AnswerInstance is not supported in the current preview",
-            afterFirst.StandardOutput,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "¿Qué pasa si este supuesto cambia?",
-            afterFirst.StandardOutput,
-            StringComparison.Ordinal);
-        Assert.Contains("[3] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Account", afterFirst.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[4] ¿Qué estamos asumiendo como cierto?", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", afterFirst.StandardOutput, StringComparison.Ordinal);
         Assert.Contains(
-            "vslices update document tooling-context --question-id 3 --answer \"<answer>\"",
+            "vslices update document tooling-context --question-id 4 --answer \"<answer>\"",
             afterFirst.StandardOutput,
             StringComparison.Ordinal);
 
         var second = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "3",
+            "--question-id", "4",
             "--answer", "Service");
 
         Assert.Equal(0, second.ExitCode);
@@ -196,7 +190,11 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, reconstructed.ExitCode);
         Assert.Contains("answer: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("answer: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[4] ¿Qué estamos asumiendo como cierto?", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Account", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[5] ¿Qué pasa si este supuesto cambia?", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Service", reconstructed.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[6] ¿Qué estamos asumiendo como cierto?", reconstructed.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", reconstructed.StandardOutput, StringComparison.Ordinal);
 
         var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
@@ -206,6 +204,72 @@ public sealed class DocumentDiscoveryTests
             source.Split("<!-- vslices:answer-instance question=assumptions ", StringSplitOptions.None).Length - 1);
         Assert.Contains("Account", source, StringComparison.Ordinal);
         Assert.Contains("Service", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Child_question_is_scoped_to_one_repeated_answer_instance()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocsStandard(
+            project.Root,
+            includeGrandchild: true,
+            childCardinality: "many");
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "new", "document", "tooling-context", "--kind", "context")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "1",
+            "--answer", "Root answer")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "2",
+            "--answer", "Account")).ExitCode);
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "4",
+            "--answer", "Service")).ExitCode);
+
+        var before = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, before.ExitCode);
+        Assert.Contains("[3] ¿Qué pasa si este supuesto cambia?", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Account", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[5] ¿Qué pasa si este supuesto cambia?", before.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Service", before.StandardOutput, StringComparison.Ordinal);
+
+        Assert.Equal(0, (await project.Run(
+            project.Root,
+            "update", "document", "tooling-context",
+            "--question-id", "3",
+            "--answer", "Account-specific risk")).ExitCode);
+
+        var after = await project.Run(
+            project.Root,
+            "discovery", "document", "tooling-context");
+
+        Assert.Equal(0, after.ExitCode);
+
+        var accountChild = SliceQuestion(after.StandardOutput, 3);
+        var serviceChild = SliceQuestion(after.StandardOutput, 5);
+
+        Assert.Contains("status: answered", accountChild, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Account", accountChild, StringComparison.Ordinal);
+        Assert.Contains("status: available", serviceChild, StringComparison.Ordinal);
+        Assert.Contains("scope-answer: Service", serviceChild, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(project.Root, "tooling-context.md"));
+        Assert.Contains(
+            "vslices:scoped-question question=assumption-risk parent-answer-instance=answer-",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("Account-specific risk", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -276,6 +340,22 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("[2] ¿Qué estamos presuponiendo?", result.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("¿Qué estamos asumiendo como cierto?", result.StandardOutput, StringComparison.Ordinal);
+    }
+
+    private static string SliceQuestion(string output, int selection)
+    {
+        var marker = $"[{selection}] ";
+        var start = output.IndexOf(marker, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Selection [{selection}] was not found in discovery output.");
+
+        var next = output.IndexOf(
+            Environment.NewLine + "[",
+            start + marker.Length,
+            StringComparison.Ordinal);
+
+        return next < 0
+            ? output[start..]
+            : output[start..next];
     }
 
     private static void WriteDocsStandard(
