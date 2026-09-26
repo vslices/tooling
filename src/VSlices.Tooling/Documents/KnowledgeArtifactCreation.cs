@@ -90,6 +90,8 @@ internal static class KnowledgeArtifactCreation
             kind = definition.Type;
             var scope = KnowledgeArtifactCommandSupport.ResolveScope(request.Scope, definition.Scopes, recommendation?.Source.Metadata.Scope);
             source = RelationalArtifact.CreateNexus(definition, target, scope);
+            var reconstructed = RelationalArtifact.ReadNexus(source, definition);
+            if (!reconstructed.IsSuccess) return KnowledgeArtifactCreationResult.Failure(reconstructed.Error!);
         }
         else if (request.Family == "continuity-path")
         {
@@ -98,6 +100,8 @@ internal static class KnowledgeArtifactCreation
             kind = definition.Type;
             // Path vocabulary does not currently declare target scopes. Its type is not a target classification.
             source = RelationalArtifact.CreateContinuityPath(definition, target, request.Scope?.Trim());
+            var reconstructed = RelationalArtifact.ReadContinuityPath(source, definition);
+            if (!reconstructed.IsSuccess) return KnowledgeArtifactCreationResult.Failure(reconstructed.Error!);
         }
         else return KnowledgeArtifactCreationResult.Failure($"NEW111: Unsupported artifact family '{request.Family}'.");
 

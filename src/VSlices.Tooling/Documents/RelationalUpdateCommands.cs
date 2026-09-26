@@ -1,16 +1,18 @@
+using ConsoleAppFramework;
+
 namespace VSlices.Tooling;
 
 internal static class RelationalUpdateCommands
 {
     public static Task<int> Nexus(
-        string artifact,
+        [Argument] string artifact,
         string? questionId = null,
         string? answer = null,
         CancellationToken cancellationToken = default) =>
         Update(artifact, "nexus", questionId, answer, cancellationToken);
 
     public static Task<int> ContinuityPath(
-        string artifact,
+        [Argument] string artifact,
         string? questionId = null,
         string? answer = null,
         CancellationToken cancellationToken = default) =>

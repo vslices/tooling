@@ -10,18 +10,6 @@ internal static class KnowledgeArtifactWriter
             return $"RELWRITE001: '{path}' already exists; artifact creation never overwrites it.";
         var createdMetadata = KnowledgeArtifactFrontMatter.Read(source);
         if (!createdMetadata.IsSuccess) return createdMetadata.Error;
-        if (createdMetadata.Metadata!.Kind != "document")
-        {
-            var standards = KnowledgeArtifactCommandSupport.LoadStandards(Environment.CurrentDirectory);
-            if (!standards.IsSuccess) return standards.Error;
-            RelationalArtifactStateResult reconstructed;
-            if (createdMetadata.Metadata.Kind == "nexus" && standards.Standards!.Relational.TryGetNexus(createdMetadata.Metadata.Type, out var nexus) && nexus is not null)
-                reconstructed = RelationalArtifact.ReadNexus(source, nexus);
-            else if (createdMetadata.Metadata.Kind == "continuity-path" && standards.Standards!.Relational.TryGetContinuityPath(createdMetadata.Metadata.Type, out var pathDefinition) && pathDefinition is not null)
-                reconstructed = RelationalArtifact.ReadContinuityPath(source, pathDefinition);
-            else return "RELWRITE005: The materialized artifact cannot be reconstructed against its installed definition.";
-            if (!reconstructed.IsSuccess) return reconstructed.Error;
-        }
 
         string? relatedSource = null;
         if (related is not null && reciprocal is not null)

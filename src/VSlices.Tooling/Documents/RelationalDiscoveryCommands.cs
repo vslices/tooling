@@ -1,10 +1,12 @@
+using ConsoleAppFramework;
+
 namespace VSlices.Tooling;
 
 internal static class RelationalDiscoveryCommands
 {
-    public static Task<int> Nexus(string artifact, CancellationToken cancellationToken = default) =>
+    public static Task<int> Nexus([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "nexus", cancellationToken));
-    public static Task<int> ContinuityPath(string artifact, CancellationToken cancellationToken = default) =>
+    public static Task<int> ContinuityPath([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "continuity-path", cancellationToken));
 
     private static int Discover(string artifact, string expectedKind, CancellationToken cancellationToken)
