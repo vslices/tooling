@@ -123,13 +123,6 @@ internal static class DocumentDiscoveryCommands
                 Console.WriteLine(
                     $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
 
-                if (question.ScopeAnswerInstanceId is not null &&
-                    question.IsAnswered &&
-                    question.HasChildren)
-                {
-                    Console.WriteLine(
-                        "  children: deeper scoped authoring is not supported in the current preview");
-                }
             }
         }
 
