@@ -262,7 +262,6 @@ internal sealed record KnowledgeArtifactMetadata(
     string Type,
     string? Scope,
     string? Target,
-    string Language,
     string Status,
     string ToolingVersion,
     string? TemplateName,
@@ -303,7 +302,6 @@ internal static class KnowledgeArtifactFrontMatter
             var type = Scalar(artifact, "type");
             var scope = Scalar(artifact, "scope");
             var target = Scalar(artifact, "target");
-            var language = Scalar(artifact, "language") ?? "es";
             if (string.IsNullOrWhiteSpace(kind) || string.IsNullOrWhiteSpace(type))
                 return KnowledgeArtifactMetadataResult.Failure("RELART005: artifact.kind and artifact.type are required.");
 
@@ -357,7 +355,6 @@ internal static class KnowledgeArtifactFrontMatter
                     type.Trim(),
                     scope?.Trim(),
                     target?.Trim(),
-                    language.Trim(),
                     status.Trim(),
                     tooling.Trim(),
                     templateName?.Trim(),
@@ -375,7 +372,6 @@ internal static class KnowledgeArtifactFrontMatter
         string type,
         string? scope,
         string? target,
-        string language,
         string status,
         string? templateName,
         IReadOnlyList<ArtifactRelation> relations)
@@ -387,11 +383,14 @@ internal static class KnowledgeArtifactFrontMatter
         sb.AppendLine($"  type: {YamlScalar(type)}");
         if (!string.IsNullOrWhiteSpace(scope)) sb.AppendLine($"  scope: {YamlScalar(scope!)}");
         if (!string.IsNullOrWhiteSpace(target)) sb.AppendLine($"  target: {YamlScalar(target!)}");
-        sb.AppendLine($"  language: {YamlScalar(language)}");
         sb.AppendLine();
         sb.AppendLine("metadata:");
         sb.AppendLine($"  status: {YamlScalar(status)}");
-        if (relations.Count > 0)
+        if (relations.Count == 0)
+        {
+            sb.AppendLine("  relates: []");
+        }
+        else
         {
             sb.AppendLine("  relates:");
             foreach (var relation in relations)
@@ -435,7 +434,6 @@ internal static class KnowledgeArtifactFrontMatter
             metadata.Type,
             metadata.Scope,
             metadata.Target,
-            metadata.Language,
             metadata.Status,
             metadata.TemplateName,
             relations) + "\n\n" + body;
@@ -489,7 +487,6 @@ internal static class RelationalArtifact
             definition.Type,
             effectiveScope,
             target: target,
-            language: "es",
             status: "draft",
             templateName: $"{definition.Type}.nexus",
             relations: []));
@@ -512,7 +509,6 @@ internal static class RelationalArtifact
             definition.Type,
             scope ?? definition.Type,
             target: target,
-            language: "es",
             status: "draft",
             templateName: $"{definition.Type}.continuity-path",
             relations: []));
