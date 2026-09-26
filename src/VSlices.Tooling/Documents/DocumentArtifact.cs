@@ -9,7 +9,8 @@ internal sealed record DocumentQuestionAffordance(
     bool IsMaterialized,
     bool IsAnswered,
     string? AnswerInstanceId,
-    string? AnswerPreview);
+    string? AnswerPreview,
+    bool HasChildren);
 
 internal sealed record DocumentArtifactReadResult(
     DocumentArtifact? Artifact,
@@ -775,7 +776,8 @@ internal sealed class DocumentArtifact
                 IsMaterialized: true,
                 IsAnswered: false,
                 AnswerInstanceId: null,
-                AnswerPreview: null));
+                AnswerPreview: null,
+                HasChildren: definition.RootQuestion.Children.Count > 0));
             return surface;
         }
 
@@ -799,7 +801,8 @@ internal sealed class DocumentArtifact
                             IsMaterialized: true,
                             IsAnswered: true,
                             instance.Id,
-                            instance.AnswerPreview));
+                            instance.AnswerPreview,
+                            HasChildren: question.Children.Count > 0));
                     }
                 }
 
@@ -812,7 +815,8 @@ internal sealed class DocumentArtifact
                     IsMaterialized: false,
                     IsAnswered: false,
                     AnswerInstanceId: null,
-                    AnswerPreview: null));
+                    AnswerPreview: null,
+                    HasChildren: question.Children.Count > 0));
 
                 // Children of a repeated question are scoped through a concrete
                 // AnswerInstance. That is the next deliberate authoring slice.
@@ -829,7 +833,8 @@ internal sealed class DocumentArtifact
                 materialized,
                 IsAnswered: materialized,
                 AnswerInstanceId: null,
-                AnswerPreview: null));
+                AnswerPreview: null,
+                HasChildren: question.Children.Count > 0));
 
             if (!materialized)
                 return;
