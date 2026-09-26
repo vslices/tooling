@@ -7,7 +7,9 @@ internal sealed record DocumentQuestionAffordance(
     int Depth,
     DocumentQuestionCardinality Cardinality,
     bool IsMaterialized,
-    bool IsAnswered);
+    bool IsAnswered,
+    string? AnswerInstanceId,
+    string? AnswerPreview);
 
 internal sealed record DocumentArtifactReadResult(
     DocumentArtifact? Artifact,
@@ -49,11 +51,16 @@ internal sealed class DocumentArtifact
     private const string MarkerSuffix = " -->";
     private const string QuestionSeparator = " question=";
     private const string QuestionEndMarker = "<!-- /vslices:question -->";
+    private const string AnswerInstancePrefix = "<!-- vslices:answer-instance question=";
+    private const string AnswerInstanceStem = "<!-- vslices:answer-instance";
+    private const string AnswerInstanceIdSeparator = " id=";
+    private const string AnswerInstanceEndMarker = "<!-- /vslices:answer-instance -->";
 
     private readonly string normalizedSource;
     private readonly string newline;
     private readonly DocumentDefinition definition;
     private readonly IReadOnlyDictionary<string, QuestionBlock> blocks;
+    private readonly IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances;
     private readonly UnansweredRoot? unansweredRoot;
     private readonly bool usesFrontMatterIdentity;
 
@@ -62,6 +69,7 @@ internal sealed class DocumentArtifact
         string newline,
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
+        IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances,
         UnansweredRoot? unansweredRoot,
         bool usesFrontMatterIdentity,
         IReadOnlyList<DocumentQuestionAffordance> surface)
@@ -70,6 +78,7 @@ internal sealed class DocumentArtifact
         this.newline = newline;
         this.definition = definition;
         this.blocks = blocks;
+        this.answerInstances = answerInstances;
         this.unansweredRoot = unansweredRoot;
         this.usesFrontMatterIdentity = usesFrontMatterIdentity;
         Surface = surface;
@@ -95,6 +104,8 @@ internal sealed class DocumentArtifact
 
         UnansweredRoot? unansweredRoot = null;
         var blocks = new Dictionary<string, QuestionBlock>(StringComparer.Ordinal);
+        var answerInstances = new Dictionary<string, List<AnswerInstanceBlock>>(StringComparer.Ordinal);
+        var answerInstanceIds = new HashSet<string>(StringComparer.Ordinal);
         string? documentType = frontMatter.DocumentType;
 
         for (var index = 0; index < lines.Count; index++)
@@ -139,6 +150,48 @@ internal sealed class DocumentArtifact
             {
                 return DocumentArtifactReadResult.Failure(
                     $"DOCART003: Malformed VSlices placeholder metadata at line {index + 1}.");
+            }
+
+            if (TryParseAnswerInstanceMarker(
+                    trimmed,
+                    out var answerInstanceQuestion,
+                    out var answerInstanceId))
+            {
+                if (!answerInstanceIds.Add(answerInstanceId))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART028: Duplicate AnswerInstance id '{answerInstanceId}'.");
+                }
+
+                var instance = ReadAnswerInstanceBlock(
+                    lines,
+                    index,
+                    answerInstanceQuestion,
+                    answerInstanceId);
+                if (!instance.IsSuccess)
+                    return DocumentArtifactReadResult.Failure(instance.Error!);
+
+                if (!answerInstances.TryGetValue(answerInstanceQuestion, out var instances))
+                {
+                    instances = new List<AnswerInstanceBlock>();
+                    answerInstances.Add(answerInstanceQuestion, instances);
+                }
+
+                instances.Add(instance.Block!);
+                index = instance.Block!.EndLine;
+                continue;
+            }
+
+            if (trimmed.StartsWith(AnswerInstanceStem, StringComparison.Ordinal))
+            {
+                return DocumentArtifactReadResult.Failure(
+                    $"DOCART029: Malformed VSlices AnswerInstance metadata at line {index + 1}.");
+            }
+
+            if (trimmed.Equals(AnswerInstanceEndMarker, StringComparison.Ordinal))
+            {
+                return DocumentArtifactReadResult.Failure(
+                    $"DOCART030: Orphan VSlices AnswerInstance closing marker at line {index + 1}.");
             }
 
             string blockQuestion;
@@ -209,7 +262,7 @@ internal sealed class DocumentArtifact
                     $"DOCART012: Root placeholder question '{unansweredRoot.QuestionId}' does not match Docs Standard root '{definition.RootQuestion.Id}'.");
             }
 
-            if (blocks.Count > 0)
+            if (blocks.Count > 0 || answerInstances.Count > 0)
             {
                 return DocumentArtifactReadResult.Failure(
                     "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
@@ -229,6 +282,7 @@ internal sealed class DocumentArtifact
                 definition.RootQuestion,
                 materializationTemplate,
                 blocks,
+                answerInstances,
                 questionIndex);
             if (!inferredRoot.IsSuccess)
                 return DocumentArtifactReadResult.Failure(inferredRoot.Error!);
@@ -238,7 +292,7 @@ internal sealed class DocumentArtifact
             else
                 unansweredRoot = inferredRoot.UnansweredRoot;
 
-            if (unansweredRoot is not null && blocks.Count > 0)
+            if (unansweredRoot is not null && (blocks.Count > 0 || answerInstances.Count > 0))
             {
                 return DocumentArtifactReadResult.Failure(
                     "DOCART013: A Document with an unanswered root cannot already contain answered question blocks.");
@@ -255,21 +309,79 @@ internal sealed class DocumentArtifact
                         $"DOCART015: Materialized question '{questionId}' is not defined by the installed Docs Standard.");
                 }
 
-                if (info.ParentId is not null && !blocks.ContainsKey(info.ParentId))
+                if (info.Definition.Cardinality == DocumentQuestionCardinality.Many)
                 {
                     return DocumentArtifactReadResult.Failure(
-                        $"DOCART016: Materialized question '{questionId}' requires answered parent '{info.ParentId}'.");
+                        $"DOCART031: Question '{questionId}' has cardinality 'many' and must be materialized as AnswerInstances.");
+                }
+
+                if (info.ParentId is not null)
+                {
+                    var parent = questionIndex[info.ParentId];
+                    if (parent.Definition.Cardinality == DocumentQuestionCardinality.Many)
+                    {
+                        return DocumentArtifactReadResult.Failure(
+                            $"DOCART032: Child question '{questionId}' is scoped through repeated parent '{info.ParentId}'. Child scoping through AnswerInstances is not supported by the current preview.");
+                    }
+
+                    if (!blocks.ContainsKey(info.ParentId))
+                    {
+                        return DocumentArtifactReadResult.Failure(
+                            $"DOCART016: Materialized question '{questionId}' requires answered parent '{info.ParentId}'.");
+                    }
+                }
+            }
+
+            foreach (var pair in answerInstances)
+            {
+                if (!questionIndex.TryGetValue(pair.Key, out var info))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART033: AnswerInstances refer to question '{pair.Key}', which is not defined by the installed Docs Standard.");
+                }
+
+                if (info.Definition.Cardinality != DocumentQuestionCardinality.Many)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART034: Question '{pair.Key}' has cardinality 'one' and cannot contain repeated AnswerInstances.");
+                }
+
+                if (info.ParentId is null)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART035: Repeated root question '{pair.Key}' is not supported by the current preview.");
+                }
+
+                var parent = questionIndex[info.ParentId];
+                if (parent.Definition.Cardinality == DocumentQuestionCardinality.Many)
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART032: Question '{pair.Key}' is scoped through repeated parent '{info.ParentId}'. Child scoping through AnswerInstances is not supported by the current preview.");
+                }
+
+                if (!blocks.ContainsKey(info.ParentId))
+                {
+                    return DocumentArtifactReadResult.Failure(
+                        $"DOCART016: Materialized question '{pair.Key}' requires answered parent '{info.ParentId}'.");
                 }
             }
         }
 
-        var surface = BuildSurface(definition, blocks, unansweredRoot);
+        var readonlyAnswerInstances = answerInstances.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<AnswerInstanceBlock>)pair.Value
+                .OrderBy(instance => instance.StartLine)
+                .ToArray(),
+            StringComparer.Ordinal);
+
+        var surface = BuildSurface(definition, blocks, readonlyAnswerInstances, unansweredRoot);
         return DocumentArtifactReadResult.Success(
             new DocumentArtifact(
                 normalized,
                 newline,
                 definition,
                 blocks,
+                readonlyAnswerInstances,
                 unansweredRoot,
                 frontMatter.IsPresent,
                 surface));
@@ -299,14 +411,65 @@ internal sealed class DocumentArtifact
         }
 
         var selected = Surface[selection - 1];
-        if (selected.Cardinality == DocumentQuestionCardinality.Many)
-        {
-            return DocumentArtifactMutationResult.Failure(
-                $"UPDATE109: Question '{selected.QuestionId}' has cardinality 'many'. Multiple-answer authoring is not supported by the current Document preview yet.");
-        }
-
         var lines = normalizedSource.Split('\n').ToList();
         var answerLines = NormalizeNewlines(answer.Trim()).Split('\n').ToArray();
+
+        if (selected.Cardinality == DocumentQuestionCardinality.Many)
+        {
+            if (selected.AnswerInstanceId is not null)
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE110: AnswerInstance '{selected.AnswerInstanceId}' already exists for question '{selected.QuestionId}'. Editing repeated AnswerInstances is not supported by the current preview yet.");
+            }
+
+            if (!string.Equals(
+                    materializationTemplate.MultipleAnswerStrategy,
+                    "marked-instances",
+                    StringComparison.Ordinal) ||
+                !string.Equals(
+                    materializationTemplate.AnswerInstanceStrategy,
+                    "explicit-marker",
+                    StringComparison.Ordinal))
+            {
+                return DocumentArtifactMutationResult.Failure(
+                    $"UPDATE111: Configured template '{materializationTemplate.Id}' does not define the repeated AnswerInstance materialization contract required for cardinality 'many'.");
+            }
+
+            var renderedQuestion = DocumentMaterialization.RenderQuestion(
+                selected.Text,
+                selected.Depth,
+                materializationTemplate);
+            if (!renderedQuestion.IsSuccess)
+                return DocumentArtifactMutationResult.Failure(renderedQuestion.Error!);
+
+            var answerInstanceId = "answer-" + Guid.NewGuid().ToString("N");
+            var renderedInstance = RenderAnswerInstanceBlock(
+                selected.QuestionId,
+                answerInstanceId,
+                answerLines);
+
+            if (!answerInstances.TryGetValue(selected.QuestionId, out var existing) ||
+                existing.Count == 0)
+            {
+                AppendManyQuestion(
+                    lines,
+                    renderedQuestion.Source!,
+                    renderedInstance);
+            }
+            else
+            {
+                InsertAnswerInstanceAfter(
+                    lines,
+                    existing[^1].EndLine,
+                    renderedInstance);
+            }
+
+            var repeatedCandidate = string.Join("\n", lines);
+            if (!newline.Equals("\n", StringComparison.Ordinal))
+                repeatedCandidate = repeatedCandidate.Replace("\n", newline, StringComparison.Ordinal);
+
+            return DocumentArtifactMutationResult.Success(repeatedCandidate, selected);
+        }
 
         if (unansweredRoot is not null)
         {
@@ -388,6 +551,7 @@ internal sealed class DocumentArtifact
         DocumentQuestionDefinition rootQuestion,
         MaterializationTemplateDefinition materializationTemplate,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
+        IReadOnlyDictionary<string, List<AnswerInstanceBlock>> answerInstances,
         IReadOnlyDictionary<string, QuestionInfo> questionIndex)
     {
         var validationError = DocumentMaterialization.ValidateTemplate(materializationTemplate);
@@ -439,6 +603,42 @@ internal sealed class DocumentArtifact
             {
                 return MarkerlessRootReadResult.Failure(
                     $"DOCART027: Materialized question '{pair.Key}' must be preceded by its configured heading level {expectedLevel}.");
+            }
+
+            answerEndLine = Math.Min(answerEndLine, heading.Value);
+        }
+
+        foreach (var pair in answerInstances)
+        {
+            if (pair.Value.Count == 0)
+                continue;
+
+            if (!questionIndex.TryGetValue(pair.Key, out var info))
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"DOCART033: AnswerInstances refer to question '{pair.Key}', which is not defined by the installed Docs Standard.");
+            }
+
+            if (info.Depth == 0)
+                continue;
+
+            var expectedLevel = materializationTemplate.QuestionPresentation.RootLevel + info.Depth;
+            if (expectedLevel > 6)
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"TMPL107: Configured template '{materializationTemplate.Id}' maps semantic depth {info.Depth} to Markdown heading level {expectedLevel}, beyond the supported maximum of 6.");
+            }
+
+            var first = pair.Value.OrderBy(instance => instance.StartLine).First();
+            var heading = FindQuestionHeadingLine(
+                lines,
+                first.StartLine,
+                expectedLevel,
+                frontMatterClosingLine + 1);
+            if (heading is null)
+            {
+                return MarkerlessRootReadResult.Failure(
+                    $"DOCART036: Repeated question '{pair.Key}' must be preceded by its configured heading level {expectedLevel}.");
             }
 
             answerEndLine = Math.Min(answerEndLine, heading.Value);
@@ -559,6 +759,7 @@ internal sealed class DocumentArtifact
     private static IReadOnlyList<DocumentQuestionAffordance> BuildSurface(
         DocumentDefinition definition,
         IReadOnlyDictionary<string, QuestionBlock> blocks,
+        IReadOnlyDictionary<string, IReadOnlyList<AnswerInstanceBlock>> answerInstances,
         UnansweredRoot? unansweredRoot)
     {
         var surface = new List<DocumentQuestionAffordance>();
@@ -572,7 +773,9 @@ internal sealed class DocumentArtifact
                 0,
                 definition.RootQuestion.Cardinality,
                 IsMaterialized: true,
-                IsAnswered: false));
+                IsAnswered: false,
+                AnswerInstanceId: null,
+                AnswerPreview: null));
             return surface;
         }
 
@@ -581,6 +784,41 @@ internal sealed class DocumentArtifact
 
         void Add(DocumentQuestionDefinition question, int depth)
         {
+            if (question.Cardinality == DocumentQuestionCardinality.Many)
+            {
+                if (answerInstances.TryGetValue(question.Id, out var instances))
+                {
+                    foreach (var instance in instances)
+                    {
+                        surface.Add(new DocumentQuestionAffordance(
+                            surface.Count + 1,
+                            question.Id,
+                            question.Text,
+                            depth,
+                            question.Cardinality,
+                            IsMaterialized: true,
+                            IsAnswered: true,
+                            instance.Id,
+                            instance.AnswerPreview));
+                    }
+                }
+
+                surface.Add(new DocumentQuestionAffordance(
+                    surface.Count + 1,
+                    question.Id,
+                    question.Text,
+                    depth,
+                    question.Cardinality,
+                    IsMaterialized: false,
+                    IsAnswered: false,
+                    AnswerInstanceId: null,
+                    AnswerPreview: null));
+
+                // Children of a repeated question are scoped through a concrete
+                // AnswerInstance. That is the next deliberate authoring slice.
+                return;
+            }
+
             var materialized = blocks.ContainsKey(question.Id);
             surface.Add(new DocumentQuestionAffordance(
                 surface.Count + 1,
@@ -589,7 +827,9 @@ internal sealed class DocumentArtifact
                 depth,
                 question.Cardinality,
                 materialized,
-                IsAnswered: materialized));
+                IsAnswered: materialized,
+                AnswerInstanceId: null,
+                AnswerPreview: null));
 
             if (!materialized)
                 return;
@@ -608,7 +848,7 @@ internal sealed class DocumentArtifact
 
         void Add(DocumentQuestionDefinition question, string? parentId, int depth)
         {
-            index.Add(question.Id, new QuestionInfo(parentId, depth));
+            index.Add(question.Id, new QuestionInfo(parentId, depth, question));
             foreach (var child in question.Children)
                 Add(child, question.Id, depth + 1);
         }
@@ -628,6 +868,48 @@ internal sealed class DocumentArtifact
         result.AddRange(answerLines);
         result.Add(QuestionEndMarker);
         return result;
+    }
+
+    private static IReadOnlyList<string> RenderAnswerInstanceBlock(
+        string questionId,
+        string answerInstanceId,
+        IReadOnlyList<string> answerLines)
+    {
+        var result = new List<string>
+        {
+            $"<!-- vslices:answer-instance question={questionId} id={answerInstanceId} -->"
+        };
+        result.AddRange(answerLines);
+        result.Add(AnswerInstanceEndMarker);
+        return result;
+    }
+
+    private static void AppendManyQuestion(
+        List<string> lines,
+        string renderedQuestion,
+        IReadOnlyList<string> renderedInstance)
+    {
+        while (lines.Count > 0 && lines[^1].Length == 0)
+            lines.RemoveAt(lines.Count - 1);
+
+        if (lines.Count > 0)
+            lines.Add(string.Empty);
+
+        lines.Add(renderedQuestion);
+        lines.Add(string.Empty);
+        lines.AddRange(renderedInstance);
+        lines.Add(string.Empty);
+    }
+
+    private static void InsertAnswerInstanceAfter(
+        List<string> lines,
+        int endLine,
+        IReadOnlyList<string> renderedInstance)
+    {
+        var insertion = new List<string> { string.Empty };
+        insertion.AddRange(renderedInstance);
+        insertion.Add(string.Empty);
+        lines.InsertRange(endLine + 1, insertion);
     }
 
     private void AppendQuestion(
@@ -660,13 +942,41 @@ internal sealed class DocumentArtifact
             var trimmed = line.Trim();
             if (trimmed.StartsWith(PlaceholderStem, StringComparison.Ordinal) ||
                 trimmed.StartsWith(QuestionStem, StringComparison.Ordinal) ||
-                trimmed.Equals(QuestionEndMarker, StringComparison.Ordinal))
+                trimmed.StartsWith(AnswerInstanceStem, StringComparison.Ordinal) ||
+                trimmed.Equals(QuestionEndMarker, StringComparison.Ordinal) ||
+                trimmed.Equals(AnswerInstanceEndMarker, StringComparison.Ordinal))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool TryParseAnswerInstanceMarker(
+        string value,
+        out string questionId,
+        out string answerInstanceId)
+    {
+        questionId = string.Empty;
+        answerInstanceId = string.Empty;
+
+        if (!value.StartsWith(AnswerInstancePrefix, StringComparison.Ordinal) ||
+            !value.EndsWith(MarkerSuffix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var payload = value[AnswerInstancePrefix.Length..^MarkerSuffix.Length];
+        var separator = payload.IndexOf(AnswerInstanceIdSeparator, StringComparison.Ordinal);
+        if (separator <= 0)
+            return false;
+
+        questionId = payload[..separator];
+        answerInstanceId = payload[(separator + AnswerInstanceIdSeparator.Length)..];
+
+        return IsStableIdentifier(questionId) &&
+               IsStableIdentifier(answerInstanceId);
     }
 
     private static bool TryParseQuestionIdentityMarker(
@@ -750,7 +1060,16 @@ internal sealed class DocumentArtifact
         int StartLine,
         int EndLine,
         bool IsMarkerless);
-    private sealed record QuestionInfo(string? ParentId, int Depth);
+    private sealed record AnswerInstanceBlock(
+        string QuestionId,
+        string Id,
+        int StartLine,
+        int EndLine,
+        string AnswerPreview);
+    private sealed record QuestionInfo(
+        string? ParentId,
+        int Depth,
+        DocumentQuestionDefinition Definition);
 
     private sealed record MarkerlessRootReadResult(
         UnansweredRoot? UnansweredRoot,
@@ -778,5 +1097,70 @@ internal sealed class DocumentArtifact
         public bool IsSuccess => Block is not null && Error is null;
         public static QuestionBlockReadResult Success(QuestionBlock block) => new(block, null);
         public static QuestionBlockReadResult Failure(string error) => new(null, error);
+    }
+
+    private static AnswerInstanceBlockReadResult ReadAnswerInstanceBlock(
+        IReadOnlyList<string> lines,
+        int startLine,
+        string questionId,
+        string answerInstanceId)
+    {
+        var endLine = -1;
+        for (var candidate = startLine + 1; candidate < lines.Count; candidate++)
+        {
+            var nested = lines[candidate].Trim();
+            if (nested.Equals(AnswerInstanceEndMarker, StringComparison.Ordinal))
+            {
+                endLine = candidate;
+                break;
+            }
+
+            if (nested.StartsWith(QuestionStem, StringComparison.Ordinal) ||
+                nested.StartsWith(PlaceholderStem, StringComparison.Ordinal) ||
+                nested.StartsWith(AnswerInstanceStem, StringComparison.Ordinal))
+            {
+                return AnswerInstanceBlockReadResult.Failure(
+                    $"DOCART037: AnswerInstance '{answerInstanceId}' for question '{questionId}' contains nested VSlices metadata before its closing marker.");
+            }
+        }
+
+        if (endLine < 0)
+        {
+            return AnswerInstanceBlockReadResult.Failure(
+                $"DOCART038: AnswerInstance '{answerInstanceId}' for question '{questionId}' is missing '{AnswerInstanceEndMarker}'.");
+        }
+
+        var answerLines = lines
+            .Skip(startLine + 1)
+            .Take(endLine - startLine - 1)
+            .ToArray();
+        if (!answerLines.Any(line => !string.IsNullOrWhiteSpace(line)))
+        {
+            return AnswerInstanceBlockReadResult.Failure(
+                $"DOCART039: AnswerInstance '{answerInstanceId}' for question '{questionId}' must contain a non-empty answer.");
+        }
+
+        var preview = answerLines
+            .First(line => !string.IsNullOrWhiteSpace(line))
+            .Trim();
+
+        return AnswerInstanceBlockReadResult.Success(
+            new AnswerInstanceBlock(
+                questionId,
+                answerInstanceId,
+                startLine,
+                endLine,
+                preview));
+    }
+
+    private sealed record AnswerInstanceBlockReadResult(
+        AnswerInstanceBlock? Block,
+        string? Error)
+    {
+        public bool IsSuccess => Block is not null && Error is null;
+        public static AnswerInstanceBlockReadResult Success(AnswerInstanceBlock block) =>
+            new(block, null);
+        public static AnswerInstanceBlockReadResult Failure(string error) =>
+            new(null, error);
     }
 }
