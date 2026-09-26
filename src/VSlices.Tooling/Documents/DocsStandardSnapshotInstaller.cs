@@ -42,6 +42,17 @@ internal static class DocsStandardSnapshotInstaller
             File.Copy(sourcePath, targetPath, overwrite: true);
         }
 
+        // Nexus and Continuity Path definitions are currently candidate surfaces rather
+        // than manifest-promoted Document vocabulary. Tooling still snapshots their
+        // known directories so explicit relational authoring can consume the exact
+        // version of those candidate languages that accompanied the installed standard.
+        CopyOptionalDefinitionDirectory(materializedRoot, preparedRoot, "nexus");
+        CopyOptionalDefinitionDirectory(materializedRoot, preparedRoot, "continuity-paths");
+
+        var relationalValidation = RelationalStandardCatalog.Load(preparedRoot);
+        if (!relationalValidation.IsSuccess)
+            return DocsStandardSnapshotPreparationResult.Failure(relationalValidation.Error!);
+
         var preparedValidation = DocsStandardCatalog.Load(preparedRoot);
         if (!preparedValidation.IsSuccess)
             return DocsStandardSnapshotPreparationResult.Failure(preparedValidation.Error!);
@@ -76,6 +87,25 @@ internal static class DocsStandardSnapshotInstaller
         {
             if (Directory.Exists(backup) && Directory.Exists(target))
                 Directory.Delete(backup, recursive: true);
+        }
+    }
+
+    private static void CopyOptionalDefinitionDirectory(
+        string materializedRoot,
+        string preparedRoot,
+        string directoryName)
+    {
+        var sourceRoot = Path.Combine(materializedRoot, directoryName);
+        if (!Directory.Exists(sourceRoot))
+            return;
+
+        var targetRoot = Path.Combine(preparedRoot, directoryName);
+        Directory.CreateDirectory(targetRoot);
+
+        foreach (var sourcePath in Directory.EnumerateFiles(sourceRoot, "*.yml", SearchOption.TopDirectoryOnly))
+        {
+            var targetPath = Path.Combine(targetRoot, Path.GetFileName(sourcePath));
+            File.Copy(sourcePath, targetPath, overwrite: true);
         }
     }
 
