@@ -493,7 +493,13 @@ internal static class RelationalArtifact
         sb.AppendLine();
         sb.AppendLine($"# Nexus {definition.Type} de {target}");
         sb.AppendLine();
-        foreach (var question in definition.Questions) RenderQuestionTree(sb, question, 2);
+        if (definition.Questions.Count > 0)
+        {
+            sb.AppendLine("## Preguntas abiertas");
+            sb.AppendLine();
+            foreach (var question in definition.Questions)
+                RenderQuestionTree(sb, question, 3);
+        }
         RenderAssociatedArtifacts(sb, []);
         return sb.ToString();
     }
@@ -518,6 +524,9 @@ internal static class RelationalArtifact
         sb.AppendLine("## Propósito del recorrido");
         RenderQuestionBlock(sb, "__purpose", definition.Purpose);
         sb.AppendLine();
+        sb.AppendLine("## Preguntas de continuidad");
+        sb.AppendLine();
+        RenderQuestionTree(sb, definition.RootQuestion, 3);
         sb.AppendLine("## Diagrama de continuidad");
         sb.AppendLine();
         sb.AppendLine("### Recorrido recomendado");
