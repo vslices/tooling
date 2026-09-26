@@ -49,6 +49,19 @@ internal static class DocumentDiscoveryCommands
         }
 
         var source = await File.ReadAllTextAsync(path, cancellationToken);
+        KnowledgeArtifactMetadata? metadata = null;
+        if (source.TrimStart().StartsWith("---", StringComparison.Ordinal))
+        {
+            var metadataRead = KnowledgeArtifactFrontMatter.Read(source);
+            if (!metadataRead.IsSuccess)
+            {
+                TerminalOutput.Error(metadataRead.Error!);
+                return 2;
+            }
+
+            metadata = metadataRead.Metadata;
+        }
+
         var state = DocumentArtifact.Read(
             source,
             catalog.Catalog!,
@@ -63,6 +76,16 @@ internal static class DocumentDiscoveryCommands
         Console.WriteLine("Document:");
         Console.WriteLine($"  path: {Path.GetRelativePath(Environment.CurrentDirectory, path)}");
         Console.WriteLine($"  type: {artifact.DocumentType}");
+        Console.WriteLine($"  scope: {metadata?.Scope ?? "<unset>"}");
+        Console.WriteLine($"  target: {metadata?.Target ?? "<unset>"}");
+        Console.WriteLine($"  status: {metadata?.Status ?? "<legacy>"}");
+        Console.WriteLine($"  tooling: {metadata?.ToolingVersion ?? "<legacy>"}");
+        if (metadata is { Relations.Count: > 0 })
+        {
+            Console.WriteLine("  relations:");
+            foreach (var relation in metadata.Relations)
+                Console.WriteLine($"    - {relation.Relation}: {relation.Path} ({relation.Role})");
+        }
         Console.WriteLine();
         Console.WriteLine("Current document surface:");
 

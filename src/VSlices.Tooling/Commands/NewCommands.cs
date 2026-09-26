@@ -6,90 +6,51 @@ internal static class NewCommands
 {
     /// <summary>Creates the minimal progressive VSIR artifact for a semantic name.</summary>
     /// <param name="name">Semantic name of the concept being introduced.</param>
-    public static async Task<int> Vsir(
-        [Argument] string name,
-        CancellationToken cancellationToken = default)
+    public static async Task<int> Vsir([Argument] string name, CancellationToken cancellationToken = default)
     {
         var result = VsirTemplate.Create(name);
-
         if (!result.IsSuccess)
         {
             Console.Error.WriteLine(result.Error);
             return 2;
         }
-
-        var defaultPath = Path.GetFullPath(
-            name.EndsWith(".vsir", StringComparison.OrdinalIgnoreCase)
-                ? name
-                : name + ".vsir",
-            Environment.CurrentDirectory);
-
-        return await CommandInfrastructure.WriteResult(
-            result.Source!,
-            defaultPath,
-            output: null,
-            stdout: false,
-            overwrite: false,
-            cancellationToken);
+        var defaultPath = Path.GetFullPath(name.EndsWith(".vsir", StringComparison.OrdinalIgnoreCase) ? name : name + ".vsir", Environment.CurrentDirectory);
+        return await CommandInfrastructure.WriteResult(result.Source!, defaultPath, output: null, stdout: false, overwrite: false, cancellationToken);
     }
 
-    /// <summary>Creates the minimal progressive Markdown artifact for a Docs Standard document type.</summary>
-    /// <param name="name">Document name or path. The .md extension is added when omitted.</param>
-    /// <param name="kind">Document type defined by the installed VSlices Docs Standard.</param>
-    public static async Task<int> Document(
-        [Argument] string name,
-        string? kind = null,
-        CancellationToken cancellationToken = default)
+    /// <summary>Creates a progressive Document, optionally from a recommendation.</summary>
+    /// <param name="name">Document name/path; derived from target and type when omitted.</param>
+    /// <param name="kind">Document type from the installed Docs Standard.</param>
+    /// <param name="target">Concrete target; required unless inherited from a recommendation.</param>
+    /// <param name="scope">Explicit target classification.</param>
+    /// <param name="fromNexus">Source Nexus and current selection: &lt;artifact&gt;:&lt;selection&gt;.</param>
+    /// <param name="fromPath">Source Continuity Path and current selection: &lt;artifact&gt;:&lt;selection&gt;.</param>
+    /// <param name="relatedTo">Arbitrary existing artifact to associate with; requires --role.</param>
+    /// <param name="role">Concrete association role; overrides recommendation wording and is ignored when standalone.</param>
+    public static Task<int> Document(
+        [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
+        string? fromNexus = null, string? fromPath = null, string? relatedTo = null, string? role = null,
+        CancellationToken cancellationToken = default) =>
+        Create(new("document", name, kind, target, scope, fromNexus, fromPath, relatedTo, role), cancellationToken);
+
+    /// <summary>Creates a Nexus composition artifact, optionally from a recommendation.</summary>
+    public static Task<int> Nexus(
+        [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
+        string? fromNexus = null, string? fromPath = null, string? relatedTo = null, string? role = null,
+        CancellationToken cancellationToken = default) =>
+        Create(new("nexus", name, kind, target, scope, fromNexus, fromPath, relatedTo, role), cancellationToken);
+
+    /// <summary>Creates a Continuity Path trajectory artifact.</summary>
+    public static Task<int> ContinuityPath(
+        [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
+        string? relatedTo = null, string? role = null, CancellationToken cancellationToken = default) =>
+        Create(new("continuity-path", name, kind, target, scope, null, null, relatedTo, role), cancellationToken);
+
+    private static async Task<int> Create(KnowledgeArtifactCreationRequest request, CancellationToken cancellationToken)
     {
-        var standardRoot = DocsStandardCatalog.FindInstalledRoot(Environment.CurrentDirectory);
-        if (standardRoot is null)
-        {
-            Console.Error.WriteLine(
-                "NEW104: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard' to install it.");
-            return 1;
-        }
-
-        var catalog = DocsStandardCatalog.Load(standardRoot);
-        if (!catalog.IsSuccess)
-        {
-            Console.Error.WriteLine(catalog.Error);
-            return 1;
-        }
-
-        var materialization = DocumentMaterializationEnvironment.Resolve(
-            Environment.CurrentDirectory);
-        if (!materialization.IsSuccess)
-        {
-            Console.Error.WriteLine(materialization.Error);
-            return 1;
-        }
-
-        var result = DocumentTemplate.Create(
-            name,
-            kind,
-            catalog.Catalog!,
-            materialization.Template!);
-        if (!result.IsSuccess)
-        {
-            Console.Error.WriteLine(result.Error);
-            return 2;
-        }
-
-        var path = DocumentPathResolver.Resolve(
-            name,
-            Environment.CurrentDirectory);
-        if (!path.IsSuccess)
-        {
-            TerminalOutput.Error(path.Error!);
-            return 2;
-        }
-
-        return await CommandInfrastructure.WriteResult(
-            result.Source!,
-            path.Path!,
-            output: null,
-            stdout: false,
-            overwrite: false,
-            cancellationToken);
+        var result = await KnowledgeArtifactCreation.Execute(request, Environment.CurrentDirectory, cancellationToken);
+        if (result.Error is not null) TerminalOutput.Error(result.Error);
+        else Console.WriteLine($"Created {request.Family} '{result.Path}'.");
+        return result.ExitCode;
     }
 }

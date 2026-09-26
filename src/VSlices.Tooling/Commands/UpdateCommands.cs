@@ -31,10 +31,16 @@ internal static class UpdateCommands
         TerminalOutput.Detail("Mode", check ? "check only" : "install");
         TerminalOutput.BlankLine();
 
+        var configurationOverridden =
+            channel is not null ||
+            source is not null ||
+            pullRequest is not null;
+
         return SelfUpdater.Update(
             resolvedSource,
             resolvedChannel,
             resolvedPullRequest,
+            configurationOverridden,
             check,
             cancellationToken);
     }
@@ -199,6 +205,19 @@ internal static class UpdateCommands
         }
 
         var source = await File.ReadAllTextAsync(path, cancellationToken);
+        KnowledgeArtifactMetadata? metadata = null;
+        if (source.TrimStart().StartsWith("---", StringComparison.Ordinal))
+        {
+            var metadataRead = KnowledgeArtifactFrontMatter.Read(source);
+            if (!metadataRead.IsSuccess)
+            {
+                TerminalOutput.Error(metadataRead.Error!);
+                return 2;
+            }
+
+            metadata = metadataRead.Metadata;
+        }
+
         var state = DocumentArtifact.Read(
             source,
             catalog.Catalog!,
@@ -219,7 +238,14 @@ internal static class UpdateCommands
             return 2;
         }
 
-        await CommandInfrastructure.AtomicWrite(path, candidate.Source!, cancellationToken);
+        var updatedSource = metadata is null
+            ? candidate.Source!
+            : KnowledgeArtifactFrontMatter.WithMetadata(
+                candidate.Source!,
+                metadata,
+                metadata.Relations);
+
+        await CommandInfrastructure.AtomicWrite(path, updatedSource, cancellationToken);
         Console.WriteLine(
             $"Updated question [{questionId}] '{candidate.Question!.Text}' in '{path}'.");
         return 0;

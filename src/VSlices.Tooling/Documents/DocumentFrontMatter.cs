@@ -59,7 +59,7 @@ internal static class DocumentFrontMatter
                     "DOCART018: Document front-matter must contain exactly one YAML mapping.");
             }
 
-            var unknownRootKey = FirstUnknownKey(root, "artifact");
+            var unknownRootKey = FirstUnknownKey(root, "artifact", "metadata", "tooling");
             if (unknownRootKey is not null)
             {
                 return DocumentFrontMatterReadResult.Failure(
@@ -73,7 +73,7 @@ internal static class DocumentFrontMatter
                     "DOCART020: Document front-matter must contain an artifact mapping.");
             }
 
-            var unknownArtifactKey = FirstUnknownKey(artifact, "kind", "type");
+            var unknownArtifactKey = FirstUnknownKey(artifact, "kind", "type", "scope", "target");
             if (unknownArtifactKey is not null)
             {
                 return DocumentFrontMatterReadResult.Failure(
