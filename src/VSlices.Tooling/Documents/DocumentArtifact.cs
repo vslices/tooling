@@ -56,6 +56,7 @@ internal sealed class DocumentArtifact
     private const string AnswerInstancePrefix = "<!-- vslices:answer-instance question=";
     private const string AnswerInstanceStem = "<!-- vslices:answer-instance";
     private const string AnswerInstanceIdSeparator = " id=";
+    private const string AnswerInstanceParentSeparator = " parent-answer-instance=";
     private const string AnswerInstanceEndMarker = "<!-- /vslices:answer-instance -->";
     private const string ScopedQuestionPrefix = "<!-- vslices:scoped-question question=";
     private const string ScopedQuestionStem = "<!-- vslices:scoped-question";
@@ -165,7 +166,8 @@ internal sealed class DocumentArtifact
             if (TryParseAnswerInstanceMarker(
                     trimmed,
                     out var answerInstanceQuestion,
-                    out var answerInstanceId))
+                    out var answerInstanceId,
+                    out var answerInstanceParentId))
             {
                 if (!answerInstanceIds.Add(answerInstanceId))
                 {
@@ -177,7 +179,8 @@ internal sealed class DocumentArtifact
                     lines,
                     index,
                     answerInstanceQuestion,
-                    answerInstanceId);
+                    answerInstanceId,
+                    answerInstanceParentId);
                 if (!instance.IsSuccess)
                     return DocumentArtifactReadResult.Failure(instance.Error!);
 
@@ -400,16 +403,55 @@ internal sealed class DocumentArtifact
                 }
 
                 var parent = questionIndex[info.ParentId];
-                if (parent.Definition.Cardinality == DocumentQuestionCardinality.Many)
+                foreach (var instance in pair.Value)
                 {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART032: Question '{pair.Key}' is scoped through repeated parent '{info.ParentId}'. Child scoping through AnswerInstances is not supported by the current preview.");
-                }
+                    if (instance.ParentAnswerInstanceId is null)
+                    {
+                        if (parent.Definition.Cardinality == DocumentQuestionCardinality.Many)
+                        {
+                            return DocumentArtifactReadResult.Failure(
+                                $"DOCART052: Repeated question '{pair.Key}' under repeated parent '{info.ParentId}' must preserve parent AnswerInstance scope.");
+                        }
 
-                if (!blocks.ContainsKey(info.ParentId))
-                {
-                    return DocumentArtifactReadResult.Failure(
-                        $"DOCART016: Materialized question '{pair.Key}' requires answered parent '{info.ParentId}'.");
+                        if (!blocks.ContainsKey(info.ParentId))
+                        {
+                            return DocumentArtifactReadResult.Failure(
+                                $"DOCART016: Materialized question '{pair.Key}' requires answered parent '{info.ParentId}'.");
+                        }
+
+                        continue;
+                    }
+
+                    if (!answerInstanceIds.Contains(instance.ParentAnswerInstanceId))
+                    {
+                        return DocumentArtifactReadResult.Failure(
+                            $"DOCART053: AnswerInstance '{instance.Id}' for question '{pair.Key}' refers to unknown parent AnswerInstance '{instance.ParentAnswerInstanceId}'.");
+                    }
+
+                    if (parent.Definition.Cardinality == DocumentQuestionCardinality.Many)
+                    {
+                        var repeatedParent = answerInstances
+                            .SelectMany(candidate => candidate.Value)
+                            .FirstOrDefault(candidate =>
+                                candidate.Id.Equals(instance.ParentAnswerInstanceId, StringComparison.Ordinal));
+                        if (repeatedParent is null ||
+                            !repeatedParent.QuestionId.Equals(info.ParentId, StringComparison.Ordinal))
+                        {
+                            return DocumentArtifactReadResult.Failure(
+                                $"DOCART054: AnswerInstance '{instance.Id}' for question '{pair.Key}' is not scoped to an AnswerInstance of repeated parent '{info.ParentId}'.");
+                        }
+                    }
+                    else
+                    {
+                        var scopedParentKey = new ScopedQuestionKey(
+                            instance.ParentAnswerInstanceId,
+                            info.ParentId);
+                        if (!scopedBlocks.ContainsKey(scopedParentKey))
+                        {
+                            return DocumentArtifactReadResult.Failure(
+                                $"DOCART055: AnswerInstance '{instance.Id}' for question '{pair.Key}' requires answered scoped parent '{info.ParentId}' under AnswerInstance '{instance.ParentAnswerInstanceId}'.");
+                        }
+                    }
                 }
             }
 
@@ -527,12 +569,6 @@ internal sealed class DocumentArtifact
 
         if (selected.Cardinality == DocumentQuestionCardinality.Many)
         {
-            if (selected.ScopeAnswerInstanceId is not null)
-            {
-                return DocumentArtifactMutationResult.Failure(
-                    $"UPDATE113: Nested repeated question '{selected.QuestionId}' is scoped through AnswerInstance '{selected.ScopeAnswerInstanceId}'. Recursive many authoring is not supported by the current preview yet.");
-            }
-
             if (selected.AnswerInstanceId is not null)
             {
                 return DocumentArtifactMutationResult.Failure(
@@ -563,22 +599,85 @@ internal sealed class DocumentArtifact
             var renderedInstance = RenderAnswerInstanceBlock(
                 selected.QuestionId,
                 answerInstanceId,
+                selected.ScopeAnswerInstanceId,
                 answerLines);
 
-            if (!answerInstances.TryGetValue(selected.QuestionId, out var existing) ||
-                existing.Count == 0)
+            var matchingInstances = answerInstances.TryGetValue(selected.QuestionId, out var existing)
+                ? existing
+                    .Where(instance =>
+                        string.Equals(
+                            instance.ParentAnswerInstanceId,
+                            selected.ScopeAnswerInstanceId,
+                            StringComparison.Ordinal))
+                    .OrderBy(instance => instance.StartLine)
+                    .ToArray()
+                : [];
+
+            if (selected.ScopeAnswerInstanceId is null)
             {
-                AppendManyQuestion(
-                    lines,
-                    renderedQuestion.Source!,
-                    renderedInstance);
+                if (matchingInstances.Length == 0)
+                {
+                    AppendManyQuestion(
+                        lines,
+                        renderedQuestion.Source!,
+                        renderedInstance);
+                }
+                else
+                {
+                    InsertAnswerInstanceAfter(
+                        lines,
+                        matchingInstances[^1].EndLine,
+                        renderedInstance);
+                }
             }
             else
             {
-                InsertAnswerInstanceAfter(
-                    lines,
-                    existing[^1].EndLine,
-                    renderedInstance);
+                if (matchingInstances.Length == 0)
+                {
+                    var questionIndex = BuildQuestionIndex(definition.RootQuestion);
+                    var selectedInfo = questionIndex[selected.QuestionId];
+                    var parentQuestionId = selectedInfo.ParentId
+                        ?? throw new InvalidOperationException(
+                            $"Scoped repeated question '{selected.QuestionId}' must have a parent.");
+
+                    int insertionBase;
+                    if (questionIndex[parentQuestionId].Definition.Cardinality ==
+                        DocumentQuestionCardinality.Many)
+                    {
+                        var parentInstance = answerInstances
+                            .SelectMany(pair => pair.Value)
+                            .Single(instance => instance.Id.Equals(
+                                selected.ScopeAnswerInstanceId,
+                                StringComparison.Ordinal));
+                        insertionBase = parentInstance.EndLine;
+                    }
+                    else
+                    {
+                        var scopedParentKey = new ScopedQuestionKey(
+                            selected.ScopeAnswerInstanceId,
+                            parentQuestionId);
+                        if (!scopedBlocks.TryGetValue(scopedParentKey, out var scopedParent))
+                        {
+                            return DocumentArtifactMutationResult.Failure(
+                                $"UPDATE114: Repeated scoped question '{selected.QuestionId}' requires answered scoped parent '{parentQuestionId}' under AnswerInstance '{selected.ScopeAnswerInstanceId}'.");
+                        }
+
+                        insertionBase = scopedParent.EndLine;
+                    }
+
+                    InsertScopedQuestionAfter(
+                        lines,
+                        insertionBase,
+                        renderedQuestion.Source!,
+                        renderedInstance);
+                }
+                else
+                {
+                    InsertAnswerInstanceAfter(
+                        lines,
+                        matchingInstances[^1].EndLine,
+                        renderedInstance);
+                }
             }
 
             var repeatedCandidate = string.Join("\n", lines);
@@ -1007,7 +1106,7 @@ internal sealed class DocumentArtifact
             {
                 if (answerInstances.TryGetValue(question.Id, out var instances))
                 {
-                    foreach (var instance in instances)
+                    foreach (var instance in instances.Where(instance => instance.ParentAnswerInstanceId is null))
                     {
                         surface.Add(new DocumentQuestionAffordance(
                             surface.Count + 1,
@@ -1071,7 +1170,32 @@ internal sealed class DocumentArtifact
         {
             if (question.Cardinality == DocumentQuestionCardinality.Many)
             {
-                // Nested repeated answers are the next recursion pressure.
+                if (answerInstances.TryGetValue(question.Id, out var instances))
+                {
+                    foreach (var instance in instances.Where(instance =>
+                                 string.Equals(
+                                     instance.ParentAnswerInstanceId,
+                                     answerInstanceId,
+                                     StringComparison.Ordinal)))
+                    {
+                        surface.Add(new DocumentQuestionAffordance(
+                            surface.Count + 1,
+                            question.Id,
+                            question.Text,
+                            depth,
+                            question.Cardinality,
+                            IsMaterialized: true,
+                            IsAnswered: true,
+                            instance.Id,
+                            instance.AnswerPreview,
+                            ScopeAnswerInstanceId: answerInstanceId,
+                            HasChildren: question.Children.Count > 0));
+
+                        foreach (var child in question.Children)
+                            AddScoped(child, depth + 1, instance.Id);
+                    }
+                }
+
                 surface.Add(new DocumentQuestionAffordance(
                     surface.Count + 1,
                     question.Id,
@@ -1181,11 +1305,15 @@ internal sealed class DocumentArtifact
     private static IReadOnlyList<string> RenderAnswerInstanceBlock(
         string questionId,
         string answerInstanceId,
+        string? parentAnswerInstanceId,
         IReadOnlyList<string> answerLines)
     {
+        var parentScope = parentAnswerInstanceId is null
+            ? string.Empty
+            : $" parent-answer-instance={parentAnswerInstanceId}";
         var result = new List<string>
         {
-            $"<!-- vslices:answer-instance question={questionId} id={answerInstanceId} -->"
+            $"<!-- vslices:answer-instance question={questionId} id={answerInstanceId}{parentScope} -->"
         };
         result.AddRange(answerLines);
         result.Add(AnswerInstanceEndMarker);
@@ -1309,10 +1437,12 @@ internal sealed class DocumentArtifact
     private static bool TryParseAnswerInstanceMarker(
         string value,
         out string questionId,
-        out string answerInstanceId)
+        out string answerInstanceId,
+        out string? parentAnswerInstanceId)
     {
         questionId = string.Empty;
         answerInstanceId = string.Empty;
+        parentAnswerInstanceId = null;
 
         if (!value.StartsWith(AnswerInstancePrefix, StringComparison.Ordinal) ||
             !value.EndsWith(MarkerSuffix, StringComparison.Ordinal))
@@ -1321,15 +1451,26 @@ internal sealed class DocumentArtifact
         }
 
         var payload = value[AnswerInstancePrefix.Length..^MarkerSuffix.Length];
-        var separator = payload.IndexOf(AnswerInstanceIdSeparator, StringComparison.Ordinal);
-        if (separator <= 0)
+        var idSeparator = payload.IndexOf(AnswerInstanceIdSeparator, StringComparison.Ordinal);
+        if (idSeparator <= 0)
             return false;
 
-        questionId = payload[..separator];
-        answerInstanceId = payload[(separator + AnswerInstanceIdSeparator.Length)..];
+        questionId = payload[..idSeparator];
+        var remainder = payload[(idSeparator + AnswerInstanceIdSeparator.Length)..];
+        var parentSeparator = remainder.IndexOf(AnswerInstanceParentSeparator, StringComparison.Ordinal);
+        if (parentSeparator >= 0)
+        {
+            answerInstanceId = remainder[..parentSeparator];
+            parentAnswerInstanceId = remainder[(parentSeparator + AnswerInstanceParentSeparator.Length)..];
+        }
+        else
+        {
+            answerInstanceId = remainder;
+        }
 
         return IsStableIdentifier(questionId) &&
-               IsStableIdentifier(answerInstanceId);
+               IsStableIdentifier(answerInstanceId) &&
+               (parentAnswerInstanceId is null || IsStableIdentifier(parentAnswerInstanceId));
     }
 
     private static bool TryParseQuestionIdentityMarker(
@@ -1416,6 +1557,7 @@ internal sealed class DocumentArtifact
     private sealed record AnswerInstanceBlock(
         string QuestionId,
         string Id,
+        string? ParentAnswerInstanceId,
         int StartLine,
         int EndLine,
         string AnswerPreview);
@@ -1524,7 +1666,8 @@ internal sealed class DocumentArtifact
         IReadOnlyList<string> lines,
         int startLine,
         string questionId,
-        string answerInstanceId)
+        string answerInstanceId,
+        string? parentAnswerInstanceId)
     {
         var endLine = -1;
         for (var candidate = startLine + 1; candidate < lines.Count; candidate++)
@@ -1569,6 +1712,7 @@ internal sealed class DocumentArtifact
             new AnswerInstanceBlock(
                 questionId,
                 answerInstanceId,
+                parentAnswerInstanceId,
                 startLine,
                 endLine,
                 preview));
