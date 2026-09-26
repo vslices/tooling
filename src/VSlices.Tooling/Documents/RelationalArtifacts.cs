@@ -477,7 +477,10 @@ internal static class RelationalArtifact
     private const string AssociatedStart = "<!-- vslices:associated-artifacts -->";
     private const string AssociatedEnd = "<!-- /vslices:associated-artifacts -->";
 
-    public static string CreateNexus(NexusDefinition definition, string? scope)
+    public static string CreateNexus(
+        NexusDefinition definition,
+        string target,
+        string? scope)
     {
         var effectiveScope = scope ?? definition.Scopes.FirstOrDefault();
         var sb = new StringBuilder();
@@ -485,40 +488,40 @@ internal static class RelationalArtifact
             "nexus",
             definition.Type,
             effectiveScope,
-            target: null,
+            target: target,
             language: "es",
             status: "draft",
             templateName: $"{definition.Type}.nexus",
             relations: []));
         sb.AppendLine();
-        sb.AppendLine($"# Nexus: {definition.Type}");
+        sb.AppendLine($"# Nexus {definition.Type} de {target}");
         sb.AppendLine();
         foreach (var question in definition.Questions) RenderQuestionTree(sb, question, 2);
         RenderAssociatedArtifacts(sb, []);
         return sb.ToString();
     }
 
-    public static string CreateContinuityPath(ContinuityPathDefinition definition, string? scope)
+    public static string CreateContinuityPath(
+        ContinuityPathDefinition definition,
+        string target,
+        string? scope)
     {
         var sb = new StringBuilder();
         sb.AppendLine(KnowledgeArtifactFrontMatter.Render(
             "continuity-path",
             definition.Type,
             scope ?? definition.Type,
-            target: null,
+            target: target,
             language: "es",
             status: "draft",
             templateName: $"{definition.Type}.continuity-path",
             relations: []));
         sb.AppendLine();
-        sb.AppendLine($"# Continuity Path: {definition.Type}");
+        sb.AppendLine($"# Camino de continuidad \"{definition.Type}\" de {target}");
         sb.AppendLine();
         sb.AppendLine("## Propósito del recorrido");
         RenderQuestionBlock(sb, "__purpose", definition.Purpose);
         sb.AppendLine();
-        sb.AppendLine("## Preguntas de continuidad");
-        sb.AppendLine();
-        RenderQuestionTree(sb, definition.RootQuestion, 3);
         sb.AppendLine("## Diagrama de continuidad");
         sb.AppendLine();
         sb.AppendLine("### Recorrido recomendado");
@@ -561,7 +564,6 @@ internal static class RelationalArtifact
             new("1", "__purpose", "Propósito del recorrido", HasAnswer(answers, "__purpose"), Answer(answers, "__purpose"), null, []),
             new("2", "__recommended-traversal", "Recorrido recomendado", HasAnswer(answers, "__recommended-traversal"), Answer(answers, "__recommended-traversal"), null, [])
         };
-        AddProgressiveQuestion(definition.RootQuestion, "3", null, answers, surfaces);
         return RelationalArtifactStateResult.Success(new RelationalArtifactState(metadata.Metadata, surfaces, source));
     }
 
