@@ -81,12 +81,12 @@ internal static class DocumentDiscoveryCommands
             .GroupBy(question => question.ParentSelection!.Value)
             .ToDictionary(
                 group => group.Key,
-                group => group.Select(question => question.Selection).ToArray());
+                group => group.Select(question => question.SelectionPath).ToArray());
 
         foreach (var question in artifact.Surface)
         {
             Console.WriteLine();
-            Console.WriteLine($"[{question.Selection}] {question.Text}");
+            Console.WriteLine($"[{question.SelectionPath}] {question.Text}");
             Console.WriteLine($"  status: {DisplayStatus(question)}");
             Console.WriteLine($"  cardinality: {DisplayCardinality(question.Cardinality)}");
 
@@ -102,7 +102,7 @@ internal static class DocumentDiscoveryCommands
                 questionsBySelection.TryGetValue(parentSelection, out var parent))
             {
                 Console.WriteLine("  parent:");
-                Console.WriteLine($"    question: [{parent.Selection}] {parent.Text}");
+                Console.WriteLine($"    question: [{parent.SelectionPath}] {parent.Text}");
             }
 
             if (question.ScopeAnswerInstanceId is not null)
@@ -130,7 +130,7 @@ internal static class DocumentDiscoveryCommands
             else
             {
                 Console.WriteLine(
-                    $"  command: vslices update document {QuoteArgument(document)} --question-id {question.Selection} --answer \"<answer>\"");
+                    $"  command: vslices update document {QuoteArgument(document)} --question-id {question.SelectionPath} --answer \"<answer>\"");
             }
         }
 
