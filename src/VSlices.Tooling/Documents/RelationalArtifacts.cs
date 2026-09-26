@@ -249,13 +249,23 @@ internal sealed class RelationalStandardCatalog
     }
 }
 
-internal sealed record ArtifactRelation(string Path, string Kind, string Type, string Role, string? RecommendationId);
+internal sealed record ArtifactRelation(
+    string Relation,
+    string Path,
+    string Kind,
+    string Type,
+    string Role,
+    string? RecommendationId);
 
 internal sealed record KnowledgeArtifactMetadata(
     string Kind,
     string Type,
     string? Scope,
+    string? Target,
+    string Language,
+    string Status,
     string ToolingVersion,
+    string? TemplateName,
     IReadOnlyList<ArtifactRelation> Relations,
     int ClosingLine);
 
@@ -292,32 +302,67 @@ internal static class KnowledgeArtifactFrontMatter
             var kind = Scalar(artifact, "kind");
             var type = Scalar(artifact, "type");
             var scope = Scalar(artifact, "scope");
-            var tooling = Scalar(artifact, "tooling-version") ?? "unknown";
+            var target = Scalar(artifact, "target");
+            var language = Scalar(artifact, "language") ?? "es";
             if (string.IsNullOrWhiteSpace(kind) || string.IsNullOrWhiteSpace(type))
                 return KnowledgeArtifactMetadataResult.Failure("RELART005: artifact.kind and artifact.type are required.");
 
+            var metadataNode = root.Children.TryGetValue(new YamlScalarNode("metadata"), out var metadataValue) &&
+                               metadataValue is YamlMappingNode parsedMetadata
+                ? parsedMetadata
+                : null;
+            var status = metadataNode is null ? "draft" : Scalar(metadataNode, "status") ?? "draft";
+
+            var toolingNode = root.Children.TryGetValue(new YamlScalarNode("tooling"), out var toolingValue) &&
+                              toolingValue is YamlMappingNode parsedTooling
+                ? parsedTooling
+                : null;
+            var tooling = toolingNode is null ? "unknown" : Scalar(toolingNode, "version") ?? "unknown";
+            var templateName = toolingNode is null
+                ? null
+                : toolingNode.Children.TryGetValue(new YamlScalarNode("template"), out var templateValue) &&
+                  templateValue is YamlMappingNode templateMapping
+                    ? Scalar(templateMapping, "name")
+                    : null;
+
             var relations = new List<ArtifactRelation>();
-            if (root.Children.TryGetValue(new YamlScalarNode("relations"), out var relationsNode) && relationsNode is YamlSequenceNode sequence)
+            if (metadataNode is not null &&
+                metadataNode.Children.TryGetValue(new YamlScalarNode("relates"), out var relationsNode) &&
+                relationsNode is YamlSequenceNode sequence)
             {
                 foreach (var node in sequence.Children.OfType<YamlMappingNode>())
                 {
-                    var relationPath = Scalar(node, "path");
-                    var relationKind = Scalar(node, "kind");
-                    var relationType = Scalar(node, "type");
-                    var role = Scalar(node, "role");
+                    var relation = Scalar(node, "relation") ?? "related";
+                    var relationPath = Scalar(node, "target");
+                    var relationKind = Scalar(node, "kind") ?? "artifact";
+                    var relationType = Scalar(node, "type") ?? "unknown";
+                    var role = Scalar(node, "role") ?? "Relacionado";
                     var recommendation = Scalar(node, "recommendation");
-                    if (!string.IsNullOrWhiteSpace(relationPath) && !string.IsNullOrWhiteSpace(relationKind) &&
-                        !string.IsNullOrWhiteSpace(relationType) && !string.IsNullOrWhiteSpace(role))
+                    if (!string.IsNullOrWhiteSpace(relationPath))
                     {
                         relations.Add(new ArtifactRelation(
-                            relationPath.Trim(), relationKind.Trim(), relationType.Trim(), role.Trim(),
+                            relation.Trim(),
+                            relationPath.Trim(),
+                            relationKind.Trim(),
+                            relationType.Trim(),
+                            role.Trim(),
                             string.IsNullOrWhiteSpace(recommendation) ? null : recommendation.Trim()));
                     }
                 }
             }
 
             return KnowledgeArtifactMetadataResult.Success(
-                new KnowledgeArtifactMetadata(kind.Trim(), type.Trim(), scope?.Trim(), tooling.Trim(), relations, closing));
+                new KnowledgeArtifactMetadata(
+                    kind.Trim(),
+                    type.Trim(),
+                    scope?.Trim(),
+                    target?.Trim(),
+                    language.Trim(),
+                    status.Trim(),
+                    tooling.Trim(),
+                    templateName?.Trim(),
+                    relations,
+                    closing));
         }
         catch (Exception ex)
         {
@@ -325,7 +370,15 @@ internal static class KnowledgeArtifactFrontMatter
         }
     }
 
-    public static string Render(string kind, string type, string? scope, IReadOnlyList<ArtifactRelation> relations)
+    public static string Render(
+        string kind,
+        string type,
+        string? scope,
+        string? target,
+        string language,
+        string status,
+        string? templateName,
+        IReadOnlyList<ArtifactRelation> relations)
     {
         var sb = new StringBuilder();
         sb.AppendLine("---");
@@ -333,32 +386,59 @@ internal static class KnowledgeArtifactFrontMatter
         sb.AppendLine($"  kind: {YamlScalar(kind)}");
         sb.AppendLine($"  type: {YamlScalar(type)}");
         if (!string.IsNullOrWhiteSpace(scope)) sb.AppendLine($"  scope: {YamlScalar(scope!)}");
-        sb.AppendLine($"  tooling-version: {YamlScalar(CliVersion.Display)}");
+        if (!string.IsNullOrWhiteSpace(target)) sb.AppendLine($"  target: {YamlScalar(target!)}");
+        sb.AppendLine($"  language: {YamlScalar(language)}");
+        sb.AppendLine();
+        sb.AppendLine("metadata:");
+        sb.AppendLine($"  status: {YamlScalar(status)}");
         if (relations.Count > 0)
         {
-            sb.AppendLine("relations:");
+            sb.AppendLine("  relates:");
             foreach (var relation in relations)
             {
-                sb.AppendLine($"  - path: {YamlScalar(relation.Path)}");
-                sb.AppendLine($"    kind: {YamlScalar(relation.Kind)}");
-                sb.AppendLine($"    type: {YamlScalar(relation.Type)}");
-                sb.AppendLine($"    role: {YamlScalar(relation.Role)}");
+                sb.AppendLine($"    - relation: {YamlScalar(relation.Relation)}");
+                sb.AppendLine($"      target: {YamlScalar(relation.Path)}");
+                sb.AppendLine($"      kind: {YamlScalar(relation.Kind)}");
+                sb.AppendLine($"      type: {YamlScalar(relation.Type)}");
+                sb.AppendLine($"      role: {YamlScalar(relation.Role)}");
                 if (!string.IsNullOrWhiteSpace(relation.RecommendationId))
-                    sb.AppendLine($"    recommendation: {YamlScalar(relation.RecommendationId!)}");
+                    sb.AppendLine($"      recommendation: {YamlScalar(relation.RecommendationId!)}");
             }
+        }
+        sb.AppendLine();
+        sb.AppendLine("tooling:");
+        sb.AppendLine($"  version: {YamlScalar(CliVersion.Display)}");
+        sb.AppendLine("  schema:");
+        sb.AppendLine("    version: 0.1.0");
+        if (!string.IsNullOrWhiteSpace(templateName))
+        {
+            sb.AppendLine("  template:");
+            sb.AppendLine($"    name: {YamlScalar(templateName!)}");
+            sb.AppendLine("    version: 0.1.0");
         }
         sb.AppendLine("---");
         return sb.ToString().TrimEnd();
     }
 
-    public static string WithMetadata(string source, string kind, string type, string? scope, IReadOnlyList<ArtifactRelation> relations)
+    public static string WithMetadata(
+        string source,
+        KnowledgeArtifactMetadata metadata,
+        IReadOnlyList<ArtifactRelation> relations)
     {
         var normalized = source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
         var current = Read(normalized);
         var body = current.IsSuccess
             ? string.Join("\n", normalized.Split('\n').Skip(current.Metadata!.ClosingLine + 1)).TrimStart('\n')
             : normalized.TrimStart();
-        return Render(kind, type, scope, relations) + "\n\n" + body;
+        return Render(
+            metadata.Kind,
+            metadata.Type,
+            metadata.Scope,
+            metadata.Target,
+            metadata.Language,
+            metadata.Status,
+            metadata.TemplateName,
+            relations) + "\n\n" + body;
     }
 
     private static string? Scalar(YamlMappingNode mapping, string key) =>
@@ -401,7 +481,15 @@ internal static class RelationalArtifact
     {
         var effectiveScope = scope ?? definition.Scopes.FirstOrDefault();
         var sb = new StringBuilder();
-        sb.AppendLine(KnowledgeArtifactFrontMatter.Render("nexus", definition.Type, effectiveScope, []));
+        sb.AppendLine(KnowledgeArtifactFrontMatter.Render(
+            "nexus",
+            definition.Type,
+            effectiveScope,
+            target: null,
+            language: "es",
+            status: "draft",
+            templateName: $"{definition.Type}.nexus",
+            relations: []));
         sb.AppendLine();
         sb.AppendLine($"# Nexus: {definition.Type}");
         sb.AppendLine();
@@ -413,7 +501,15 @@ internal static class RelationalArtifact
     public static string CreateContinuityPath(ContinuityPathDefinition definition, string? scope)
     {
         var sb = new StringBuilder();
-        sb.AppendLine(KnowledgeArtifactFrontMatter.Render("continuity-path", definition.Type, scope, []));
+        sb.AppendLine(KnowledgeArtifactFrontMatter.Render(
+            "continuity-path",
+            definition.Type,
+            scope ?? definition.Type,
+            target: null,
+            language: "es",
+            status: "draft",
+            templateName: $"{definition.Type}.continuity-path",
+            relations: []));
         sb.AppendLine();
         sb.AppendLine($"# Continuity Path: {definition.Type}");
         sb.AppendLine();
@@ -515,7 +611,9 @@ internal static class RelationalArtifact
         if (existing >= 0) relations[existing] = relation; else relations.Add(relation);
 
         var updated = KnowledgeArtifactFrontMatter.WithMetadata(
-            source, metadata.Metadata.Kind, metadata.Metadata.Type, metadata.Metadata.Scope, relations);
+            source,
+            metadata.Metadata,
+            relations);
         return ReplaceAssociatedArtifacts(updated, relations);
     }
 
