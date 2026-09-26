@@ -601,7 +601,12 @@ internal static class RelationalArtifact
         }
 
         var replacement = startMarker + "\n" + answer.Trim() + "\n" + QuestionEnd;
-        return normalized[..start] + replacement + normalized[(end + QuestionEnd.Length)..];
+        var updated = normalized[..start] + replacement + normalized[(end + QuestionEnd.Length)..];
+
+        return KnowledgeArtifactFrontMatter.WithMetadata(
+            updated,
+            state.Metadata,
+            state.Metadata.Relations);
     }
 
     public static string AddRelation(string source, ArtifactRelation relation, out string? error)
