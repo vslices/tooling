@@ -2,6 +2,7 @@ namespace VSlices.Tooling;
 
 internal sealed record DocumentQuestionAffordance(
     int Selection,
+    string SelectionPath,
     string QuestionId,
     string Text,
     int Depth,
@@ -12,6 +13,7 @@ internal sealed record DocumentQuestionAffordance(
     string? AnswerPreview,
     string? ScopeAnswerInstanceId,
     int? ParentSelection,
+    string? ParentSelectionPath,
     bool HasChildren);
 
 internal sealed record DocumentArtifactReadResult(
@@ -542,14 +544,16 @@ internal sealed class DocumentArtifact
     }
 
     public DocumentArtifactMutationResult Update(
-        int selection,
+        string selectionPath,
         string answer,
         MaterializationTemplateDefinition materializationTemplate)
     {
-        if (selection < 1 || selection > Surface.Count)
+        var selected = Surface.FirstOrDefault(question =>
+            question.SelectionPath.Equals(selectionPath, StringComparison.Ordinal));
+        if (selected is null)
         {
             return DocumentArtifactMutationResult.Failure(
-                $"UPDATE105: Question selection {selection} is not available. Current surface contains selections 1..{Surface.Count}.");
+                $"UPDATE105: Question selection '{selectionPath}' is not available on the current Document surface.");
         }
 
         if (string.IsNullOrWhiteSpace(answer))
@@ -564,7 +568,6 @@ internal sealed class DocumentArtifact
                 "UPDATE107: Answer contains reserved VSlices document metadata markers.");
         }
 
-        var selected = Surface[selection - 1];
         var lines = normalizedSource.Split('\n').ToList();
         var answerLines = NormalizeNewlines(answer.Trim()).Split('\n').ToArray();
 
@@ -1099,6 +1102,7 @@ internal sealed class DocumentArtifact
         {
             surface.Add(new DocumentQuestionAffordance(
                 1,
+                "1",
                 definition.RootQuestion.Id,
                 definition.RootQuestion.Text,
                 0,
@@ -1109,158 +1113,151 @@ internal sealed class DocumentArtifact
                 AnswerPreview: null,
                 ScopeAnswerInstanceId: null,
                 ParentSelection: null,
+                ParentSelectionPath: null,
                 HasChildren: definition.RootQuestion.Children.Count > 0));
             return surface;
         }
 
-        Add(definition.RootQuestion, 0, parentSelection: null);
+        var rootMaterialized = blocks.ContainsKey(definition.RootQuestion.Id);
+        surface.Add(new DocumentQuestionAffordance(
+            1,
+            "1",
+            definition.RootQuestion.Id,
+            definition.RootQuestion.Text,
+            0,
+            definition.RootQuestion.Cardinality,
+            rootMaterialized,
+            IsAnswered: rootMaterialized,
+            AnswerInstanceId: null,
+            AnswerPreview: null,
+            ScopeAnswerInstanceId: null,
+            ParentSelection: null,
+            ParentSelectionPath: null,
+            HasChildren: definition.RootQuestion.Children.Count > 0));
+
+        if (!rootMaterialized)
+            return surface;
+
+        var nextTopLevel = 2;
+        AddChildren(
+            definition.RootQuestion.Children,
+            depth: 1,
+            scopeAnswerInstanceId: null,
+            parentSelection: 1,
+            parentSelectionPath: "1",
+            topLevel: true);
+
         return surface;
 
-        void Add(
-            DocumentQuestionDefinition question,
+        void AddChildren(
+            IReadOnlyList<DocumentQuestionDefinition> children,
             int depth,
-            int? parentSelection)
+            string? scopeAnswerInstanceId,
+            int parentSelection,
+            string parentSelectionPath,
+            bool topLevel = false)
         {
-            if (question.Cardinality == DocumentQuestionCardinality.Many)
-            {
-                if (answerInstances.TryGetValue(question.Id, out var instances))
-                {
-                    foreach (var instance in instances.Where(instance => instance.ParentAnswerInstanceId is null))
-                    {
-                        var selection = surface.Count + 1;
-                        surface.Add(new DocumentQuestionAffordance(
-                            selection,
-                            question.Id,
-                            question.Text,
-                            depth,
-                            question.Cardinality,
-                            IsMaterialized: true,
-                            IsAnswered: true,
-                            instance.Id,
-                            instance.AnswerPreview,
-                            ScopeAnswerInstanceId: null,
-                            ParentSelection: parentSelection,
-                            HasChildren: question.Children.Count > 0));
+            var nextChild = 1;
 
-                        foreach (var child in question.Children)
-                            AddScoped(child, depth + 1, instance.Id, selection);
+            string NextPath() =>
+                topLevel
+                    ? (nextTopLevel++).ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    : $"{parentSelectionPath}.{nextChild++}";
+
+            foreach (var question in children)
+            {
+                if (question.Cardinality == DocumentQuestionCardinality.Many)
+                {
+                    if (answerInstances.TryGetValue(question.Id, out var instances))
+                    {
+                        foreach (var instance in instances.Where(instance =>
+                                     string.Equals(
+                                         instance.ParentAnswerInstanceId,
+                                         scopeAnswerInstanceId,
+                                         StringComparison.Ordinal)))
+                        {
+                            var path = NextPath();
+                            var selection = surface.Count + 1;
+                            surface.Add(new DocumentQuestionAffordance(
+                                selection,
+                                path,
+                                question.Id,
+                                question.Text,
+                                depth,
+                                question.Cardinality,
+                                IsMaterialized: true,
+                                IsAnswered: true,
+                                instance.Id,
+                                instance.AnswerPreview,
+                                ScopeAnswerInstanceId: scopeAnswerInstanceId,
+                                ParentSelection: parentSelection,
+                                ParentSelectionPath: parentSelectionPath,
+                                HasChildren: question.Children.Count > 0));
+
+                            AddChildren(
+                                question.Children,
+                                depth + 1,
+                                instance.Id,
+                                selection,
+                                path);
+                        }
                     }
+
+                    var availablePath = NextPath();
+                    surface.Add(new DocumentQuestionAffordance(
+                        surface.Count + 1,
+                        availablePath,
+                        question.Id,
+                        question.Text,
+                        depth,
+                        question.Cardinality,
+                        IsMaterialized: false,
+                        IsAnswered: false,
+                        AnswerInstanceId: null,
+                        AnswerPreview: null,
+                        ScopeAnswerInstanceId: scopeAnswerInstanceId,
+                        ParentSelection: parentSelection,
+                        ParentSelectionPath: parentSelectionPath,
+                        HasChildren: question.Children.Count > 0));
+
+                    continue;
                 }
 
+                var currentPath = NextPath();
+                var key = scopeAnswerInstanceId is null
+                    ? null
+                    : new ScopedQuestionKey(scopeAnswerInstanceId, question.Id);
+                var materialized = scopeAnswerInstanceId is null
+                    ? blocks.ContainsKey(question.Id)
+                    : scopedBlocks.ContainsKey(key!);
+                var currentSelection = surface.Count + 1;
+
                 surface.Add(new DocumentQuestionAffordance(
-                    surface.Count + 1,
+                    currentSelection,
+                    currentPath,
                     question.Id,
                     question.Text,
                     depth,
                     question.Cardinality,
-                    IsMaterialized: false,
-                    IsAnswered: false,
+                    materialized,
+                    IsAnswered: materialized,
                     AnswerInstanceId: null,
                     AnswerPreview: null,
-                    ScopeAnswerInstanceId: null,
+                    ScopeAnswerInstanceId: scopeAnswerInstanceId,
                     ParentSelection: parentSelection,
+                    ParentSelectionPath: parentSelectionPath,
                     HasChildren: question.Children.Count > 0));
 
-                return;
+                if (!materialized)
+                    continue;
+
+                AddChildren(
+                    question.Children,
+                    depth + 1,
+                    scopeAnswerInstanceId,
+                    currentSelection,
+                    currentPath);
             }
-
-            var materialized = blocks.ContainsKey(question.Id);
-            var currentSelection = surface.Count + 1;
-            surface.Add(new DocumentQuestionAffordance(
-                currentSelection,
-                question.Id,
-                question.Text,
-                depth,
-                question.Cardinality,
-                materialized,
-                IsAnswered: materialized,
-                AnswerInstanceId: null,
-                AnswerPreview: null,
-                ScopeAnswerInstanceId: null,
-                ParentSelection: parentSelection,
-                HasChildren: question.Children.Count > 0));
-
-            if (!materialized)
-                return;
-
-            foreach (var child in question.Children)
-                Add(child, depth + 1, currentSelection);
-        }
-
-        void AddScoped(
-            DocumentQuestionDefinition question,
-            int depth,
-            string answerInstanceId,
-            int? parentSelection)
-        {
-            if (question.Cardinality == DocumentQuestionCardinality.Many)
-            {
-                if (answerInstances.TryGetValue(question.Id, out var instances))
-                {
-                    foreach (var instance in instances.Where(instance =>
-                                 string.Equals(
-                                     instance.ParentAnswerInstanceId,
-                                     answerInstanceId,
-                                     StringComparison.Ordinal)))
-                    {
-                        var selection = surface.Count + 1;
-                        surface.Add(new DocumentQuestionAffordance(
-                            selection,
-                            question.Id,
-                            question.Text,
-                            depth,
-                            question.Cardinality,
-                            IsMaterialized: true,
-                            IsAnswered: true,
-                            instance.Id,
-                            instance.AnswerPreview,
-                            ScopeAnswerInstanceId: answerInstanceId,
-                            ParentSelection: parentSelection,
-                            HasChildren: question.Children.Count > 0));
-
-                        foreach (var child in question.Children)
-                            AddScoped(child, depth + 1, instance.Id, selection);
-                    }
-                }
-
-                surface.Add(new DocumentQuestionAffordance(
-                    surface.Count + 1,
-                    question.Id,
-                    question.Text,
-                    depth,
-                    question.Cardinality,
-                    IsMaterialized: false,
-                    IsAnswered: false,
-                    AnswerInstanceId: null,
-                    AnswerPreview: null,
-                    ScopeAnswerInstanceId: answerInstanceId,
-                    ParentSelection: parentSelection,
-                    HasChildren: question.Children.Count > 0));
-                return;
-            }
-
-            var key = new ScopedQuestionKey(answerInstanceId, question.Id);
-            var materialized = scopedBlocks.ContainsKey(key);
-            var currentSelection = surface.Count + 1;
-            surface.Add(new DocumentQuestionAffordance(
-                currentSelection,
-                question.Id,
-                question.Text,
-                depth,
-                question.Cardinality,
-                IsMaterialized: materialized,
-                IsAnswered: materialized,
-                AnswerInstanceId: null,
-                AnswerPreview: null,
-                ScopeAnswerInstanceId: answerInstanceId,
-                ParentSelection: parentSelection,
-                HasChildren: question.Children.Count > 0));
-
-            if (!materialized)
-                return;
-
-            foreach (var child in question.Children)
-                AddScoped(child, depth + 1, answerInstanceId, currentSelection);
         }
     }
 
