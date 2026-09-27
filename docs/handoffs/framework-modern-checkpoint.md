@@ -24,17 +24,17 @@ Do not mass-rewrite the lowering vocabulary from a mapping table.
 
 ## Framework checkpoint
 
-The current Framework checkpoint candidate is:
+The final green Framework checkpoint is:
 
 ```text
 vslices/framework
 branch: experiment/transform-adapter-analyzer
-candidate SHA: 92f6bc692a62695f628ec3f70036ef26e191d7b5
+SHA: 92f6bc692a62695f628ec3f70036ef26e191d7b5
 ```
 
 This SHA includes the final PointReader/AlgebraIO review described below.
 
-Before pinning it permanently in Tooling, confirm the checkpoint CI for that exact SHA is green.
+Checkpoint CI run 36295267233 completed successfully for this exact SHA.
 
 The Tooling migration branch currently pins the earlier executable-algebra checkpoint:
 
