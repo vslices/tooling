@@ -32,7 +32,7 @@ That handoff records the Framework semantics, current Tooling partial state, and
 
 ## 1. Pin the final green Framework checkpoint
 
-The Framework branch under validation is:
+The validated Framework branch is:
 
 ```text
 vslices/framework
@@ -45,7 +45,11 @@ Move:
 src/framework
 ```
 
-to the exact SHA identified as the final green checkpoint in the handoff.
+to:
+
+```text
+92f6bc692a62695f628ec3f70036ef26e191d7b5
+```
 
 Do not replace this with Framework `master` merely because `master` is the default branch.
 
