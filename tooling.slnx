@@ -14,7 +14,5 @@
   <Folder Name="/src/framework/" />
   <Folder Name="/src/framework/src/">
     <Project Path="src/framework/src/VSlices/VSlices.csproj" />
-    <Project Path="src/framework/src/VSlices.Space/VSlices.Space.csproj" />
-    <Project Path="src/framework/src/VSlices.Work/VSlices.Work.csproj" />
   </Folder>
 </Solution>
