@@ -106,7 +106,7 @@ public sealed class GeneratedMaterializationCompilationTests
             var repositoryRoot = FindRepositoryRoot();
             var frameworkProject = Path.Combine(
                 repositoryRoot,
-                "src", "framework", "src", "VSlices.Domain", "VSlices.Domain.csproj");
+                "src", "framework", "src", "VSlices.Space", "VSlices.Space.csproj");
             Assert.True(File.Exists(frameworkProject), $"Expected pinned Framework project at '{frameworkProject}'.");
 
             await File.WriteAllTextAsync(Path.Combine(root, "GeneratedProduct.cs"), loweredProduct.Source!);
@@ -123,7 +123,8 @@ public sealed class GeneratedMaterializationCompilationTests
                   <ItemGroup>
                     <ProjectReference Include="{{frameworkProject}}" />
                     <Using Include="VSlices.Arrows" />
-                    <Using Include="VSlices.Domain.Traits" />
+                    <Using Include="VSlices.Space" />
+                    <Using Include="VSlices.Space.Traits" />
                   </ItemGroup>
                 </Project>
                 """);
