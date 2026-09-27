@@ -108,7 +108,7 @@ public static class CSharpLanguageLowerer
         source.AppendLine($"    private {document.Name}({Parameters(directState, context.Rules, camelNames: true)}) =>");
         source.AppendLine($"        {ConstructorAssignment(directState)};");
         source.AppendLine();
-        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {document.Name}>.Full Invariants =>");
+        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {document.Name}>.Full Transformation =>");
 
         if (pipeline.Count == 0)
         {
@@ -635,12 +635,11 @@ public static class CSharpLanguageLowerer
             document.Traits.Contains("identifier", StringComparer.Ordinal);
         var isRefined = document.Traits.Contains("refined", StringComparer.Ordinal);
 
-        yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
         if (hasIdentifierCapability)
             yield return $"Identifier<{document.Name}>";
         if (isRefined)
             yield return $"Refined<{document.Name}, {document.RefinedFrom}>";
-        yield return $"Transform<{document.Name}, {inputType}>";
+        yield return $"Transformable<{inputType}, {document.Name}>";
     }
 
     private static void ValidateTypes(
