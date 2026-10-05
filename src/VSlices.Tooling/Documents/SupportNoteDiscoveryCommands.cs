@@ -45,6 +45,7 @@ internal static class SupportNoteDiscoveryCommands
         Console.WriteLine($"  target: {resolved.Metadata.Target ?? "<unset>"}");
         Console.WriteLine($"  status: {resolved.Metadata.Status}");
         Console.WriteLine($"  tooling: {resolved.Metadata.ToolingVersion}");
+        KnowledgeArtifactTags.WriteDiscovery("support-note", artifact, resolved.Metadata);
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
 
