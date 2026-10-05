@@ -80,29 +80,39 @@ public sealed class SupportNoteDefinitionTests
                 text: Where does it exist?
             """);
 
-        var grandchild = threeQuestions
+        var definition = threeQuestions
             ? """
+              kind: vslices-support-note-definition
+              version: 0.1
+
+              support-note:
+                type: draft
+                question:
+                  id: draft
+                  text: What are we sketching?
+                  children:
+                    - id: open
+                      text: What remains open?
                       children:
                         - id: detail
                           text: What detail remains?
               """
-            : string.Empty;
+            : """
+              kind: vslices-support-note-definition
+              version: 0.1
+
+              support-note:
+                type: draft
+                question:
+                  id: draft
+                  text: What are we sketching?
+                  children:
+                    - id: open
+                      text: What remains open?
+              """;
 
         File.WriteAllText(
             Path.Combine(notes, "draft.yml"),
-            $$"""
-            kind: vslices-support-note-definition
-            version: 0.1
-
-            support-note:
-              type: draft
-              question:
-                id: draft
-                text: What are we sketching?
-                children:
-                  - id: open
-                    text: What remains open?
-            {{grandchild}}
-            """);
+            definition);
     }
 }
