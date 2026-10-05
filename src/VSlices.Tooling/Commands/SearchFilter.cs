@@ -56,21 +56,7 @@ internal sealed record SearchFilter(
     }
 
 
-    public bool Matches(KnowledgeArtifactMetadata metadata)
-    {
-        return Property switch
-        {
-            "tags" => MatchesValues(metadata.Tags),
-            "kind" => MatchesValue(metadata.Kind),
-            "type" => MatchesValue(metadata.Type),
-            "scope" => MatchesValue(metadata.Scope),
-            "target" => MatchesValue(metadata.Target),
-            "status" => MatchesValue(metadata.Status),
-            _ => false
-        };
-    }
-
-    private bool MatchesValue(string? value) =>
+    public bool MatchesScalar(string? value) =>
         value is not null &&
         (Operator switch
         {
@@ -79,7 +65,7 @@ internal sealed record SearchFilter(
             _ => false
         });
 
-    private bool MatchesValues(IReadOnlyList<string> values) =>
+    public bool MatchesSequence(IReadOnlyList<string> values) =>
         Operator == "contains" &&
         values.Any(item => string.Equals(item, Value, StringComparison.Ordinal));
 
