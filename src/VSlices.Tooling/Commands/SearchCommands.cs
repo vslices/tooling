@@ -2,7 +2,7 @@ namespace VSlices.Tooling;
 
 internal static class SearchCommands
 {
-    /// <summary>Searches VSIR artifacts using a property filter.</summary>
+    /// <summary>Searches VSIR and knowledge artifacts using a property filter.</summary>
     /// <param name="filter">Filter in &lt;property&gt;:&lt;operator&gt;:&lt;value&gt; form. Supported operators: contains, equals.</param>
     public static async Task<int> Search(
         string filter,
@@ -19,10 +19,16 @@ internal static class SearchCommands
         var policy = ArtifactDiscoveryPolicy.Load(root);
         var matches = new List<string>();
 
-        foreach (var path in EnumerateVsir(root, policy))
+        foreach (var path in EnumerateArtifacts(root, policy))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var source = await File.ReadAllTextAsync(path, cancellationToken);
-            if (parsed.Filter!.Matches(source))
+
+            var matched = Path.GetExtension(path).Equals(".vsir", StringComparison.OrdinalIgnoreCase)
+                ? parsed.Filter!.Matches(source)
+                : MatchesKnowledgeArtifact(parsed.Filter!, source);
+
+            if (matched)
                 matches.Add(Path.GetRelativePath(root, path));
         }
 
@@ -32,7 +38,20 @@ internal static class SearchCommands
         return 0;
     }
 
-    private static IEnumerable<string> EnumerateVsir(
+    private static bool MatchesKnowledgeArtifact(
+        SearchFilter filter,
+        string source)
+    {
+        if (!source.TrimStart().StartsWith("---", StringComparison.Ordinal))
+            return false;
+
+        var metadata = KnowledgeArtifactFrontMatter.Read(source);
+        return metadata.IsSuccess &&
+            KnowledgeArtifactFrontMatter.IsKnownKind(metadata.Metadata!.Kind) &&
+            filter.Matches(metadata.Metadata);
+    }
+
+    private static IEnumerable<string> EnumerateArtifacts(
         string root,
         ArtifactDiscoveryPolicy policy)
     {
@@ -43,10 +62,15 @@ internal static class SearchCommands
         {
             var current = pending.Pop();
 
-            foreach (var file in Directory.EnumerateFiles(current, "*.vsir", SearchOption.TopDirectoryOnly))
+            foreach (var file in Directory.EnumerateFiles(current, "*", SearchOption.TopDirectoryOnly))
             {
-                if (!policy.IgnoreFile(file))
+                var extension = Path.GetExtension(file);
+                if ((extension.Equals(".vsir", StringComparison.OrdinalIgnoreCase) ||
+                     extension.Equals(".md", StringComparison.OrdinalIgnoreCase)) &&
+                    !policy.IgnoreFile(file))
+                {
                     yield return file;
+                }
             }
 
             foreach (var directory in Directory.EnumerateDirectories(current))
