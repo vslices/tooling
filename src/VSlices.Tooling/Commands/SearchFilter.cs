@@ -55,6 +55,40 @@ internal sealed record SearchFilter(
         }
     }
 
+
+    public bool Matches(KnowledgeArtifactMetadata metadata)
+    {
+        return Property switch
+        {
+            "tags" => MatchesValues(metadata.Tags),
+            "kind" => MatchesValue(metadata.Kind),
+            "type" => MatchesValue(metadata.Type),
+            "scope" => MatchesValue(metadata.Scope),
+            "target" => MatchesValue(metadata.Target),
+            "status" => MatchesValue(metadata.Status),
+            _ => false
+        };
+    }
+
+    private bool MatchesValue(string? value) =>
+        value is not null &&
+        (Operator switch
+        {
+            "equals" => string.Equals(value, Value, StringComparison.Ordinal),
+            "contains" => value.Contains(Value, StringComparison.Ordinal),
+            _ => false
+        });
+
+    private bool MatchesValues(IReadOnlyList<string> values) =>
+        Operator switch
+        {
+            "equals" => values.Count == 1 &&
+                string.Equals(values[0], Value, StringComparison.Ordinal),
+            "contains" => values.Any(item =>
+                string.Equals(item, Value, StringComparison.Ordinal)),
+            _ => false
+        };
+
     private bool MatchesEquals(YamlNode node) =>
         node is YamlScalarNode scalar &&
         string.Equals(scalar.Value, Value, StringComparison.Ordinal);
