@@ -10,7 +10,10 @@ internal sealed record KnowledgeArtifactMetadata(
     string Kind, string Type, string? Scope, string? Target, string Status,
     string ToolingVersion, string? TemplateName,
     IReadOnlyList<ArtifactRelation> Relations, int ClosingLine,
-    string? TemplateVersion = null);
+    string? TemplateVersion = null)
+{
+    public IReadOnlyList<string> Tags { get; init; } = [];
+}
 internal sealed record KnowledgeArtifactMetadataResult(KnowledgeArtifactMetadata? Metadata, string? Error)
 {
     public bool IsSuccess => Metadata is not null && Error is null;
@@ -20,7 +23,7 @@ internal sealed record KnowledgeArtifactMetadataResult(KnowledgeArtifactMetadata
 
 internal static class KnowledgeArtifactFrontMatter
 {
-    public static bool IsKnownKind(string? kind) => kind is "document" or "nexus" or "continuity-path";
+    public static bool IsKnownKind(string? kind) => kind is "document" or "support-note" or "nexus" or "continuity-path";
     public static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
     public static string Normalize(string source) => source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
@@ -50,8 +53,40 @@ internal static class KnowledgeArtifactFrontMatter
             if (!IsIdentifier(type)) reader.Fail("artifact.type must be a stable identifier.");
 
             // Legacy Documents with only kind/type remain readable. Creation has the stronger target requirement.
-            var metadata = reader.ChildMapping(root, "metadata", false, "status", "relates");
+            var metadata = reader.ChildMapping(root, "metadata", false, "status", "tags", "relates");
             var status = metadata is null ? "draft" : reader.Scalar(metadata, "status") ?? "draft";
+            var tags = new List<string>();
+            if (metadata is not null &&
+                metadata.Children.TryGetValue(new YamlScalarNode("tags"), out var tagsNode))
+            {
+                if (tagsNode is not YamlSequenceNode tagSequence)
+                {
+                    reader.Fail("metadata.tags must be a sequence of non-empty strings.");
+                }
+                else
+                {
+                    var seenTags = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var tagNode in tagSequence.Children)
+                    {
+                        if (tagNode is not YamlScalarNode scalar ||
+                            string.IsNullOrWhiteSpace(scalar.Value))
+                        {
+                            reader.Fail("metadata.tags must contain only non-empty strings.");
+                            continue;
+                        }
+
+                        var tag = scalar.Value.Trim();
+                        if (!seenTags.Add(tag))
+                        {
+                            reader.Fail($"Duplicate metadata tag '{tag}'.");
+                            continue;
+                        }
+
+                        tags.Add(tag);
+                    }
+                }
+            }
+
             var relations = new List<ArtifactRelation>();
             var paths = new HashSet<string>(PathComparer);
             var selections = new HashSet<string>(StringComparer.Ordinal);
@@ -98,7 +133,10 @@ internal static class KnowledgeArtifactFrontMatter
             return reader.Error is not null
                 ? KnowledgeArtifactMetadataResult.Failure(reader.Error)
                 : KnowledgeArtifactMetadataResult.Success(new KnowledgeArtifactMetadata(
-                    kind!, type!, scope, target, status, toolingVersion, templateName, relations, closing, templateVersion));
+                    kind!, type!, scope, target, status, toolingVersion, templateName, relations, closing, templateVersion)
+                {
+                    Tags = tags
+                });
         }
         catch (Exception ex) when (ex is YamlDotNet.Core.YamlException or ArgumentException)
         {
@@ -109,7 +147,8 @@ internal static class KnowledgeArtifactFrontMatter
     public static string Render(
         string kind, string type, string? scope, string? target, string status,
         string? templateName, IReadOnlyList<ArtifactRelation> relations,
-        string? templateVersion = "0.1.0")
+        string? templateVersion = "0.1.0",
+        IReadOnlyList<string>? tags = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("---");
@@ -121,6 +160,12 @@ internal static class KnowledgeArtifactFrontMatter
         sb.AppendLine();
         sb.AppendLine("metadata:");
         sb.AppendLine($"  status: {YamlScalar(status)}");
+        if (tags is { Count: > 0 })
+        {
+            sb.AppendLine("  tags:");
+            foreach (var tag in tags)
+                sb.AppendLine($"    - {YamlScalar(tag)}");
+        }
         if (relations.Count == 0) sb.AppendLine("  relates: []");
         else
         {
@@ -156,7 +201,7 @@ internal static class KnowledgeArtifactFrontMatter
         var normalized = Normalize(source);
         var body = string.Join("\n", normalized.Split('\n').Skip(metadata.ClosingLine + 1)).TrimStart('\n');
         return Render(metadata.Kind, metadata.Type, metadata.Scope, metadata.Target, metadata.Status,
-            metadata.TemplateName, relations, metadata.TemplateVersion) + "\n\n" + body;
+            metadata.TemplateName, relations, metadata.TemplateVersion, metadata.Tags) + "\n\n" + body;
     }
 
     private static bool IsIdentifier(string? value) => !string.IsNullOrWhiteSpace(value) && char.IsLetter(value[0]) &&

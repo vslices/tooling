@@ -86,6 +86,36 @@ vslices search --filter tags:contains:ticket
 
 Tags carry no domain-semantic authority. They do not activate VSIR obligations, change validation meaning, or participate in lowering decisions. The public artifact parser validates the metadata shape and removes it before interpreting the canonical semantic document.
 
+The same operational metadata contract is available on the current Docs Standard knowledge-artifact families:
+
+```text
+Document
+Support Note
+Nexus
+Continuity Path
+```
+
+For those Markdown artifacts, tags live under `metadata.tags`. They remain operational metadata rather than documentary semantics.
+
+Knowledge artifacts may establish tags during creation:
+
+```text
+vslices new document <name> --kind <type> --target <target> --tags "serviu,payment-request"
+vslices new support-note <name> --kind <type> --target <target> --tags "serviu,payment-request"
+vslices new nexus <name> --kind <type> --target <target> --tags "serviu,composition"
+vslices new continuity-path <name> --kind <type> --target <target> --tags "serviu,continuity"
+```
+
+and mutate them independently of semantic/documentary answers:
+
+```text
+--tags "<tag,...>"         replace the complete set
+--add-tags "<tag,...>"     union members into the set
+--remove-tags "<tag,...>"  remove members from the set
+```
+
+`vslices search` traverses both `.vsir` artifacts and recognized Markdown knowledge artifacts while respecting the project artifact-discovery ignore policy. The installed `.vslices` snapshots remain excluded from project-knowledge search. Filters such as `tags:contains:payment-request`, `kind:equals:support-note`, or `type:equals:context` can therefore recover knowledge without knowing its concrete artifact family in advance.
+
 ### Semantic affordances
 
 Example:
