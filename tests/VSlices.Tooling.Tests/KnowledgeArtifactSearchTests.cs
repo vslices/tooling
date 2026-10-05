@@ -62,12 +62,18 @@ public sealed class KnowledgeArtifactSearchTests
             "journey.md",
             "note.md");
 
-        var knowledgeOnly = await Success(
-            project,
-            "search",
-            "--filter", "kind:equals:support-note");
-
-        AssertSearchResults(knowledgeOnly, "note.md");
+        AssertSearchResults(
+            await Success(project, "search", "--filter", "kind:equals:document"),
+            "context.md");
+        AssertSearchResults(
+            await Success(project, "search", "--filter", "kind:equals:support-note"),
+            "note.md");
+        AssertSearchResults(
+            await Success(project, "search", "--filter", "kind:equals:nexus"),
+            "capability.md");
+        AssertSearchResults(
+            await Success(project, "search", "--filter", "kind:equals:continuity-path"),
+            "journey.md");
 
         await Success(project, "update", "document", "context", "--add-tags", "migration");
         await Success(project, "update", "support-note", "note", "--add-tags", "migration");
