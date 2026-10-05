@@ -2,7 +2,8 @@ namespace VSlices.Tooling;
 
 internal sealed record KnowledgeArtifactCreationRequest(
     string Family, string? Name, string? Kind, string? Target, string? Scope,
-    string? FromNexus, string? FromPath, string? RelatedTo, string? Role);
+    string? FromNexus, string? FromPath, string? RelatedTo, string? Role,
+    string? Tags);
 internal sealed record KnowledgeArtifactCreationResult(string? Path, string? Error, int ExitCode)
 {
     public static KnowledgeArtifactCreationResult Success(string path) => new(path, null, 0);
@@ -120,6 +121,15 @@ internal static class KnowledgeArtifactCreation
             source = RelationalArtifact.AddRelation(source, relations[0], out var error);
             if (error is not null) return KnowledgeArtifactCreationResult.Failure(error);
         }
+
+        if (request.Tags is not null)
+        {
+            var tagged = KnowledgeArtifactTags.Apply(source, request.Tags, null, null);
+            if (!tagged.IsSuccess)
+                return KnowledgeArtifactCreationResult.Failure(tagged.Error!);
+            source = tagged.Source!;
+        }
+
         ArtifactRelation? reciprocal = related is null ? null : KnowledgeArtifactCommandSupport.RelationFrom(
             related.Path, path, request.Family, kind, role!, recommendation?.SelectionPath,
             recommendationContext: recommendation?.Context);
