@@ -33,6 +33,13 @@ internal static class NewCommands
         CancellationToken cancellationToken = default) =>
         Create(new("document", name, kind, target, scope, fromNexus, fromPath, relatedTo, role), cancellationToken);
 
+    /// <summary>Creates a Support Note for lightweight auxiliary knowledge.</summary>
+    public static Task<int> SupportNote(
+        [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
+        string? relatedTo = null, string? role = null,
+        CancellationToken cancellationToken = default) =>
+        Create(new("support-note", name, kind, target, scope, null, null, relatedTo, role), cancellationToken);
+
     /// <summary>Creates a Nexus composition artifact, optionally from a recommendation.</summary>
     public static Task<int> Nexus(
         [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
