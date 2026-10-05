@@ -86,6 +86,33 @@ public sealed class SupportNoteCommandTests
         Assert.Contains("advance-validation.md", resultDiscovery, StringComparison.Ordinal);
         Assert.Contains("advance-observation.md", validationDiscovery, StringComparison.Ordinal);
         Assert.Contains("Interprets this observed result", resultDiscovery, StringComparison.Ordinal);
+
+        await Success(
+            project,
+            "update", "support-note", "advance-observation",
+            "--question-id", "1",
+            "--answer", "The inspected external route validates one financial line.");
+
+        await Success(
+            project,
+            "update", "support-note", "advance-validation",
+            "--question-id", "1",
+            "--answer", "The observed route does not by itself demonstrate the complete target rule.");
+
+        var resultRelationAfterUpdate = Assert.Single(Relations(project, "advance-observation"));
+        var validationRelationAfterUpdate = Assert.Single(Relations(project, "advance-validation"));
+
+        Assert.Equal("advance-validation.md", Value(resultRelationAfterUpdate, "target"));
+        Assert.Equal("validation", Value(resultRelationAfterUpdate, "type"));
+        Assert.Equal(
+            "Interprets this observed result against the target criterion",
+            Value(resultRelationAfterUpdate, "role"));
+
+        Assert.Equal("advance-observation.md", Value(validationRelationAfterUpdate, "target"));
+        Assert.Equal("result", Value(validationRelationAfterUpdate, "type"));
+        Assert.Equal(
+            "Interprets this observed result against the target criterion",
+            Value(validationRelationAfterUpdate, "role"));
     }
 
     [Fact]
