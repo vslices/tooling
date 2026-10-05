@@ -83,6 +83,16 @@ internal static class KnowledgeArtifactCreation
             if (!rendered.IsSuccess) return KnowledgeArtifactCreationResult.Failure(rendered.Error!);
             source = rendered.Source!;
         }
+        else if (request.Family == "support-note")
+        {
+            if (!standards.SupportNotes.TryGetSupportNote(kind, out var definition) || definition is null)
+                return KnowledgeArtifactCreationResult.Failure($"NEWS006: Support Note kind '{kind}' is not defined by the installed Docs Standard.");
+            kind = definition.Type;
+            var scope = request.Scope?.Trim();
+            source = SupportNoteArtifact.Create(definition, target, scope, relations);
+            var reconstructed = SupportNoteArtifact.Read(source, definition);
+            if (!reconstructed.IsSuccess) return KnowledgeArtifactCreationResult.Failure(reconstructed.Error!);
+        }
         else if (request.Family == "nexus")
         {
             if (!standards.Relational.TryGetNexus(kind, out var definition) || definition is null)
@@ -105,7 +115,7 @@ internal static class KnowledgeArtifactCreation
         }
         else return KnowledgeArtifactCreationResult.Failure($"NEW111: Unsupported artifact family '{request.Family}'.");
 
-        if (request.Family != "document" && relations.Count > 0)
+        if (request.Family is "nexus" or "continuity-path" && relations.Count > 0)
         {
             source = RelationalArtifact.AddRelation(source, relations[0], out var error);
             if (error is not null) return KnowledgeArtifactCreationResult.Failure(error);
