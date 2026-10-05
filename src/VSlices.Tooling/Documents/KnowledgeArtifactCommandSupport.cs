@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 
 namespace VSlices.Tooling;
 
-internal sealed record KnowledgeStandards(string Root, DocsStandardCatalog Documents, RelationalStandardCatalog Relational);
+internal sealed record KnowledgeStandards(string Root, DocsStandardCatalog Documents, SupportNoteStandardCatalog SupportNotes, RelationalStandardCatalog Relational);
 internal sealed record KnowledgeStandardsResult(KnowledgeStandards? Standards, string? Error)
 {
     public bool IsSuccess => Standards is not null && Error is null;
@@ -36,9 +36,12 @@ internal static class KnowledgeArtifactCommandSupport
             return KnowledgeStandardsResult.Failure("RELCLI001: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard'.");
         var documents = DocsStandardCatalog.Load(root);
         if (!documents.IsSuccess) return KnowledgeStandardsResult.Failure(documents.Error!);
+        var supportNotes = SupportNoteStandardCatalog.Load(root);
+        if (!supportNotes.IsSuccess) return KnowledgeStandardsResult.Failure(supportNotes.Error!);
         var relational = RelationalStandardCatalog.Load(root);
         if (!relational.IsSuccess) return KnowledgeStandardsResult.Failure(relational.Error!);
-        return KnowledgeStandardsResult.Success(new KnowledgeStandards(root, documents.Catalog!, relational.Catalog!));
+        return KnowledgeStandardsResult.Success(
+            new KnowledgeStandards(root, documents.Catalog!, supportNotes.Catalog!, relational.Catalog!));
     }
 
     public static ExistingArtifactResolutionResult ResolveExistingArtifact(string artifact, string start)
