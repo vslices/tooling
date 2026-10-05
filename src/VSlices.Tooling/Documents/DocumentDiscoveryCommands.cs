@@ -80,6 +80,8 @@ internal static class DocumentDiscoveryCommands
         Console.WriteLine($"  target: {metadata?.Target ?? "<unset>"}");
         Console.WriteLine($"  status: {metadata?.Status ?? "<legacy>"}");
         Console.WriteLine($"  tooling: {metadata?.ToolingVersion ?? "<legacy>"}");
+        if (metadata is not null)
+            KnowledgeArtifactTags.WriteDiscovery("document", document, metadata);
         if (metadata is { Relations.Count: > 0 })
         {
             Console.WriteLine("  relations:");
