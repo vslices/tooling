@@ -20,7 +20,7 @@ internal sealed record KnowledgeArtifactMetadataResult(KnowledgeArtifactMetadata
 
 internal static class KnowledgeArtifactFrontMatter
 {
-    public static bool IsKnownKind(string? kind) => kind is "document" or "nexus" or "continuity-path";
+    public static bool IsKnownKind(string? kind) => kind is "document" or "support-note" or "nexus" or "continuity-path";
     public static StringComparer PathComparer => OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
     public static string Normalize(string source) => source.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n');
 
