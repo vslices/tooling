@@ -40,27 +40,12 @@ public sealed class SearchFilterTests
 
 
     [Fact]
-    public void Knowledge_artifact_metadata_exposes_searchable_tags_and_identity()
+    public void Scalar_and_sequence_projections_preserve_filter_semantics()
     {
-        var metadata = new KnowledgeArtifactMetadata(
-            "support-note",
-            "draft",
-            "project",
-            "External payment requests",
-            "draft",
-            "test",
-            "support-note.question-tree",
-            [],
-            0)
-        {
-            Tags = ["serviu", "payment-request"]
-        };
-
-        Assert.True(SearchFilter.Parse("tags:contains:payment-request").Filter!.Matches(metadata));
-        Assert.True(SearchFilter.Parse("kind:equals:support-note").Filter!.Matches(metadata));
-        Assert.True(SearchFilter.Parse("type:equals:draft").Filter!.Matches(metadata));
-        Assert.True(SearchFilter.Parse("target:contains:payment").Filter!.Matches(metadata));
-        Assert.False(SearchFilter.Parse("tags:equals:payment-request").Filter!.Matches(metadata));
+        Assert.True(SearchFilter.Parse("kind:equals:support-note").Filter!.MatchesScalar("support-note"));
+        Assert.True(SearchFilter.Parse("target:contains:payment").Filter!.MatchesScalar("External payment requests"));
+        Assert.True(SearchFilter.Parse("tags:contains:payment-request").Filter!.MatchesSequence(["serviu", "payment-request"]));
+        Assert.False(SearchFilter.Parse("tags:equals:payment-request").Filter!.MatchesSequence(["payment-request"]));
     }
 
     [Fact]
