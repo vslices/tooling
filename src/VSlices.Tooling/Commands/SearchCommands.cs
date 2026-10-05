@@ -46,9 +46,23 @@ internal static class SearchCommands
             return false;
 
         var metadata = KnowledgeArtifactFrontMatter.Read(source);
-        return metadata.IsSuccess &&
-            KnowledgeArtifactFrontMatter.IsKnownKind(metadata.Metadata!.Kind) &&
-            filter.Matches(metadata.Metadata);
+        if (!metadata.IsSuccess ||
+            !KnowledgeArtifactFrontMatter.IsKnownKind(metadata.Metadata!.Kind))
+        {
+            return false;
+        }
+
+        var artifact = metadata.Metadata;
+        return filter.Property switch
+        {
+            "tags" => filter.MatchesSequence(artifact.Tags),
+            "kind" => filter.MatchesScalar(artifact.Kind),
+            "type" => filter.MatchesScalar(artifact.Type),
+            "scope" => filter.MatchesScalar(artifact.Scope),
+            "target" => filter.MatchesScalar(artifact.Target),
+            "status" => filter.MatchesScalar(artifact.Status),
+            _ => false
+        };
     }
 
     private static IEnumerable<string> EnumerateArtifacts(
