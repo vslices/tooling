@@ -80,14 +80,8 @@ internal sealed record SearchFilter(
         });
 
     private bool MatchesValues(IReadOnlyList<string> values) =>
-        Operator switch
-        {
-            "equals" => values.Count == 1 &&
-                string.Equals(values[0], Value, StringComparison.Ordinal),
-            "contains" => values.Any(item =>
-                string.Equals(item, Value, StringComparison.Ordinal)),
-            _ => false
-        };
+        Operator == "contains" &&
+        values.Any(item => string.Equals(item, Value, StringComparison.Ordinal));
 
     private bool MatchesEquals(YamlNode node) =>
         node is YamlScalarNode scalar &&
