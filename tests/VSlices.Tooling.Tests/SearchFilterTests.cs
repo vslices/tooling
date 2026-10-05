@@ -38,6 +38,31 @@ public sealed class SearchFilterTests
         Assert.True(parsed.Filter!.Matches(DomainType));
     }
 
+
+    [Fact]
+    public void Knowledge_artifact_metadata_exposes_searchable_tags_and_identity()
+    {
+        var metadata = new KnowledgeArtifactMetadata(
+            "support-note",
+            "draft",
+            "project",
+            "External payment requests",
+            "draft",
+            "test",
+            "support-note.question-tree",
+            [],
+            0)
+        {
+            Tags = ["serviu", "payment-request"]
+        };
+
+        Assert.True(SearchFilter.Parse("tags:contains:payment-request").Filter!.Matches(metadata));
+        Assert.True(SearchFilter.Parse("kind:equals:support-note").Filter!.Matches(metadata));
+        Assert.True(SearchFilter.Parse("type:equals:draft").Filter!.Matches(metadata));
+        Assert.True(SearchFilter.Parse("target:contains:payment").Filter!.Matches(metadata));
+        Assert.False(SearchFilter.Parse("tags:equals:payment-request").Filter!.Matches(metadata));
+    }
+
     [Fact]
     public void Missing_property_does_not_match()
     {
