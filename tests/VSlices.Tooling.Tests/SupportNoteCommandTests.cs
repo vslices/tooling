@@ -5,7 +5,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class SupportNoteCommandTests
 {
     [Fact]
-    public async Task Draft_support_note_progressively_exposes_only_its_two_questions()
+    public async Task Draft_support_note_exposes_its_complete_two_question_surface()
     {
         using var project = new ToolingTestProject();
         WriteEnvironment(project);
@@ -27,32 +27,21 @@ public sealed class SupportNoteCommandTests
 
         var initial = await Success(project, "discovery", "support-note", "first-submission");
         Assert.Contains("[1] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
-        Assert.DoesNotContain("[1.1]", initial, StringComparison.Ordinal);
+        Assert.Contains("[1.1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
+        Assert.Contains("parent: [1]", initial, StringComparison.Ordinal);
 
-        var before = Read(project, "first-submission");
-        var hidden = await Failure(
+        // Support Notes are deliberately tiny, so both questions remain directly authorable.
+        await Success(
             project,
             "update", "support-note", "first-submission",
             "--question-id", "1.1",
-            "--answer", "Still open");
-        Assert.Contains("SUPART002", hidden, StringComparison.Ordinal);
-        Assert.Equal(before, Read(project, "first-submission"));
+            "--answer", "Institutional confirmation of decree-specific variants.");
 
         await Success(
             project,
             "update", "support-note", "first-submission",
             "--question-id", "1",
             "--answer", "Reconstructed external-user flow up to first submission.");
-
-        var afterRoot = await Success(project, "discovery", "support-note", "first-submission");
-        Assert.Contains("[1.1] ¿Qué sigue abierto?", afterRoot, StringComparison.Ordinal);
-        Assert.Contains("parent: [1]", afterRoot, StringComparison.Ordinal);
-
-        await Success(
-            project,
-            "update", "support-note", "first-submission",
-            "--question-id", "1.1",
-            "--answer", "Institutional confirmation of decree-specific variants.");
 
         var source = Read(project, "first-submission");
         Assert.Contains("Reconstructed external-user flow", source, StringComparison.Ordinal);
