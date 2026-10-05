@@ -74,7 +74,7 @@ internal static class SupportNoteArtifact
             return SupportNoteArtifactStateResult.Failure(error);
 
         var surfaces = new List<SupportNoteQuestionSurface>();
-        AddQuestionSurface(definition.RootQuestion, "1", null, parentAnswered: true, answers, surfaces);
+        AddQuestionSurface(definition.RootQuestion, "1", null, answers, surfaces);
 
         return SupportNoteArtifactStateResult.Success(
             new SupportNoteArtifactState(metadata.Metadata, surfaces, source));
@@ -120,13 +120,9 @@ internal static class SupportNoteArtifact
         SupportNoteQuestionDefinition question,
         string selectionPath,
         string? parentSelectionPath,
-        bool parentAnswered,
         IReadOnlyDictionary<string, string> answers,
         List<SupportNoteQuestionSurface> surfaces)
     {
-        if (!parentAnswered)
-            return;
-
         var answer = answers.TryGetValue(question.Id, out var value) ? value : null;
         var answered = !string.IsNullOrWhiteSpace(answer);
         surfaces.Add(new(
@@ -143,7 +139,6 @@ internal static class SupportNoteArtifact
                 question.Children[index],
                 $"{selectionPath}.{index + 1}",
                 selectionPath,
-                answered,
                 answers,
                 surfaces);
         }
