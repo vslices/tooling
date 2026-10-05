@@ -8,16 +8,28 @@ internal static class SupportNoteUpdateCommands
         [Argument] string artifact,
         string? questionId = null,
         string? answer = null,
+        string? tags = null,
+        string? addTags = null,
+        string? removeTags = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(questionId))
+        var hasQuestionMutation = questionId is not null || answer is not null;
+        var hasTagMutation = KnowledgeArtifactTags.HasMutation(tags, addTags, removeTags);
+
+        if (!hasQuestionMutation && !hasTagMutation)
         {
             TerminalOutput.Error(
-                "SUPUPD001: --question-id <path> is required when updating a Support Note.");
+                "SUPUPD001: Update a Support Note with --question-id/--answer or searchable tag metadata.");
             return 2;
         }
 
-        if (string.IsNullOrWhiteSpace(answer))
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(questionId))
+        {
+            TerminalOutput.Error("SUPUPD001: --question-id <path> is required when --answer is supplied.");
+            return 2;
+        }
+
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(answer))
         {
             TerminalOutput.Error("SUPUPD002: --answer must contain non-whitespace text.");
             return 2;
@@ -65,19 +77,35 @@ internal static class SupportNoteUpdateCommands
             return 2;
         }
 
-        var updated = SupportNoteArtifact.UpdateQuestion(
-            state.State!,
-            questionId,
-            answer,
-            out var updateError);
-        if (updateError is not null)
+        var updated = source;
+        if (hasQuestionMutation)
         {
-            TerminalOutput.Error(updateError);
-            return 2;
+            updated = SupportNoteArtifact.UpdateQuestion(
+                state.State!,
+                questionId!,
+                answer!,
+                out var updateError);
+            if (updateError is not null)
+            {
+                TerminalOutput.Error(updateError);
+                return 2;
+            }
+        }
+
+        if (hasTagMutation)
+        {
+            var tagged = KnowledgeArtifactTags.Apply(updated, tags, addTags, removeTags);
+            if (!tagged.IsSuccess)
+            {
+                TerminalOutput.Error(tagged.Error!);
+                return 2;
+            }
+
+            updated = tagged.Source!;
         }
 
         await CommandInfrastructure.AtomicWrite(resolved.Path, updated, cancellationToken);
-        Console.WriteLine($"Updated question [{questionId}] in '{resolved.Path}'.");
+        Console.WriteLine($"Updated Support Note '{resolved.Path}'.");
         return 0;
     }
 }
