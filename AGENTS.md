@@ -95,3 +95,37 @@ dotnet restore
 dotnet build tooling.slnx --configuration Release
 dotnet test tooling.slnx --configuration Release --no-build
 ```
+
+
+## v0.3.0-preview — Documentary authoring responsibilities
+
+This branch supports **four Docs Standard knowledge-artifact families**: Document, Nexus, Continuity Path and Support Note. Do not reason from the older v0.2.0-only README or infer command support from a separate product's design.
+
+Authoritative boundary:
+
+```text
+Docs Standard       -> definitions, documentary question/graph semantics and admitted types
+Template Standard   -> Document materialization and reconstruction contract
+Tooling             -> installed snapshots, authoring/discovery/update/search, relational operations
+consumer docs       -> actual product knowledge and evidence
+.vslices/           -> project policy, installed snapshots and operational run/lineage state
+```
+
+Before authoring in a consumer, verify `vslices init` project state, `vslices update docs-standard`, and `vslices update template-standard` as applicable. A `.vslices/developments/` directory alone does not prove CLI project initialization. Do not assume installed definitions or claim a command ran without output. `documents.route` directs created product documentation (usually `docs/`), not the operational run directory; explicit paths can override configured placement.
+
+Public families and loops:
+
+```text
+vslices new|discovery|update vsir
+vslices new|discovery|update document
+vslices new|discovery|update nexus
+vslices new|discovery|update continuity-path
+vslices new|discovery|update support-note
+vslices search --filter <property>:<operator>:<value>
+vslices update self|ruleset|docs-standard|template-standard
+vslices transpile|rebase|lower
+```
+
+Use `discovery` to obtain actual available questions, ephemeral structured selections, recommendation commands and supported operations before `update`. Docs Standard owns the question identities; Tooling's displayed paths are navigation aids, not durable semantic ids. Documents support recursive one/many AnswerInstances and scoped descendant questions, with reconstruction constrained by the installed Template Standard. Nexus and Continuity Path own concrete relations/recommendations; arbitrary associations remain open-world and updates must preserve them. Support Notes have a deliberately narrow question surface. Tags are nonsemantic operational metadata shared across all four documentary families and VSIR search.
+
+Do not describe PR #11's directory-backed Nexus/Path layout as merged in v0.3.0: it is a separate open PR. Preserve the documented limitations on template generality, multi-file rollback guarantees, editing repeated instances, and relational front matter still temporarily realized by Tooling. Review [docs/cli.md](docs/cli.md), [docs/ai-development-orientation.md](docs/ai-development-orientation.md), and merged PRs #9, #10 and #14 before extending this surface.
