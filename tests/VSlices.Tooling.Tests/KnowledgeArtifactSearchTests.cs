@@ -57,23 +57,23 @@ public sealed class KnowledgeArtifactSearchTests
         AssertSearchResults(
             all,
             "Legacy.vsir",
-            "capability.md",
+            "capability/README.md",
             "context.md",
-            "journey.md",
-            "note.md");
+            "journey/README.md",
+            "note/README.md");
 
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:document"),
             "context.md");
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:support-note"),
-            "note.md");
+            "note/README.md");
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:nexus"),
-            "capability.md");
+            "capability/README.md");
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:continuity-path"),
-            "journey.md");
+            "journey/README.md");
 
         await Success(project, "update", "document", "context", "--add-tags", "migration");
         await Success(project, "update", "support-note", "note", "--add-tags", "migration");
@@ -87,10 +87,10 @@ public sealed class KnowledgeArtifactSearchTests
 
         AssertSearchResults(
             migration,
-            "capability.md",
+            "capability/README.md",
             "context.md",
-            "journey.md",
-            "note.md");
+            "journey/README.md",
+            "note/README.md");
 
         await Success(
             project,
@@ -150,8 +150,8 @@ public sealed class KnowledgeArtifactSearchTests
         var outgoing = Assert.Single(Relations(project, "observed"));
         var incoming = Assert.Single(Relations(project, "validated"));
 
-        Assert.Equal("validated.md", Value(outgoing, "target"));
-        Assert.Equal("observed.md", Value(incoming, "target"));
+        Assert.Equal("../validated/README.md", Value(outgoing, "target"));
+        Assert.Equal("../observed/README.md", Value(incoming, "target"));
         AssertTags(project, "observed", "advance", "legacy");
     }
 
