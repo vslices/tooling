@@ -129,6 +129,8 @@ public sealed class DocumentFrontMatterTests
     [InlineData("artifact:\n  kind: document\n  type: context\n  invented: hidden\n")]
     [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  relates: broken\n")]
     [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  relates:\n    - not-a-relation\n")]
+    [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  tags: ticket\n")]
+    [InlineData("artifact:\n  kind: document\n  type: context\nmetadata:\n  tags: [ticket, ticket]\n")]
     [InlineData("artifact:\n  kind: document\n  type: context\ntooling:\n  schema:\n    version: 99.0.0\n")]
     public async Task Unknown_or_malformed_promoted_metadata_still_fails_closed(string header)
     {

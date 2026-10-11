@@ -1,5 +1,52 @@
 # VSlices Tooling
 
+## v0.3.0-preview — Knowledge authoring (current preview branch)
+
+This branch adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. The previous v0.2.0 capability and safety boundaries remain in force.
+
+Project bootstrap and installed knowledge:
+
+```text
+vslices init
+vslices update docs-standard
+vslices update template-standard
+vslices update ruleset             # only when VSIR target lowering needs it
+```
+
+`init` creates minimum project policy (`.vslices/config.yaml`, `.vslices/.ignore`); it does **not** imply an installed standard. `documents.route` (typically `docs`) governs user-facing document location, which is separate from operational `.vslices/` state. Docs Standard defines documentary semantics and questions; Template Standard defines materialization/reconstruction; Tooling implements acquisition, authoring and discovery.
+
+Current knowledge artifact commands:
+
+```text
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <selection> --answer "<markdown>"
+
+vslices new nexus <name> --kind <type> --target <target>
+vslices discovery nexus <name>
+vslices update nexus <name> --question-id <selection> --answer "<answer>"
+
+vslices new continuity-path <name> --kind <type> --target <target>
+vslices discovery continuity-path <name>
+vslices update continuity-path <name> --question-id <selection> --answer "<answer>"
+
+vslices new support-note <name> --kind <type>
+vslices discovery support-note <name>
+vslices update support-note <name> --question-id <selection> --answer "<answer>"
+
+vslices search --filter kind:equals:document
+vslices search --filter tags:contains:example
+```
+
+Nexus and Continuity Path support question/recommendation traversal, concrete associations, recommendation-driven Document/Nexus creation and relational front matter. Continuity Paths preserve their navigation graph. The merged preview uses the artifact layout currently in the branch; the separate directory-backed layout PR #11 remains **unmerged** and is **not** part of the release scope.
+
+Support Notes admit definitions installed through the Docs Standard manifest, including the current draft/result/validation/risk vocabulary; the questions remain deliberately small. All four documentary artifact families support operational searchable tags (`--tags`, `--add-tags`, `--remove-tags`) and participate in `vslices search` alongside VSIR. Tags do not alter documentary semantics.
+
+For Documents, question ids come from Docs Standard, visible selections such as `2.1` are ephemeral, and repeated `one|many` AnswerInstances and scoped child questions are handled through Template Standard reconstruction. Nexus/Path recommendation commands are discoverable from the current artifact state. Authoring must follow `new -> discovery -> update -> discovery` and must not invent definitions or silently drop unknown structure.
+
+**Current limits:** the preview does not promise arbitrary Markdown reconstruction, a universal rich relation ontology, edits/removal of every repeated AnswerInstance, generalized semantic-subject identity or Framework migration compatibility. In the Nexus/Path realization, some front matter/relational presentation remains Tooling-owned pending a Template Standard contract. See [CLI details](docs/cli.md), [agent orientation](AGENTS.md), and the [release PR](https://github.com/vslices/tooling/pull/15).
+
+
 VSlices Tooling is the executable tooling surface of the VSlices suite. The CLI is named `vslices`.
 
 The `v0.2.0` release line was built by progressively reconstructing real VSIR from the Ticket Support / Identities corpus. Its governing rule is:

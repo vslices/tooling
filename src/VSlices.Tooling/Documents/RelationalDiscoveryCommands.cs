@@ -60,6 +60,7 @@ internal static class RelationalDiscoveryCommands
         Console.WriteLine($"  target: {metadata.Target ?? "<unset>"}");
         Console.WriteLine($"  status: {metadata.Status}");
         Console.WriteLine($"  tooling: {metadata.ToolingVersion}");
+        KnowledgeArtifactTags.WriteDiscovery(expectedKind, artifact, metadata);
         if (expectedKind == "continuity-path")
         {
             var graphQuestions = state.State!.Questions
@@ -72,6 +73,8 @@ internal static class RelationalDiscoveryCommands
             Console.WriteLine($"  recommendations: {recommendations.Count}");
             Console.WriteLine("  diagram: preserved in the Continuity Path Markdown artifact");
         }
+        Console.WriteLine();
+        Console.WriteLine("Discovery surface:");
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
         var entries = new List<DiscoveryEntry>();

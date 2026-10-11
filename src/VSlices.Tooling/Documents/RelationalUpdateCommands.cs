@@ -8,31 +8,49 @@ internal static class RelationalUpdateCommands
         [Argument] string artifact,
         string? questionId = null,
         string? answer = null,
+        string? tags = null,
+        string? addTags = null,
+        string? removeTags = null,
         CancellationToken cancellationToken = default) =>
-        Update(artifact, "nexus", questionId, answer, cancellationToken);
+        Update(artifact, "nexus", questionId, answer, tags, addTags, removeTags, cancellationToken);
 
     public static Task<int> ContinuityPath(
         [Argument] string artifact,
         string? questionId = null,
         string? answer = null,
+        string? tags = null,
+        string? addTags = null,
+        string? removeTags = null,
         CancellationToken cancellationToken = default) =>
-        Update(artifact, "continuity-path", questionId, answer, cancellationToken);
+        Update(artifact, "continuity-path", questionId, answer, tags, addTags, removeTags, cancellationToken);
 
     private static async Task<int> Update(
         string artifact,
         string expectedKind,
         string? questionId,
         string? answer,
+        string? tags,
+        string? addTags,
+        string? removeTags,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(questionId))
+        var hasQuestionMutation = questionId is not null || answer is not null;
+        var hasTagMutation = KnowledgeArtifactTags.HasMutation(tags, addTags, removeTags);
+
+        if (!hasQuestionMutation && !hasTagMutation)
         {
             TerminalOutput.Error(
-                $"RELUPD001: --question-id <path> is required when updating a {DisplayKind(expectedKind)}.");
+                $"RELUPD001: Update a {DisplayKind(expectedKind)} with --question-id/--answer or searchable tag metadata.");
             return 2;
         }
 
-        if (string.IsNullOrWhiteSpace(answer))
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(questionId))
+        {
+            TerminalOutput.Error("RELUPD001: --question-id <path> is required when --answer is supplied.");
+            return 2;
+        }
+
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(answer))
         {
             TerminalOutput.Error("RELUPD002: --answer must contain non-whitespace text.");
             return 2;
@@ -96,20 +114,35 @@ internal static class RelationalUpdateCommands
             return 2;
         }
 
-        var updated = RelationalArtifact.UpdateQuestion(
-            state.State!,
-            questionId,
-            answer,
-            out var updateError);
-        if (updateError is not null)
+        var updated = source;
+        if (hasQuestionMutation)
         {
-            TerminalOutput.Error(updateError);
-            return 2;
+            updated = RelationalArtifact.UpdateQuestion(
+                state.State!,
+                questionId!,
+                answer!,
+                out var updateError);
+            if (updateError is not null)
+            {
+                TerminalOutput.Error(updateError);
+                return 2;
+            }
+        }
+
+        if (hasTagMutation)
+        {
+            var tagged = KnowledgeArtifactTags.Apply(updated, tags, addTags, removeTags);
+            if (!tagged.IsSuccess)
+            {
+                TerminalOutput.Error(tagged.Error!);
+                return 2;
+            }
+
+            updated = tagged.Source!;
         }
 
         await CommandInfrastructure.AtomicWrite(path, updated, cancellationToken);
-        Console.WriteLine(
-            $"Updated question [{questionId}] in '{path}'.");
+        Console.WriteLine($"Updated {DisplayKind(expectedKind)} '{path}'.");
         return 0;
     }
 
