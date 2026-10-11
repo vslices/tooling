@@ -75,16 +75,16 @@ public sealed class SupportNoteCommandTests
 
         Assert.Equal("support-note", Value(resultRelation, "kind"));
         Assert.Equal("validation", Value(resultRelation, "type"));
-        Assert.Equal("advance-validation.md", Value(resultRelation, "target"));
+        Assert.Equal("../advance-validation/README.md", Value(resultRelation, "target"));
         Assert.Equal("support-note", Value(validationRelation, "kind"));
         Assert.Equal("result", Value(validationRelation, "type"));
-        Assert.Equal("advance-observation.md", Value(validationRelation, "target"));
+        Assert.Equal("../advance-observation/README.md", Value(validationRelation, "target"));
 
         var resultDiscovery = await Success(project, "discovery", "support-note", "advance-observation");
         var validationDiscovery = await Success(project, "discovery", "support-note", "advance-validation");
 
-        Assert.Contains("advance-validation.md", resultDiscovery, StringComparison.Ordinal);
-        Assert.Contains("advance-observation.md", validationDiscovery, StringComparison.Ordinal);
+        Assert.Contains("../advance-validation/README.md", resultDiscovery, StringComparison.Ordinal);
+        Assert.Contains("../advance-observation/README.md", validationDiscovery, StringComparison.Ordinal);
         Assert.Contains("Interprets this observed result", resultDiscovery, StringComparison.Ordinal);
 
         await Success(
@@ -102,13 +102,13 @@ public sealed class SupportNoteCommandTests
         var resultRelationAfterUpdate = Assert.Single(Relations(project, "advance-observation"));
         var validationRelationAfterUpdate = Assert.Single(Relations(project, "advance-validation"));
 
-        Assert.Equal("advance-validation.md", Value(resultRelationAfterUpdate, "target"));
+        Assert.Equal("../advance-validation/README.md", Value(resultRelationAfterUpdate, "target"));
         Assert.Equal("validation", Value(resultRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
             Value(resultRelationAfterUpdate, "role"));
 
-        Assert.Equal("advance-observation.md", Value(validationRelationAfterUpdate, "target"));
+        Assert.Equal("../advance-observation/README.md", Value(validationRelationAfterUpdate, "target"));
         Assert.Equal("result", Value(validationRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
@@ -131,8 +131,8 @@ public sealed class SupportNoteCommandTests
             await Failure(project, "new", "support-note", "unknown", "--kind", "invented", "--target", "Thing"),
             StringComparison.Ordinal);
 
-        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target.md")));
-        Assert.False(File.Exists(Path.Combine(project.Root, "unknown.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target", "README.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "unknown", "README.md")));
     }
 
     private static void WriteEnvironment(ToolingTestProject project)
@@ -204,7 +204,7 @@ public sealed class SupportNoteCommandTests
     }
 
     private static string Read(ToolingTestProject project, string name) =>
-        File.ReadAllText(Path.Combine(project.Root, name + ".md"))
+        File.ReadAllText(Path.Combine(project.Root, name, "README.md"))
             .Replace("\r\n", "\n", StringComparison.Ordinal);
 
     private static YamlMappingNode Metadata(ToolingTestProject project, string name) =>
