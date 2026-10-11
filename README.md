@@ -1,8 +1,8 @@
 # VSlices Tooling
 
-## v0.3.0-preview — Knowledge authoring (current preview branch)
+## v0.3.0-preview — Current integrated CLI capabilities
 
-This branch adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. The previous v0.2.0 capability and safety boundaries remain in force.
+The v0.3.0-preview release line is integrated into `main` and adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. See [current CLI status](docs/releases/v0.3.0-preview.md). The previous v0.2.0 capability and safety boundaries remain in force.
 
 Project bootstrap and installed knowledge:
 
@@ -38,9 +38,11 @@ vslices search --filter kind:equals:document
 vslices search --filter tags:contains:example
 ```
 
-Nexus and Continuity Path support question/recommendation traversal, concrete associations, recommendation-driven Document/Nexus creation and relational front matter. Continuity Paths preserve their navigation graph. The merged preview uses the artifact layout currently in the branch; the separate directory-backed layout PR #11 remains **unmerged** and is **not** part of the release scope.
+Nexus and Continuity Path support question/recommendation traversal, concrete associations, recommendation-driven Document/Nexus creation and relational front matter. Continuity Paths preserve their navigation graph. PR #11 is merged: Nexus, Continuity Path and relational Support Note materializations use directory-backed `<artifact>/README.md` layouts, with corresponding relative links and name-based resolution.
 
 Support Notes admit definitions installed through the Docs Standard manifest, including the current draft/result/validation/risk vocabulary; the questions remain deliberately small. All four documentary artifact families support operational searchable tags (`--tags`, `--add-tags`, `--remove-tags`) and participate in `vslices search` alongside VSIR. Tags do not alter documentary semantics.
+
+The CLI manages self-updates through `vslices update self`; no separate manual application publication step is required by the intended workflow.
 
 For Documents, question ids come from Docs Standard, visible selections such as `2.1` are ephemeral, and repeated `one|many` AnswerInstances and scoped child questions are handled through Template Standard reconstruction. Nexus/Path recommendation commands are discoverable from the current artifact state. Authoring must follow `new -> discovery -> update -> discovery` and must not invent definitions or silently drop unknown structure.
 
@@ -748,7 +750,7 @@ The mutable `analysis/ticket-support-post-mortem` branch is useful for continued
 
 ## Explicit future scope
 
-Recorded but not implemented in v0.2.0:
+These items remain historical v0.2.0 limitations and future research directions; verify current implementation against [v0.3.0 status](docs/releases/v0.3.0-preview.md) before treating them as current gaps:
 
 - full public authoring parity for witnessed `sum`, `maintained`, entity/aggregate-root forms;
 - semantic vocabulary beyond current corpus evidence;
