@@ -31,16 +31,25 @@ internal static class UpdateCommands
         TerminalOutput.Detail("Mode", check ? "check only" : "install");
         TerminalOutput.BlankLine();
 
+        var configurationOverridden =
+            channel is not null ||
+            source is not null ||
+            pullRequest is not null;
+
         return SelfUpdater.Update(
             resolvedSource,
             resolvedChannel,
             resolvedPullRequest,
+            configurationOverridden,
             check,
             cancellationToken);
     }
 
-    /// <summary>Updates the project-local ruleset snapshot from configured provenance.</summary>
-    public static Task<int> Ruleset(CancellationToken cancellationToken = default)
+    /// <summary>Installs or refreshes the project-local ruleset snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    public static Task<int> Ruleset(
+        string? origin = null,
+        CancellationToken cancellationToken = default)
     {
         var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
         if (project is null)
@@ -50,7 +59,231 @@ internal static class UpdateCommands
             return Task.FromResult(1);
         }
 
-        return RulesetUpdater.Update(project, cancellationToken);
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            project.Configuration.RulesetSource,
+            project.Configuration.RulesetRef,
+            ProjectOrigin.OfficialRuleset,
+            "UPD017");
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
+        }
+
+        return RulesetUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
+    }
+
+    /// <summary>Installs or refreshes the project-local Docs Standard snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    public static Task<int> DocsStandard(
+        string? origin = null,
+        CancellationToken cancellationToken = default)
+    {
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        if (project is null)
+        {
+            TerminalOutput.Error(
+                "UPD030: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Docs Standard.");
+            return Task.FromResult(1);
+        }
+
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            project.Configuration.DocsStandardSource,
+            project.Configuration.DocsStandardRef,
+            ProjectOrigin.OfficialDocsStandard,
+            "UPD035");
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
+        }
+
+        return DocsStandardUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
+    }
+
+    /// <summary>Installs or refreshes the project-local Template Standard snapshot.</summary>
+    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    public static Task<int> TemplateStandard(
+        string? origin = null,
+        CancellationToken cancellationToken = default)
+    {
+        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
+        if (project is null)
+        {
+            TerminalOutput.Error(
+                "UPD040: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Template Standard.");
+            return Task.FromResult(1);
+        }
+
+        var resolved = ProjectOriginResolver.Resolve(
+            origin,
+            project.Configuration.TemplateStandardSource,
+            project.Configuration.TemplateStandardRef,
+            ProjectOrigin.OfficialTemplateStandard,
+            "UPD045");
+        if (!resolved.IsSuccess)
+        {
+            TerminalOutput.Error(resolved.Error!);
+            return Task.FromResult(2);
+        }
+
+        return TemplateStandardUpdater.Update(
+            project,
+            resolved.Origin!.Source,
+            resolved.Origin.Reference,
+            cancellationToken);
+    }
+
+    /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
+    /// <param name="document">Document name or path. The .md extension is added when omitted.</param>
+    /// <param name="questionId">Ephemeral structured selection path from the current Document authoring surface, for example 2.1.1.</param>
+    /// <param name="answer">Non-empty Markdown answer for the selected question.</param>
+    public static async Task<int> Document(
+        [Argument] string document,
+        string? questionId = null,
+        string? answer = null,
+        string? tags = null,
+        string? addTags = null,
+        string? removeTags = null,
+        CancellationToken cancellationToken = default)
+    {
+        var hasQuestionMutation = questionId is not null || answer is not null;
+        var hasTagMutation = KnowledgeArtifactTags.HasMutation(tags, addTags, removeTags);
+
+        if (!hasQuestionMutation && !hasTagMutation)
+        {
+            TerminalOutput.Error(
+                "UPDATE100: Update a Document with --question-id/--answer or searchable tag metadata.");
+            return 2;
+        }
+
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(questionId))
+        {
+            TerminalOutput.Error("UPDATE100: --question-id <path> is required when --answer is supplied.");
+            return 2;
+        }
+
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(answer))
+        {
+            TerminalOutput.Error("UPDATE101: --answer must contain non-whitespace text.");
+            return 2;
+        }
+
+        var resolvedPath = DocumentPathResolver.Resolve(
+            document,
+            Environment.CurrentDirectory);
+        if (!resolvedPath.IsSuccess)
+        {
+            TerminalOutput.Error(resolvedPath.Error!);
+            return 2;
+        }
+
+        var path = resolvedPath.Path!;
+        if (!File.Exists(path))
+        {
+            TerminalOutput.Error($"UPDATE102: Document '{path}' does not exist.");
+            return 1;
+        }
+
+        var standardRoot = DocsStandardCatalog.FindInstalledRoot(path);
+        if (standardRoot is null)
+        {
+            TerminalOutput.Error(
+                "UPDATE103: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard' to install it.");
+            return 1;
+        }
+
+        var catalog = DocsStandardCatalog.Load(standardRoot);
+        if (!catalog.IsSuccess)
+        {
+            TerminalOutput.Error(catalog.Error!);
+            return 1;
+        }
+
+        var materialization = DocumentMaterializationEnvironment.Resolve(path);
+        if (!materialization.IsSuccess)
+        {
+            TerminalOutput.Error(materialization.Error!);
+            return 1;
+        }
+
+        var source = await File.ReadAllTextAsync(path, cancellationToken);
+        KnowledgeArtifactMetadata? metadata = null;
+        if (source.TrimStart().StartsWith("---", StringComparison.Ordinal))
+        {
+            var metadataRead = KnowledgeArtifactFrontMatter.Read(source);
+            if (!metadataRead.IsSuccess)
+            {
+                TerminalOutput.Error(metadataRead.Error!);
+                return 2;
+            }
+
+            metadata = metadataRead.Metadata;
+        }
+
+        var state = DocumentArtifact.Read(
+            source,
+            catalog.Catalog!,
+            materialization.Template!);
+        if (!state.IsSuccess)
+        {
+            TerminalOutput.Error(state.Error!);
+            return 2;
+        }
+
+        var updatedSource = source;
+        if (hasQuestionMutation)
+        {
+            var candidate = state.Artifact!.Update(
+                questionId!,
+                answer!,
+                materialization.Template!);
+            if (!candidate.IsSuccess)
+            {
+                TerminalOutput.Error(candidate.Error!);
+                return 2;
+            }
+
+            updatedSource = metadata is null
+                ? candidate.Source!
+                : KnowledgeArtifactFrontMatter.WithMetadata(
+                    candidate.Source!,
+                    metadata,
+                    metadata.Relations);
+        }
+
+        if (hasTagMutation)
+        {
+            if (metadata is null)
+            {
+                TerminalOutput.Error(
+                    "TAG005: Searchable tags require promoted knowledge-artifact front-matter.");
+                return 2;
+            }
+
+            var tagged = KnowledgeArtifactTags.Apply(updatedSource, tags, addTags, removeTags);
+            if (!tagged.IsSuccess)
+            {
+                TerminalOutput.Error(tagged.Error!);
+                return 2;
+            }
+
+            updatedSource = tagged.Source!;
+        }
+
+        await CommandInfrastructure.AtomicWrite(path, updatedSource, cancellationToken);
+        Console.WriteLine($"Updated Document '{path}'.");
+        return 0;
     }
 
     /// <summary>Applies one atomic semantic or metadata transition to a progressive VSIR artifact.</summary>

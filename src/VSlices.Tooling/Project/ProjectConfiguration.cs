@@ -11,12 +11,23 @@ internal sealed record ProjectConfiguration(
     string? UpdateChannel,
     int? UpdatePullRequest = null,
     string? LineageBootstrapConvention = "existing-materialization",
-    IReadOnlyList<string>? CSharpNamespaceIgnoredFolders = null)
+    IReadOnlyList<string>? CSharpNamespaceIgnoredFolders = null,
+    string? DocsStandardSource = null,
+    string? DocsStandardRef = null,
+    string? TemplateStandardSource = null,
+    string? TemplateStandardRef = null,
+    string? DocumentsTemplate = null,
+    string? DocumentsRoute = null)
 {
     public const string CurrentVersion = "0.1";
     public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
     public const string OfficialRulesetRef = "main";
     public const string OfficialToolingSource = "https://github.com/vslices/tooling";
+    public const string OfficialDocsStandardSource = "https://github.com/vslices/docs-standard";
+    public const string OfficialDocsStandardRef = "main";
+    public const string OfficialTemplateStandardSource = "https://github.com/vslices/template-standard";
+    public const string OfficialTemplateStandardRef = "main";
+    public const string DefaultDocumentTemplate = "markdown.question-tree";
     public const string DefaultUpdateChannel = "preview";
     public const string DefaultLineageBootstrapConvention = "existing-materialization";
 
@@ -24,13 +35,19 @@ internal sealed record ProjectConfiguration(
         new(
             CurrentVersion,
             target,
-            OfficialRulesetSource,
-            OfficialRulesetRef,
+            null,
+            null,
             OfficialToolingSource,
             DefaultUpdateChannel,
             null,
             DefaultLineageBootstrapConvention,
-            []);
+            [],
+            null,
+            null,
+            null,
+            null,
+            null,
+            null);
 
     public static ProjectConfiguration? LoadFromProjectRoot(string projectRoot) =>
         LoadFromVslicesDirectory(Path.Combine(projectRoot, ".vslices"));
@@ -75,12 +92,37 @@ internal sealed record ProjectConfiguration(
             { "targets", targets }
         };
 
+        var documents = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.DocumentsRoute))
+            documents.Add("route", configuration.DocumentsRoute);
+        if (!string.IsNullOrWhiteSpace(configuration.DocumentsTemplate))
+            documents.Add("template", configuration.DocumentsTemplate);
+        if (documents.Children.Count > 0)
+            root.Add("documents", documents);
+
         var ruleset = new YamlMappingNode();
         if (!string.IsNullOrWhiteSpace(configuration.RulesetSource))
             ruleset.Add("source", configuration.RulesetSource);
         if (!string.IsNullOrWhiteSpace(configuration.RulesetRef))
             ruleset.Add("ref", configuration.RulesetRef);
-        root.Add("ruleset", ruleset);
+        if (ruleset.Children.Count > 0)
+            root.Add("ruleset", ruleset);
+
+        var docsStandard = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.DocsStandardSource))
+            docsStandard.Add("source", configuration.DocsStandardSource);
+        if (!string.IsNullOrWhiteSpace(configuration.DocsStandardRef))
+            docsStandard.Add("ref", configuration.DocsStandardRef);
+        if (docsStandard.Children.Count > 0)
+            root.Add("docs-standard", docsStandard);
+
+        var templateStandard = new YamlMappingNode();
+        if (!string.IsNullOrWhiteSpace(configuration.TemplateStandardSource))
+            templateStandard.Add("source", configuration.TemplateStandardSource);
+        if (!string.IsNullOrWhiteSpace(configuration.TemplateStandardRef))
+            templateStandard.Add("ref", configuration.TemplateStandardRef);
+        if (templateStandard.Children.Count > 0)
+            root.Add("template-standard", templateStandard);
 
         if (!string.IsNullOrWhiteSpace(configuration.LineageBootstrapConvention))
         {
@@ -145,7 +187,13 @@ internal sealed record ProjectConfiguration(
             NestedScalar(root, "updates", "channel"),
             pullRequest,
             NestedScalar(root, "lineage", "bootstrap", "convention"),
-            NestedSequence(root, "targets", "csharp", "namespace", "ignore-folders"));
+            NestedSequence(root, "targets", "csharp", "namespace", "ignore-folders"),
+            NestedScalar(root, "docs-standard", "source"),
+            NestedScalar(root, "docs-standard", "ref"),
+            NestedScalar(root, "template-standard", "source"),
+            NestedScalar(root, "template-standard", "ref"),
+            NestedScalar(root, "documents", "template"),
+            NestedScalar(root, "documents", "route"));
     }
 
     private static string? NestedScalar(YamlMappingNode root, string section, string key)

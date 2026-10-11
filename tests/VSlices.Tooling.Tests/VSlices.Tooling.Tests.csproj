@@ -29,6 +29,10 @@
     <Compile Include="../../src/VSlices.Tooling/Commands/SearchFilter.cs" Link="Linked/SearchFilter.cs" />
     <Compile Include="../../src/VSlices.Tooling/IO/AtomicFile.cs" Link="Linked/AtomicFile.cs" />
     <Compile Include="../../src/VSlices.Tooling/Project/ProjectConfiguration.cs" Link="Linked/ProjectConfiguration.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Project/ProjectOrigin.cs" Link="Linked/ProjectOrigin.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Documents/DocumentPathResolver.cs" Link="Linked/DocumentPathResolver.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Documents/DocumentPolicyBootstrap.cs" Link="Linked/DocumentPolicyBootstrap.cs" />
+    <Compile Include="../../src/VSlices.Tooling/Project/VSlicesProjectContext.cs" Link="Linked/VSlicesProjectContext.cs" />
     <Compile Include="../../src/VSlices.Tooling/Rulesets/RulesetSourceMaterializer.cs" Link="Linked/RulesetSourceMaterializer.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticNamespaceMovePreflight.cs" Link="Linked/SemanticNamespaceMovePreflight.cs" />
     <Compile Include="../../src/VSlices.Tooling/Lowering/SemanticRefactoring/SemanticRefactoringAuthorization.cs" Link="Linked/SemanticRefactoringAuthorization.cs" />

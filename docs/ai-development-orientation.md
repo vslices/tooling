@@ -188,3 +188,20 @@ An in-process Tooling test reference exposed a case-insensitive assembly-name co
 ## Continuity
 
 When command semantics, authority, project context, lineage, ruleset behavior or VSIR executable support changes materially, update the closest owning repository document in the same change. VSIR language changes belong in `vslices/intermediate-representation`; Tooling documentation should reference them rather than duplicate them.
+
+
+## v0.3.0 documentary continuation (current branch)
+
+Alongside VSIR, this branch now supports Docs Standard / Template Standard-backed Document, Nexus, Continuity Path and Support Note authoring. Read `README.md`, `AGENTS.md`, `docs/cli.md`, and the evidence from merged PRs #9, #10 and #14. PR #11 is an **open, unmerged** proposed materialization change.
+
+```text
+Docs Standard      -> documentary semantics and definition identity
+Template Standard  -> Document materialization and reconstruction
+Tooling            -> snapshot updates, project configuration, new/discovery/update/search, relations
+consumer docs      -> authored product knowledge
+.vslices           -> operational project policy and installed snapshots
+```
+
+For a new consumer verify `vslices init`, `vslices update docs-standard` and `vslices update template-standard` (when Document templates are required). Prefer the configured `documents.route` for actual product documentation; do not place Business Scenarios in the operational development-state directory by default. Use discovery-advertised selections; repeated Document answers are scoped by AnswerInstances. Nexus and Continuity Path support recommendations and bidirectional associations; Support Notes use a minimal definition-driven question surface. Search across documentary artifacts and VSIR by `kind`, `tags`, and supported indexed properties; tags are not semantics.
+
+Do not overstate full Template Standard coverage, unknown definitions, editing/removal of repeated instances, or capabilities of unmerged PRs.

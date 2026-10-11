@@ -1,5 +1,52 @@
 # VSlices Tooling
 
+## v0.3.0-preview — Knowledge authoring (current preview branch)
+
+This branch adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. The previous v0.2.0 capability and safety boundaries remain in force.
+
+Project bootstrap and installed knowledge:
+
+```text
+vslices init
+vslices update docs-standard
+vslices update template-standard
+vslices update ruleset             # only when VSIR target lowering needs it
+```
+
+`init` creates minimum project policy (`.vslices/config.yaml`, `.vslices/.ignore`); it does **not** imply an installed standard. `documents.route` (typically `docs`) governs user-facing document location, which is separate from operational `.vslices/` state. Docs Standard defines documentary semantics and questions; Template Standard defines materialization/reconstruction; Tooling implements acquisition, authoring and discovery.
+
+Current knowledge artifact commands:
+
+```text
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <selection> --answer "<markdown>"
+
+vslices new nexus <name> --kind <type> --target <target>
+vslices discovery nexus <name>
+vslices update nexus <name> --question-id <selection> --answer "<answer>"
+
+vslices new continuity-path <name> --kind <type> --target <target>
+vslices discovery continuity-path <name>
+vslices update continuity-path <name> --question-id <selection> --answer "<answer>"
+
+vslices new support-note <name> --kind <type>
+vslices discovery support-note <name>
+vslices update support-note <name> --question-id <selection> --answer "<answer>"
+
+vslices search --filter kind:equals:document
+vslices search --filter tags:contains:example
+```
+
+Nexus and Continuity Path support question/recommendation traversal, concrete associations, recommendation-driven Document/Nexus creation and relational front matter. Continuity Paths preserve their navigation graph. The merged preview uses the artifact layout currently in the branch; the separate directory-backed layout PR #11 remains **unmerged** and is **not** part of the release scope.
+
+Support Notes admit definitions installed through the Docs Standard manifest, including the current draft/result/validation/risk vocabulary; the questions remain deliberately small. All four documentary artifact families support operational searchable tags (`--tags`, `--add-tags`, `--remove-tags`) and participate in `vslices search` alongside VSIR. Tags do not alter documentary semantics.
+
+For Documents, question ids come from Docs Standard, visible selections such as `2.1` are ephemeral, and repeated `one|many` AnswerInstances and scoped child questions are handled through Template Standard reconstruction. Nexus/Path recommendation commands are discoverable from the current artifact state. Authoring must follow `new -> discovery -> update -> discovery` and must not invent definitions or silently drop unknown structure.
+
+**Current limits:** the preview does not promise arbitrary Markdown reconstruction, a universal rich relation ontology, edits/removal of every repeated AnswerInstance, generalized semantic-subject identity or Framework migration compatibility. In the Nexus/Path realization, some front matter/relational presentation remains Tooling-owned pending a Template Standard contract. See [CLI details](docs/cli.md), [agent orientation](AGENTS.md), and the [release PR](https://github.com/vslices/tooling/pull/15).
+
+
 VSlices Tooling is the executable tooling surface of the VSlices suite. The CLI is named `vslices`.
 
 The `v0.2.0` release line was built by progressively reconstructing real VSIR from the Ticket Support / Identities corpus. Its governing rule is:
@@ -28,12 +75,45 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
+
+vslices new document <name> --kind <type>
+vslices discovery document <name>
+vslices update document <name> --question-id <path> --answer "<markdown>"
 
 vslices --version
 vslices -v
 ```
 
 `update` is a command group. There is deliberately no legacy `update --self`, `update --ruleset`, plain aggregate `update`, or combined update alias in the current public contract.
+
+
+`vslices init` now establishes only the minimum project surface:
+
+```text
+.vslices/config.yaml
+.vslices/.ignore
+```
+
+Ruleset, Docs Standard, and Template Standard are independently first-installed or refreshed through their own update operations. Initialization can compose those same operations through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; those flags do not introduce separate installers.
+
+The minimum project configuration also records the current default Document materialization policy:
+
+```yaml
+documents:
+  template: markdown.question-tree
+```
+
+That policy does not install Template Standard. Document authoring requires both the configured template id and an installed Template Standard snapshot that defines it. Creation and later materialization of newly activated questions use the same template geometry.
+
+New Documents materialize their root without hidden placeholder metadata. Root identity is reconstructed from front matter + Docs Standard, while Template Standard supplies the visible root geometry, answer-region boundaries, and the empty-answer state. Root answers are therefore markerless as well; historical placeholder/question representations remain readable where compatibility requires them. Descendant answer markers remain part of the current experimental boundary.
+
+Structured selections are ephemeral navigation paths projected by discovery, for example `2`, `2.1`, or `2.1.1`. They make parent/child relationships usable from the CLI without becoming persisted identity; stable question identity remains the Docs Standard question id and repeated materialization identity remains AnswerInstance metadata.
+
+Document question cardinality is recognized from Docs Standard as `one` or `many`, with omitted cardinality defaulting to `one`. `many` questions now support the first repeated-answer slice: Tooling can create multiple independently identified AnswerInstances, reconstruct them from the Markdown artifact, and keep the QuestionOccurrence available for another answer. The configured Template Standard must explicitly authorize the repeated-answer materialization/reconstruction strategy. AnswerInstance identity is technical materialization identity and is deliberately independent from answer text; it does not define semantic subject identity, uniqueness, or ordering. Editing/removing a specific repeated instance and authoring child QuestionOccurrences scoped through that instance remain explicit unsupported boundaries.
+
+Document route and template policy are intentionally not chosen by `vslices init`. On the first interactive Docs Standard installation, Tooling asks for missing `documents.route` and `documents.template`; non-interactive installs leave them for manual configuration. Bare Document names then resolve through the configured project-relative route across new, discovery, and update.
 
 The current authoring loop is:
 
@@ -81,7 +161,13 @@ vslices/ruleset
   = project operating policy
 
 .vslices/ruleset/
-  = installed source-owned target-knowledge snapshot
+  = optional installed source-owned target-knowledge snapshot
+
+.vslices/docs-standard/
+  = optional installed normative documentary-vocabulary snapshot
+
+.vslices/template-standard/
+  = optional installed source-owned materialization-template snapshot
 
 .vslices/extensions/
   = project-owned semantic-extension overlay
@@ -123,7 +209,7 @@ src/VSlices.Tooling/
     UpdateCommands.cs
     SearchCommands.cs
     VsirCommands.cs
-    RulesetCommands.cs
+    InitCommands.cs
 
   IO/
     AtomicFile.cs
@@ -365,7 +451,7 @@ The language-level semantics live in `vslices/intermediate-representation`; Rule
 
 ## Project semantic extensions
 
-`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `init --force` and `vslices update ruleset` may replace the installed Ruleset snapshot, but they preserve the project-owned extension overlay.
+`.vslices/ruleset` and `.vslices/extensions` deliberately have different lifecycle owners. `vslices update ruleset` may replace the installed Ruleset snapshot, but it preserves the project-owned extension overlay. An `init` Ruleset shortcut delegates to that same update operation.
 
 Example:
 
@@ -548,28 +634,32 @@ refactor/BuildHost-netcore/Microsoft.CodeAnalysis.Workspaces.MSBuild.BuildHost.d
 
 Startup health checks, same-build `vslices update self` repair, downloaded-archive validation, staging validation and the Windows installer share the same completeness rule. A root helper DLL without `BuildHost-netcore` is incomplete.
 
-## Ruleset lifecycle and updates
+## External knowledge lifecycle and updates
 
-`vslices init` and `vslices update ruleset` share Ruleset-source materialization and snapshot installation mechanisms:
+Ruleset, Docs Standard, and Template Standard are installed and refreshed independently from project initialization:
 
 ```text
-source
-  -> materialize
-  -> prepare selected-target snapshot
-  -> validate with the real target loader
-  -> atomic replace .vslices/ruleset with backup/rollback
+vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
 ```
 
-For C#, a prepared snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+Each resolves an origin, materializes a candidate, validates it against the currently recognized component contract, atomically replaces its project-local snapshot, and records successful provenance.
+
+For C#, a prepared Ruleset snapshot must successfully load through `CSharpLoweringRuleSet.Load` before the current snapshot can be replaced.
+
+`vslices init --ruleset-origin ...`, `--docs-standard-origin ...`, `--template-standard-origin ...`, and `--default-origin` are convenience composition only; they delegate to those same updater mechanisms.
 
 The independent updater surfaces are:
 
 ```text
 vslices update self
 vslices update ruleset
+vslices update docs-standard
+vslices update template-standard
 ```
 
-There is no aggregate update operation in v0.2.0.
+There is no aggregate `vslices update` operation.
 
 See [`docs/rulesets.md`](docs/rulesets.md).
 

@@ -36,7 +36,7 @@ internal static class TranspilationOperation
         {
             return TranspilationEnvironmentResult.Failure([new(
                 "CLI010",
-                "No project-local VSlices project/ruleset was found. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the path ancestry. Run 'vslices init'.")]);
+                "No project-local Ruleset is installed. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the path ancestry. Run 'vslices init' first if needed, then 'vslices update ruleset'.")]);
         }
 
         var target = CommandInfrastructure.ResolveTarget(requestedTarget, project);

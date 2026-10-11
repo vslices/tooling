@@ -5,6 +5,73 @@ namespace VSlices.Tooling.Tests;
 public sealed class RulesetUpdateTests
 {
     [Fact]
+    public async Task Update_ruleset_origin_first_installs_records_provenance_and_plain_update_reuses_it()
+    {
+        using var project = new ToolingTestProject();
+        Assert.Equal(0, (await project.Run(project.Root, "init")).ExitCode);
+
+        var source = Path.Combine(project.Root, "source-ruleset");
+        ToolingTestProject.WriteValidRuleset(source, "first.marker");
+
+        var first = await project.Run(
+            project.Root,
+            "update", "ruleset",
+            "--origin", source);
+
+        Assert.Equal(0, first.ExitCode);
+        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "first.marker")));
+
+        var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(configured);
+        Assert.Equal(source, configured!.RulesetSource);
+        Assert.Null(configured.RulesetRef);
+
+        File.Delete(Path.Combine(source, "first.marker"));
+        File.WriteAllText(Path.Combine(source, "second.marker"), "second.marker");
+
+        var second = await project.Run(
+            project.Root,
+            "update", "ruleset");
+
+        Assert.Equal(0, second.ExitCode);
+        Assert.False(File.Exists(Path.Combine(project.RulesetRoot, "first.marker")));
+        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "second.marker")));
+        Assert.Contains(source, second.StandardOutput, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Failed_explicit_ruleset_origin_preserves_last_known_provenance()
+    {
+        using var project = new ToolingTestProject();
+        Assert.Equal(0, (await project.Run(project.Root, "init")).ExitCode);
+
+        var valid = Path.Combine(project.Root, "valid-ruleset");
+        ToolingTestProject.WriteValidRuleset(valid, "valid.marker");
+        Assert.Equal(
+            0,
+            (await project.Run(
+                project.Root,
+                "update", "ruleset",
+                "--origin", valid)).ExitCode);
+
+        var invalid = Path.Combine(project.Root, "invalid-ruleset");
+        Directory.CreateDirectory(invalid);
+
+        var failed = await project.Run(
+            project.Root,
+            "update", "ruleset",
+            "--origin", invalid);
+
+        Assert.NotEqual(0, failed.ExitCode);
+
+        var configured = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(configured);
+        Assert.Equal(valid, configured!.RulesetSource);
+        Assert.Null(configured.RulesetRef);
+        Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "valid.marker")));
+    }
+
+    [Fact]
     public async Task Valid_local_source_replaces_snapshot_and_cleans_staging()
     {
         using var project = new ToolingTestProject();
@@ -51,7 +118,7 @@ public sealed class RulesetUpdateTests
 
         var result = await project.Run(
             project.Root,
-            "init", "--force", "--from", source, "--target", "C#");
+            "init", "--force", "--ruleset-origin", source, "--target", "C#");
 
         Assert.Equal(0, result.ExitCode);
         Assert.True(File.Exists(Path.Combine(project.ExtensionsRoot, "keep-me")));
@@ -69,7 +136,7 @@ public sealed class RulesetUpdateTests
 
         var initialized = await project.Run(
             project.Root,
-            "init", "--force", "--from", localSource, "--target", "C#");
+            "init", "--force", "--ruleset-origin", localSource, "--target", "C#");
 
         Assert.Equal(0, initialized.ExitCode);
         var configuration = File.ReadAllText(Path.Combine(project.VslicesRoot, "config.yaml"));

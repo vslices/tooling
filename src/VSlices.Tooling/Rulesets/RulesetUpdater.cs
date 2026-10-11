@@ -4,18 +4,12 @@ internal static class RulesetUpdater
 {
     public static async Task<int> Update(
         VSlicesProjectContext project,
+        string source,
+        string? reference,
         CancellationToken cancellationToken)
     {
         var configuration = project.Configuration;
-        var source = configuration.RulesetSource;
-        if (string.IsNullOrWhiteSpace(source))
-        {
-            TerminalOutput.Error("UPD011: The project does not declare ruleset.source in .vslices/config.yaml.");
-            return 1;
-        }
-
         var target = CommandInfrastructure.NormalizeTarget(configuration.DefaultTarget ?? "csharp");
-        var reference = configuration.RulesetRef;
 
         TerminalOutput.Detail("Ruleset source", source);
         if (!string.IsNullOrWhiteSpace(reference))
@@ -68,7 +62,19 @@ internal static class RulesetUpdater
             }
 
             RulesetSnapshotInstaller.Replace(project.VslicesRoot, prepared);
+
+            var nextConfiguration = configuration with
+            {
+                RulesetSource = source,
+                RulesetRef = reference
+            };
+            await ProjectConfiguration.WriteAsync(
+                project.ProjectRoot,
+                nextConfiguration,
+                cancellationToken);
+
             TerminalOutput.Success("✓ Ruleset updated");
+            TerminalOutput.Success("✓ Ruleset provenance recorded");
             return 0;
         }
         catch (Exception ex)

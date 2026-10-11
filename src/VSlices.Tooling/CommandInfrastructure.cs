@@ -71,7 +71,7 @@ internal static class CommandInfrastructure
         return installed.Count switch
         {
             1 => (installed[0], null),
-            0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices init' or specify -to after installing a target.")),
+            0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices update ruleset' to install one.")),
             _ => (null, new("CLI022", "More than one supported target is installed and no default target is configured. Specify -to explicitly or set targets.default in .vslices/config.yaml."))
         };
     }
