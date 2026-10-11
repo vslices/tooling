@@ -5,12 +5,12 @@ namespace VSlices.Tooling.Tests;
 public sealed class RelationalRecommendationEntryTests
 {
     [Theory]
-    [InlineData("nexus", "capability", "--from-nexus", "1", "document", "tooling-context")]
-    [InlineData("nexus", "capability", "--from-nexus", "2", "nexus", "tooling-detail")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.1", "document", "tooling-context")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.2.1", "nexus", "tooling-capability")]
+    [InlineData("nexus", "capability", "--from-nexus", "1", "document", "origin/context", "README.md")]
+    [InlineData("nexus", "capability", "--from-nexus", "2", "nexus", "origin/detail", "../README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.1", "document", "origin/context", "README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.2.1", "nexus", "origin/capability", "../README.md")]
     public async Task Prepared_recommendation_commands_work_without_positional_name(
-        string sourceFamily, string sourceType, string flag, string selection, string family, string expectedName)
+        string sourceFamily, string sourceType, string flag, string selection, string family, string expectedName, string expectedSourceRelation)
     {
         using var project = new ToolingTestProject();
         WriteEnvironment(project);
@@ -18,9 +18,9 @@ public sealed class RelationalRecommendationEntryTests
         var discovery = await Success(project, "discovery", sourceFamily, "origin");
         Assert.Contains($"vslices new {family} {flag} origin:{selection}", discovery, StringComparison.Ordinal);
         await Success(project, "new", family, flag, "origin:" + selection);
-        Assert.True(File.Exists(Path.Combine(project.Root, expectedName + ".md")));
+        Assert.True(File.Exists(ArtifactPath(project, expectedName)));
         Assert.Equal("Tooling", Value(Metadata(project, expectedName), "artifact", "target"));
-        Assert.Equal("origin.md", Value(Assert.Single(Relations(project, expectedName)), "target"));
+        Assert.Equal(expectedSourceRelation, Value(Assert.Single(Relations(project, expectedName)), "target"));
         Assert.Contains("status: created", Selection(await Success(project, "discovery", sourceFamily, "origin"), selection), StringComparison.Ordinal);
     }
 
@@ -37,14 +37,14 @@ public sealed class RelationalRecommendationEntryTests
         Assert.Contains("vslices new nexus --from-path domain:3.4.1", discovery, StringComparison.Ordinal);
         Assert.Contains("vslices new document --from-path domain:3.5.1", discovery, StringComparison.Ordinal);
         await Success(project, "new", "nexus", "--from-path", "domain:3.4.1");
-        var nexus = await Success(project, "discovery", "nexus", "domain-capability");
-        Assert.Equal("capability", Value(Metadata(project, "domain-capability"), "artifact", "scope"));
+        var nexus = await Success(project, "discovery", "nexus", "domain/capability");
+        Assert.Equal("capability", Value(Metadata(project, "domain/capability"), "artifact", "scope"));
         Assert.Contains("[1] document: scope", nexus, StringComparison.Ordinal);
         Assert.Contains("[6] document: decision-record", nexus, StringComparison.Ordinal);
-        Assert.Contains("domain.md", nexus, StringComparison.Ordinal);
+        Assert.Contains("../README.md", nexus, StringComparison.Ordinal);
         // The Document definition is the synthetic context fixture; candidate Path and Nexus definitions are verbatim snapshots.
         await Success(project, "new", "document", "--from-path", "domain:3.5.1");
-        Assert.Equal("Domain", Value(Metadata(project, "domain-context"), "artifact", "target"));
+        Assert.Equal("Domain", Value(Metadata(project, "domain/context"), "artifact", "target"));
         Assert.Equal(2, Relations(project, "domain").Length);
     }
 

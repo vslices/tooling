@@ -351,12 +351,28 @@ internal static class RelationalArtifact
         sb.AppendLine("| --- | --- | --- |");
         foreach (var relation in relations)
         {
-            var name = EscapeCell(Path.GetFileNameWithoutExtension(relation.Path));
+            var name = EscapeCell(RelationDisplayName(relation));
             var href = string.Join("/", relation.Path.Replace('\\', '/').Split('/').Select(Uri.EscapeDataString));
             sb.AppendLine($"| {name} | {EscapeCell(relation.Role)} | [{EscapeCell(relation.Path)}]({href}) |");
         }
         sb.AppendLine(AssociatedEnd);
     }
+    private static string RelationDisplayName(ArtifactRelation relation)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(relation.Path);
+        if (!fileName.Equals("README", StringComparison.OrdinalIgnoreCase)) return fileName;
+
+        var directory = Path.GetDirectoryName(relation.Path)?.Replace('\\', '/');
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            var segment = directory.Split('/', StringSplitOptions.RemoveEmptyEntries)
+                .LastOrDefault(part => part is not "." and not "..");
+            if (!string.IsNullOrWhiteSpace(segment)) return segment;
+        }
+
+        return relation.Type;
+    }
+
     private static string EscapeCell(string value) => KnowledgeArtifactFrontMatter.Normalize(value)
         .Replace("&", "&amp;", StringComparison.Ordinal).Replace("<", "&lt;", StringComparison.Ordinal).Replace(">", "&gt;", StringComparison.Ordinal)
         .Replace("|", "\\|", StringComparison.Ordinal).Replace("[", "\\[", StringComparison.Ordinal).Replace("]", "\\]", StringComparison.Ordinal)
