@@ -75,8 +75,6 @@ internal static class RelationalDiscoveryCommands
         }
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
-        Console.WriteLine();
-        Console.WriteLine("Discovery surface:");
         var entries = new List<DiscoveryEntry>();
         entries.AddRange(state.State!.Questions.Select(question => new DiscoveryEntry(question.SelectionPath, question, null, null)));
         entries.AddRange(recommendations.Select(item => new DiscoveryEntry(item.Id, null, item.Recommendation,
