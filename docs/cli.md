@@ -1,6 +1,6 @@
 # VSlices CLI specification
 
-Status: v0.3.0-preview interaction contract under active experiment.
+Status: v0.3.0-preview integrated into `main`; see [current CLI status](releases/v0.3.0-preview.md). This document retains historical experimental text for provenance; current implementation is summarized in the release status.
 
 VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset`](https://github.com/vslices/ruleset). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
 
@@ -511,7 +511,7 @@ Any cardinality other than `one` or `many` is rejected while loading Docs Standa
 The next pressure is not parsing cardinality but representing repeated AnswerInstances and the child QuestionOccurrences scoped through each answer.
 
 
-## v0.3.0-preview documentary command additions — current branch
+## v0.3.0-preview documentary command additions — integrated
 
 **This section supersedes the older v0.2-era documentary subset below where they differ.** The operational command groups are `vslices new`, `vslices discovery`, `vslices update`, and `vslices search` (not `filter` as a top-level command).
 
@@ -531,4 +531,4 @@ The project must be initialized and corresponding installed definitions must be 
 
 Documents support recursively scoped repeated AnswerInstances (`one|many`), with structured ephemeral selections such as `2.1.1`. Nexus/Path expose recommendation-driven creation, graph/association information and conservative bilateral association updates. Support Notes support small manifest-promoted definitions; all four document families accept operational tags and participate in artifact search with VSIR. Search exposes indexed `kind`, `type`, `scope`, `target`, `status` and `tags` as available; installed `.vslices` snapshots are excluded from project knowledge search.
 
-Some relational front matter/materialization is still directly realized by Tooling pending Template Standard promotion. Historical paragraphs below that claim `many` is unsupported or only Document is authorable represent an earlier experiment state and are **not** current release capabilities. Directory-backed relational layout proposed in PR #11 is not yet merged.
+Some relational front matter/materialization is still directly realized by Tooling pending Template Standard promotion. Historical paragraphs below that claim `many` is unsupported or only Document is authorable represent an earlier experiment state and are **not** current release capabilities. Directory-backed relational layout from PR #11 is now merged. Nexus, Continuity Path and relational Support Note artifacts may use `<artifact>/README.md`; name resolution and relative relations follow that layout.
