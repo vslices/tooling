@@ -97,7 +97,7 @@ dotnet test tooling.slnx --configuration Release --no-build
 ```
 
 
-## v0.3.0-preview — Documentary authoring responsibilities
+## v0.3.0-preview — Current documentary authoring responsibilities
 
 This branch supports **four Docs Standard knowledge-artifact families**: Document, Nexus, Continuity Path and Support Note. Do not reason from the older v0.2.0-only README or infer command support from a separate product's design.
 
@@ -128,4 +128,4 @@ vslices transpile|rebase|lower
 
 Use `discovery` to obtain actual available questions, ephemeral structured selections, recommendation commands and supported operations before `update`. Docs Standard owns the question identities; Tooling's displayed paths are navigation aids, not durable semantic ids. Documents support recursive one/many AnswerInstances and scoped descendant questions, with reconstruction constrained by the installed Template Standard. Nexus and Continuity Path own concrete relations/recommendations; arbitrary associations remain open-world and updates must preserve them. Support Notes have a deliberately narrow question surface. Tags are nonsemantic operational metadata shared across all four documentary families and VSIR search.
 
-Do not describe PR #11's directory-backed Nexus/Path layout as merged in v0.3.0: it is a separate open PR. Preserve the documented limitations on template generality, multi-file rollback guarantees, editing repeated instances, and relational front matter still temporarily realized by Tooling. Review [docs/cli.md](docs/cli.md), [docs/ai-development-orientation.md](docs/ai-development-orientation.md), and merged PRs #9, #10 and #14 before extending this surface.
+PR #11's directory-backed Nexus/Path layout **is merged** in v0.3.0-preview. Support Note relational materialization also uses directory-backed `README.md` where applicable. Preserve the documented limitations on template generality, multi-file rollback guarantees, editing repeated instances, and relational front matter still temporarily realized by Tooling. Review [docs/cli.md](docs/cli.md), [docs/ai-development-orientation.md](docs/ai-development-orientation.md), and merged PRs #9, #10, #11 and #14, plus [current CLI status](docs/releases/v0.3.0-preview.md), before extending this surface.
