@@ -30,21 +30,31 @@ internal static class NewCommands
     public static Task<int> Document(
         [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
         string? fromNexus = null, string? fromPath = null, string? relatedTo = null, string? role = null,
+        string? tags = null,
         CancellationToken cancellationToken = default) =>
-        Create(new("document", name, kind, target, scope, fromNexus, fromPath, relatedTo, role), cancellationToken);
+        Create(new("document", name, kind, target, scope, fromNexus, fromPath, relatedTo, role, tags), cancellationToken);
+
+    /// <summary>Creates a Support Note for lightweight auxiliary knowledge.</summary>
+    public static Task<int> SupportNote(
+        [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
+        string? relatedTo = null, string? role = null, string? tags = null,
+        CancellationToken cancellationToken = default) =>
+        Create(new("support-note", name, kind, target, scope, null, null, relatedTo, role, tags), cancellationToken);
 
     /// <summary>Creates a Nexus composition artifact, optionally from a recommendation.</summary>
     public static Task<int> Nexus(
         [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
         string? fromNexus = null, string? fromPath = null, string? relatedTo = null, string? role = null,
+        string? tags = null,
         CancellationToken cancellationToken = default) =>
-        Create(new("nexus", name, kind, target, scope, fromNexus, fromPath, relatedTo, role), cancellationToken);
+        Create(new("nexus", name, kind, target, scope, fromNexus, fromPath, relatedTo, role, tags), cancellationToken);
 
     /// <summary>Creates a Continuity Path trajectory artifact.</summary>
     public static Task<int> ContinuityPath(
         [Argument] string? name = null, string? kind = null, string? target = null, string? scope = null,
-        string? relatedTo = null, string? role = null, CancellationToken cancellationToken = default) =>
-        Create(new("continuity-path", name, kind, target, scope, null, null, relatedTo, role), cancellationToken);
+        string? relatedTo = null, string? role = null, string? tags = null,
+        CancellationToken cancellationToken = default) =>
+        Create(new("continuity-path", name, kind, target, scope, null, null, relatedTo, role, tags), cancellationToken);
 
     private static async Task<int> Create(KnowledgeArtifactCreationRequest request, CancellationToken cancellationToken)
     {

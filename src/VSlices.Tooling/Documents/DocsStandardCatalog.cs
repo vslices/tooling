@@ -81,7 +81,7 @@ internal sealed class DocsStandardCatalog
                 return DocsStandardCatalogResult.Failure(manifest.Error!);
 
             var manifestRoot = manifest.Mapping!;
-            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "documents");
+            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "documents", "support-notes");
             if (unknownManifestKey is not null)
             {
                 return DocsStandardCatalogResult.Failure(

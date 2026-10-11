@@ -38,6 +38,16 @@ public sealed class SearchFilterTests
         Assert.True(parsed.Filter!.Matches(DomainType));
     }
 
+
+    [Fact]
+    public void Scalar_and_sequence_projections_preserve_filter_semantics()
+    {
+        Assert.True(SearchFilter.Parse("kind:equals:support-note").Filter!.MatchesScalar("support-note"));
+        Assert.True(SearchFilter.Parse("target:contains:payment").Filter!.MatchesScalar("External payment requests"));
+        Assert.True(SearchFilter.Parse("tags:contains:payment-request").Filter!.MatchesSequence(["serviu", "payment-request"]));
+        Assert.False(SearchFilter.Parse("tags:equals:payment-request").Filter!.MatchesSequence(["payment-request"]));
+    }
+
     [Fact]
     public void Missing_property_does_not_match()
     {

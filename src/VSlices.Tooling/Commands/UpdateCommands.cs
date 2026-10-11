@@ -152,15 +152,28 @@ internal static class UpdateCommands
         [Argument] string document,
         string? questionId = null,
         string? answer = null,
+        string? tags = null,
+        string? addTags = null,
+        string? removeTags = null,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(questionId))
+        var hasQuestionMutation = questionId is not null || answer is not null;
+        var hasTagMutation = KnowledgeArtifactTags.HasMutation(tags, addTags, removeTags);
+
+        if (!hasQuestionMutation && !hasTagMutation)
         {
-            TerminalOutput.Error("UPDATE100: --question-id <path> is required, for example 2 or 2.1.1.");
+            TerminalOutput.Error(
+                "UPDATE100: Update a Document with --question-id/--answer or searchable tag metadata.");
             return 2;
         }
 
-        if (string.IsNullOrWhiteSpace(answer))
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(questionId))
+        {
+            TerminalOutput.Error("UPDATE100: --question-id <path> is required when --answer is supplied.");
+            return 2;
+        }
+
+        if (hasQuestionMutation && string.IsNullOrWhiteSpace(answer))
         {
             TerminalOutput.Error("UPDATE101: --answer must contain non-whitespace text.");
             return 2;
@@ -228,26 +241,48 @@ internal static class UpdateCommands
             return 2;
         }
 
-        var candidate = state.Artifact!.Update(
-            questionId,
-            answer,
-            materialization.Template!);
-        if (!candidate.IsSuccess)
+        var updatedSource = source;
+        if (hasQuestionMutation)
         {
-            TerminalOutput.Error(candidate.Error!);
-            return 2;
+            var candidate = state.Artifact!.Update(
+                questionId!,
+                answer!,
+                materialization.Template!);
+            if (!candidate.IsSuccess)
+            {
+                TerminalOutput.Error(candidate.Error!);
+                return 2;
+            }
+
+            updatedSource = metadata is null
+                ? candidate.Source!
+                : KnowledgeArtifactFrontMatter.WithMetadata(
+                    candidate.Source!,
+                    metadata,
+                    metadata.Relations);
         }
 
-        var updatedSource = metadata is null
-            ? candidate.Source!
-            : KnowledgeArtifactFrontMatter.WithMetadata(
-                candidate.Source!,
-                metadata,
-                metadata.Relations);
+        if (hasTagMutation)
+        {
+            if (metadata is null)
+            {
+                TerminalOutput.Error(
+                    "TAG005: Searchable tags require promoted knowledge-artifact front-matter.");
+                return 2;
+            }
+
+            var tagged = KnowledgeArtifactTags.Apply(updatedSource, tags, addTags, removeTags);
+            if (!tagged.IsSuccess)
+            {
+                TerminalOutput.Error(tagged.Error!);
+                return 2;
+            }
+
+            updatedSource = tagged.Source!;
+        }
 
         await CommandInfrastructure.AtomicWrite(path, updatedSource, cancellationToken);
-        Console.WriteLine(
-            $"Updated question [{questionId}] '{candidate.Question!.Text}' in '{path}'.");
+        Console.WriteLine($"Updated Document '{path}'.");
         return 0;
     }
 

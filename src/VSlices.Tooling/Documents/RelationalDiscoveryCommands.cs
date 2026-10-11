@@ -62,6 +62,7 @@ internal static class RelationalDiscoveryCommands
         Console.WriteLine($"  target: {metadata.Target ?? "<unset>"}");
         Console.WriteLine($"  status: {metadata.Status}");
         Console.WriteLine($"  tooling: {metadata.ToolingVersion}");
+        KnowledgeArtifactTags.WriteDiscovery(expectedKind, artifact, metadata);
         if (graph is not null)
         {
             Console.WriteLine();

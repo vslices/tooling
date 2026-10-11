@@ -55,6 +55,20 @@ internal sealed record SearchFilter(
         }
     }
 
+
+    public bool MatchesScalar(string? value) =>
+        value is not null &&
+        (Operator switch
+        {
+            "equals" => string.Equals(value, Value, StringComparison.Ordinal),
+            "contains" => value.Contains(Value, StringComparison.Ordinal),
+            _ => false
+        });
+
+    public bool MatchesSequence(IReadOnlyList<string> values) =>
+        Operator == "contains" &&
+        values.Any(item => string.Equals(item, Value, StringComparison.Ordinal));
+
     private bool MatchesEquals(YamlNode node) =>
         node is YamlScalarNode scalar &&
         string.Equals(scalar.Value, Value, StringComparison.Ordinal);
