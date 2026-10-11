@@ -509,3 +509,26 @@ For `cardinality: many`, `update document` currently fails closed with `UPDATE10
 Any cardinality other than `one` or `many` is rejected while loading Docs Standard with `DOCS027`.
 
 The next pressure is not parsing cardinality but representing repeated AnswerInstances and the child QuestionOccurrences scoped through each answer.
+
+
+## v0.3.0-preview documentary command additions — current branch
+
+**This section supersedes the older v0.2-era documentary subset below where they differ.** The operational command groups are `vslices new`, `vslices discovery`, `vslices update`, and `vslices search` (not `filter` as a top-level command).
+
+```text
+vslices init
+vslices update docs-standard
+vslices update template-standard
+vslices new|discovery|update document
+vslices new|discovery|update nexus
+vslices new|discovery|update continuity-path
+vslices new|discovery|update support-note
+vslices search --filter kind:equals:support-note
+vslices search --filter tags:contains:education
+```
+
+The project must be initialized and corresponding installed definitions must be available. `documents.route` points to consumer documentation, whereas `.vslices/` owns installed snapshots/configuration and operational state. Definition vocabulary belongs to Docs Standard, while Template Standard owns Document reconstruction geometry; Tooling does not acquire semantic authority by implementing either.
+
+Documents support recursively scoped repeated AnswerInstances (`one|many`), with structured ephemeral selections such as `2.1.1`. Nexus/Path expose recommendation-driven creation, graph/association information and conservative bilateral association updates. Support Notes support small manifest-promoted definitions; all four document families accept operational tags and participate in artifact search with VSIR. Search exposes indexed `kind`, `type`, `scope`, `target`, `status` and `tags` as available; installed `.vslices` snapshots are excluded from project knowledge search.
+
+Some relational front matter/materialization is still directly realized by Tooling pending Template Standard promotion. Historical paragraphs below that claim `many` is unsupported or only Document is authorable represent an earlier experiment state and are **not** current release capabilities. Directory-backed relational layout proposed in PR #11 is not yet merged.
