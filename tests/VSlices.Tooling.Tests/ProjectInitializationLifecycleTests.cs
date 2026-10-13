@@ -59,7 +59,7 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "ruleset.marker")));
         Assert.True(File.Exists(Path.Combine(
             project.VslicesRoot,
-            "docs-standards",
+            "docs",
             "test-standard",
             "documents",
             "context-document.yml")));

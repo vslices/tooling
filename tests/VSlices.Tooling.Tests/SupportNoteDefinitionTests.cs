@@ -19,7 +19,7 @@ public sealed class SupportNoteDefinitionTests
 
         var installed = Path.Combine(
             project.VslicesRoot,
-            "docs-standards",
+            "docs",
             "sample",
             "support-notes",
             "draft.yml");
@@ -46,7 +46,7 @@ public sealed class SupportNoteDefinitionTests
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("SUPSTD020", result.StandardError, StringComparison.Ordinal);
-        Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "docs-standards", "sample")));
+        Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "docs", "sample")));
     }
 
     private static void WriteStandard(string root, bool threeQuestions)

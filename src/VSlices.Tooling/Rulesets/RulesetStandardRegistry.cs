@@ -22,13 +22,13 @@ internal sealed class RulesetStandardRegistry
     }
 
     public VSlicesProjectContext Project { get; }
-    public string Root => Path.Combine(Project.VslicesRoot, "ruleset-standards");
+    public string Root => Path.Combine(Project.VslicesRoot, "rulesets");
     private string RegistryPath => Path.Combine(Root, "registry.yaml");
     public IReadOnlyList<RulesetStandardInstallation> Installations => installations;
 
     public static RulesetStandardRegistry Load(VSlicesProjectContext project)
     {
-        var root = Path.Combine(project.VslicesRoot, "ruleset-standards");
+        var root = Path.Combine(project.VslicesRoot, "rulesets");
         var path = Path.Combine(root, "registry.yaml");
         var entries = new List<RulesetStandardInstallation>();
         if (File.Exists(path))
@@ -76,7 +76,7 @@ internal sealed class RulesetStandardRegistry
         {
             var declared = RulesetStandardManifest.ReadName(legacyRoot);
             var name = declared ?? (project.Configuration.RulesetSource == ProjectConfiguration.OfficialRulesetSource
-                ? "vslices-ruleset-standard"
+                ? "vslices"
                 : "legacy");
             if (!IsValidName(name) || entries.Any(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidDataException("RSREG008: Legacy Ruleset Standard installation collides with the registry.");

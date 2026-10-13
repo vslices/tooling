@@ -52,10 +52,10 @@ public sealed class RelationalDefinitionTests
         WriteEnvironment(source);
         ToolingTestProject.WriteDocumentAuthoringSupport(consumer.Root);
         await Success(consumer, "new", "docs-standard", "sandbox", "--origin", StandardRoot(source));
-        var candidate = Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "nexus", "capability.yml");
+        var candidate = Path.Combine(consumer.VslicesRoot, "docs", "sandbox", "nexus", "capability.yml");
         Assert.Equal(Capability, File.ReadAllText(candidate));
-        Assert.True(File.Exists(Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "continuity-paths", "domain-context.yml")));
-        Assert.DoesNotContain("nexus", File.ReadAllText(Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "manifest.yaml")), StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(consumer.VslicesRoot, "docs", "sandbox", "continuity-paths", "domain-context.yml")));
+        Assert.DoesNotContain("nexus", File.ReadAllText(Path.Combine(consumer.VslicesRoot, "docs", "sandbox", "manifest.yaml")), StringComparison.Ordinal);
         await Success(consumer, "new", "nexus", "installed", "--kind", "capability", "--target", "Tooling");
         var before = File.ReadAllBytes(candidate);
         File.WriteAllText(Path.Combine(StandardRoot(source), "nexus", "capability.yml"), "malformed candidate");

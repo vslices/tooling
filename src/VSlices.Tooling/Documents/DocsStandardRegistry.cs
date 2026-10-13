@@ -22,13 +22,13 @@ internal sealed class DocsStandardRegistry
     }
 
     public VSlicesProjectContext Project { get; }
-    public string Root => Path.Combine(Project.VslicesRoot, "docs-standards");
+    public string Root => Path.Combine(Project.VslicesRoot, "docs");
     private string RegistryPath => Path.Combine(Root, "registry.yaml");
     public IReadOnlyList<DocsStandardInstallation> Installations => installations;
 
     public static DocsStandardRegistry Load(VSlicesProjectContext project)
     {
-        var root = Path.Combine(project.VslicesRoot, "docs-standards");
+        var root = Path.Combine(project.VslicesRoot, "docs");
         var path = Path.Combine(root, "registry.yaml");
         var entries = new List<DocsStandardInstallation>();
         if (File.Exists(path))
@@ -76,7 +76,7 @@ internal sealed class DocsStandardRegistry
         {
             var declared = DocsStandardManifest.ReadName(legacyRoot);
             var name = declared ?? (project.Configuration.DocsStandardSource == ProjectConfiguration.OfficialDocsStandardSource
-                ? "vslices-standard"
+                ? "vslices"
                 : "legacy");
             if (!IsValidName(name) || entries.Any(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
                 throw new InvalidDataException("STDREG008: Legacy Docs Standard installation collides with the registry.");
