@@ -35,7 +35,11 @@ vslices delete docs-standard <name> [--skip-confirm]
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
-vslices update document <name> --question-id <N> --answer "<markdown>"
+vslices update document <name> --question-id <selection> --answer "<markdown>"
+vslices read document <name> --question-id <selection> [--deep]
+vslices read nexus <name> --question-id <selection> [--deep]
+vslices read continuity-path <name> --question-id <selection> [--deep]
+vslices read support-note <name> --question-id <selection> [--deep]
 
 vslices --version
 vslices -v
@@ -59,6 +63,42 @@ vslices delete ruleset-standard serviu
 ```
 
 Nodes may already contain dots. A qualified discovery key prefixes the installed standard name. When multiple standards define the same C# lowering `node`, transpilation fails with a diagnostic rather than choosing a source silently. Project semantic extensions remain independent under `.vslices/extensions`. The previous `update ruleset` and `init --ruleset-origin` paths remain as transitional legacy singleton operations; modern initialization uses `--ruleset-standard-origin`.
+
+## Reading documentary questions (PR #16)
+
+The `read` command is a **read-only** complement to `new -> discovery -> update`. It shows the complete answer for one selected question in a Document, Nexus, Continuity Path, or Support Note, without editing the Markdown artifact. `--question-id` uses the **current discovery selection** for that artifact (e.g. `2.1`), not the stable semantic `question.id` declared in Docs Standard. Selections are navigation aids and may change when the question surface changes.
+
+```sh
+vslices read document sistema --question-id 2.1
+vslices read document sistema --question-id 2.1 --deep
+vslices read nexus perspectivas --question-id 1.1 --deep
+vslices read continuity-path trayectoria --question-id 3.1.2 --deep
+vslices read support-note borrador --question-id 1.1
+```
+
+Without `--deep`, the command prints only the selected question and its answer when present:
+
+```text
+Question: ¿Qué puede hacer un funcionario?
+Answer: Crear y consultar solicitudes.
+```
+
+With `--deep`, it prints every ancestor question/answer **on the real parent chain**, followed by the selected question, each showing the full answer when present:
+
+```text
+[1] ¿Qué es el sistema?
+  Una plataforma de gestión de solicitudes.
+
+[2] ¿Quién utiliza el sistema?
+  Funcionarios y administradores.
+
+[2.1] ¿Qué puede hacer un funcionario?
+  Crear y consultar solicitudes.
+```
+
+This is deliberately *not* `--path`. Document selections may use a top-level sibling number like `2` whose parent is `1`; the command follows its recorded parent rather than assuming dot-prefix ancestry. Repeated AnswerInstances and their scoped descendants resolve their own complete multiline responses. For Nexus and Continuity Paths, only actual questions are readable; recommendation entries are **not** invented as question/answer pairs. Files may be addressed by name or path; directory-backed relational artifacts resolve to their `README.md`.
+
+When a question is unanswered, its question text is still shown, with no fabricated answer. A nonexistent or currently inaccessible selection fails explicitly and directs the caller to `discovery`. The command does not change any artifact or its metadata.
 
 ## Docs Standard installations and lifecycle (proposed in PR #16)
 
