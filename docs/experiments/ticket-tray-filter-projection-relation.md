@@ -24,7 +24,7 @@ vslices/intermediate-representation#1
   merged language amendment
   merge commit: e46ddfcdf8f64f92a6313b421c0030f5a2fce6be
 
-vslices/ruleset#4
+vslices/ruleset-standard#4
   reviewed head: 8ee322ce94ff519843c4d409741dd9088823eeed
   CI #18: success
   merge commit: e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
