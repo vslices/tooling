@@ -27,7 +27,6 @@ internal static class QuestionReadCommands
             return Task.FromResult(QuestionReadOperation.Relational(
                 artifact, "nexus", questionId ?? "", deep));
         }, deep);
-        });
 
     /// <summary>Reads one Continuity Path question and answer, optionally with its trajectory.</summary>
     /// <param name="artifact">Continuity Path name or path, including directory-backed README artifacts.</param>
@@ -42,7 +41,6 @@ internal static class QuestionReadCommands
             return Task.FromResult(QuestionReadOperation.Relational(
                 artifact, "continuity-path", questionId ?? "", deep));
         }, deep);
-        });
 
     /// <summary>Reads a Support Note question, using the same question selection contract.</summary>
     /// <param name="artifact">Support Note name or path.</param>
