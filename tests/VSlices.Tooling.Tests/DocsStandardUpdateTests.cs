@@ -293,6 +293,50 @@ public sealed class DocsStandardUpdateTests
         Assert.Equal("markdown.existing", configuration.DocumentsTemplate);
     }
 
+    [Fact]
+    public async Task Document_authoring_uses_qualified_identity_across_two_standards()
+    {
+        using var project = NewProject();
+        ToolingTestProject.WriteDocumentAuthoringSupport(project.Root);
+        var a = Path.Combine(project.Root, "source-a");
+        var b = Path.Combine(project.Root, "source-b");
+        WriteStandard(a, "alpha", "Alpha question");
+        WriteStandard(b, "beta", "Beta question");
+        await Install(project, a);
+        await Install(project, b);
+
+        var ambiguous = await project.Run(project.Root,
+            "new", "document", "ambiguous", "--kind", "context", "--target", "Tooling");
+        Assert.NotEqual(0, ambiguous.ExitCode);
+        Assert.False(File.Exists(Path.Combine(project.Root, "ambiguous.md")));
+
+        var created = await project.Run(project.Root,
+            "new", "document", "qualified", "--kind", "alpha.context", "--target", "Tooling");
+        Assert.Equal(0, created.ExitCode);
+        var source = File.ReadAllText(Path.Combine(project.Root, "qualified.md"));
+        Assert.Contains("type: alpha.context", source, StringComparison.Ordinal);
+        Assert.Contains("Alpha question", source, StringComparison.Ordinal);
+        var discovered = await project.Run(project.Root, "discovery", "document", "qualified");
+        Assert.Equal(0, discovered.ExitCode);
+        Assert.Contains("Alpha question", discovered.StandardOutput);
+    }
+
+    [Fact]
+    public async Task Unambiguous_short_type_creates_stably_qualified_artifact()
+    {
+        using var project = NewProject();
+        ToolingTestProject.WriteDocumentAuthoringSupport(project.Root);
+        var source = Path.Combine(project.Root, "source");
+        WriteStandard(source, "alpha", "Alpha question");
+        await Install(project, source);
+
+        var created = await project.Run(project.Root,
+            "new", "document", "short", "--kind", "context", "--target", "Tooling");
+        Assert.Equal(0, created.ExitCode);
+        Assert.Contains("type: alpha.context",
+            File.ReadAllText(Path.Combine(project.Root, "short.md")), StringComparison.Ordinal);
+    }
+
     private static ToolingTestProject NewProject()
     {
         var project = new ToolingTestProject();
