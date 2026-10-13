@@ -71,7 +71,7 @@ internal sealed class RulesetStandardRegistry
         }
 
         // Preserve pre-collection installations without guessing that custom source content is official.
-        var legacyRoot = Path.Combine(project.VslicesRoot, "ruleset-standard");
+        var legacyRoot = Path.Combine(project.VslicesRoot, "ruleset");
         if (File.Exists(Path.Combine(legacyRoot, "manifest.yaml")))
         {
             var declared = RulesetStandardManifest.ReadName(legacyRoot);
@@ -102,7 +102,7 @@ internal sealed class RulesetStandardRegistry
         installations.FirstOrDefault(item => item.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
     public string PathFor(RulesetStandardInstallation installation) =>
-        installation.Legacy ? Path.Combine(Project.VslicesRoot, "ruleset-standard") : GetPath(Root, installation);
+        installation.Legacy ? Path.Combine(Project.VslicesRoot, "ruleset") : GetPath(Root, installation);
 
     public string NewPath(string name, bool local) =>
         Path.Combine(Root, local ? "local" : string.Empty, name);
