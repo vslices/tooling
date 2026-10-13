@@ -33,6 +33,61 @@ internal sealed class RelationalStandardCatalog
         this.paths = paths;
     }
 
+    /// <summary>Identity-qualified definitions for multiple independent documentary vocabularies.</summary>
+    public static RelationalStandardCatalog Combine(IReadOnlyList<(string Name, RelationalStandardCatalog Catalog)> installed)
+    {
+        var allNexus = new Dictionary<string, NexusDefinition>(StringComparer.OrdinalIgnoreCase);
+        var allPaths = new Dictionary<string, ContinuityPathDefinition>(StringComparer.OrdinalIgnoreCase);
+        var nexusShort = new Dictionary<string, List<NexusDefinition>>(StringComparer.OrdinalIgnoreCase);
+        var pathShort = new Dictionary<string, List<ContinuityPathDefinition>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, catalog) in installed)
+        {
+            foreach (var definition in catalog.Nexus)
+            {
+                var qualified = definition with
+                {
+                    Type = name + "." + definition.Type,
+                    Recommendations = QualifyRecommendations(definition.Recommendations, name),
+                    Questions = definition.Questions.Select(q => QualifyQuestion(q, name)).ToArray()
+                };
+                allNexus.Add(qualified.Type, qualified);
+                if (!nexusShort.TryGetValue(definition.Type, out var values))
+                    nexusShort[definition.Type] = values = [];
+                values.Add(qualified);
+            }
+            foreach (var definition in catalog.ContinuityPaths)
+            {
+                var qualified = definition with
+                {
+                    Type = name + "." + definition.Type,
+                    RootQuestion = QualifyQuestion(definition.RootQuestion, name)
+                };
+                allPaths.Add(qualified.Type, qualified);
+                if (!pathShort.TryGetValue(definition.Type, out var values))
+                    pathShort[definition.Type] = values = [];
+                values.Add(qualified);
+            }
+        }
+        foreach (var (type, values) in nexusShort)
+            if (values.Count == 1) allNexus[type] = values[0];
+        foreach (var (type, values) in pathShort)
+            if (values.Count == 1) allPaths[type] = values[0];
+        return new RelationalStandardCatalog(allNexus, allPaths);
+    }
+
+    private static IReadOnlyList<RelationalRecommendation> QualifyRecommendations(
+        IReadOnlyList<RelationalRecommendation> recommendations, string name) =>
+        recommendations.Select(recommendation => recommendation with
+        { Type = recommendation.Type.Contains('.', StringComparison.Ordinal)
+            ? recommendation.Type : name + "." + recommendation.Type }).ToArray();
+
+    private static RelationalQuestionDefinition QualifyQuestion(RelationalQuestionDefinition question, string name) =>
+        question with
+        {
+            Recommendations = QualifyRecommendations(question.Recommendations, name),
+            Children = question.Children.Select(child => QualifyQuestion(child, name)).ToArray()
+        };
+
     public IEnumerable<NexusDefinition> Nexus => nexus.Values;
     public IEnumerable<ContinuityPathDefinition> ContinuityPaths => paths.Values;
     public bool TryGetNexus(string type, out NexusDefinition? definition) => nexus.TryGetValue(type, out definition);
