@@ -114,7 +114,7 @@ public sealed class ProjectInitializationLifecycleTests
     public void Official_GitHub_URL_without_explicit_ref_uses_the_official_ref()
     {
         var result = ProjectOriginResolver.Parse(
-            "https://github.com/vslices/ruleset",
+            "https://github.com/vslices/ruleset-standard",
             ProjectOrigin.OfficialRuleset,
             "TEST001");
 
