@@ -196,9 +196,16 @@ internal static class DocsStandardLifecycle
         {
             foreach (var installed in targets)
             {
-                var selected = origin is null
-                    ? new ProjectOrigin(installed.Source ?? string.Empty, installed.Reference)
-                    : ProjectOriginResolver.Parse(origin, ProjectOrigin.OfficialDocsStandard, "STDUPD004").Origin;
+                var parsed = origin is null ? null :
+                    ProjectOriginResolver.Parse(origin, ProjectOrigin.OfficialDocsStandard, "STDUPD004");
+                if (parsed is { IsSuccess: false })
+                {
+                    TerminalOutput.Error(parsed.Error!);
+                    failed = true;
+                    continue;
+                }
+                var selected = parsed?.Origin ??
+                    new ProjectOrigin(installed.Source ?? string.Empty, installed.Reference);
                 if (selected is null || string.IsNullOrWhiteSpace(selected.Source))
                 {
                     TerminalOutput.Error($"STDUPD005: '{installed.Name}' has no recorded origin; choose --origin.");
@@ -257,7 +264,7 @@ internal static class DocsStandardLifecycle
             if (!Approve(skipConfirm, "Apply these Docs Standard updates? [y/N]: "))
             {
                 Console.WriteLine("Update cancelled; installed snapshots were not modified.");
-                return failed ? 1 : 0;
+                return !skipConfirm && !CanPrompt ? 2 : failed ? 1 : 0;
             }
             foreach (var item in pending)
             {
@@ -332,7 +339,7 @@ internal static class DocsStandardLifecycle
         if (!Approve(skipConfirm, "Delete this Docs Standard? [y/N]: "))
         {
             Console.WriteLine("Deletion cancelled.");
-            return 0;
+            return !skipConfirm && !CanPrompt ? 2 : 0;
         }
         registry.MigrateLegacy();
         selected = registry.Find(name)!;
