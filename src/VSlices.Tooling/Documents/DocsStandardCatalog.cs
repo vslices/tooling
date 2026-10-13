@@ -122,6 +122,22 @@ internal sealed class DocsStandardCatalog
         return null;
     }
 
+    /// <summary>Reads one installed catalog while retaining the installation qualifier on authored artifacts.</summary>
+    public static DocsStandardCatalogResult LoadInstalled(string root)
+    {
+        var loaded = Load(root);
+        if (!loaded.IsSuccess) return loaded;
+        var project = VSlicesProjectContext.FindFrom(root);
+        if (project is null) return loaded;
+        var registry = DocsStandardRegistry.Load(project);
+        var matching = registry.Installations.SingleOrDefault(installation =>
+            !installation.Legacy && Path.GetFullPath(registry.PathFor(installation)).Equals(
+                Path.GetFullPath(root), OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+        return matching is null ? loaded : DocsStandardCatalogResult.Success(
+            Combine([(matching.Name, loaded.Catalog!)]));
+    }
+
     public static DocsStandardCatalogResult Load(string root)
     {
         try
