@@ -45,7 +45,7 @@ internal static class DocsStandardDiff
         var output = new StringBuilder();
         output.AppendLine($"# Docs Standard update — {name}");
         output.AppendLine();
-        output.AppendLine($"Source: \`{source.Replace("\`", "'", StringComparison.Ordinal)}\`");
+        output.AppendLine($"Source: `{source.Replace("`", "'", StringComparison.Ordinal)}`");
         output.AppendLine();
         var added = incoming.Keys.Except(original.Keys, StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
         var removed = original.Keys.Except(incoming.Keys, StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
@@ -67,8 +67,8 @@ internal static class DocsStandardDiff
                 oldValues.TryGetValue(path, out var before);
                 nextValues.TryGetValue(path, out var after);
                 if (string.Equals(before, after, StringComparison.Ordinal)) continue;
-                output.AppendLine($"- \`{path.Replace("\`", "'", StringComparison.Ordinal)}\`: " +
-                    $"\`{Inline(before)}\` → \`{Inline(after)}\`");
+                output.AppendLine($"- `{path.Replace("`", "'", StringComparison.Ordinal)}`: " +
+                    $"`{Inline(before)}` → `{Inline(after)}`");
             }
         }
 
@@ -104,7 +104,7 @@ internal static class DocsStandardDiff
     private static string Inline(string? text) =>
         (text ?? "<absent>").Replace("\r", "", StringComparison.Ordinal)
             .Replace("\n", " ↵ ", StringComparison.Ordinal)
-            .Replace("\`", "'", StringComparison.Ordinal);
+            .Replace("`", "'", StringComparison.Ordinal);
 
     private static Dictionary<string, string> Flatten(string file)
     {
