@@ -51,15 +51,15 @@ public sealed class RelationalDefinitionTests
         using var consumer = new ToolingTestProject();
         WriteEnvironment(source);
         ToolingTestProject.WriteDocumentAuthoringSupport(consumer.Root);
-        await Success(consumer, "update", "docs-standard", "--origin", StandardRoot(source));
-        var candidate = Path.Combine(StandardRoot(consumer), "nexus", "capability.yml");
+        await Success(consumer, "new", "docs-standard", "sandbox", "--origin", StandardRoot(source));
+        var candidate = Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "nexus", "capability.yml");
         Assert.Equal(Capability, File.ReadAllText(candidate));
-        Assert.True(File.Exists(Path.Combine(StandardRoot(consumer), "continuity-paths", "domain-context.yml")));
-        Assert.DoesNotContain("nexus", File.ReadAllText(Path.Combine(StandardRoot(consumer), "manifest.yaml")), StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "continuity-paths", "domain-context.yml")));
+        Assert.DoesNotContain("nexus", File.ReadAllText(Path.Combine(consumer.VslicesRoot, "docs-standards", "sandbox", "manifest.yaml")), StringComparison.Ordinal);
         await Success(consumer, "new", "nexus", "installed", "--kind", "capability", "--target", "Tooling");
         var before = File.ReadAllBytes(candidate);
         File.WriteAllText(Path.Combine(StandardRoot(source), "nexus", "capability.yml"), "malformed candidate");
-        await Failure(consumer, "update", "docs-standard", "--origin", StandardRoot(source));
+        await Failure(consumer, "update", "docs-standard", "sandbox", "--origin", StandardRoot(source), "--skip-confirm");
         Assert.Equal(before, File.ReadAllBytes(candidate));
         await Success(consumer, "discovery", "nexus", "installed");
     }
