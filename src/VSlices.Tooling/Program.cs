@@ -34,6 +34,8 @@ if (!Console.IsOutputRedirected && args.Length > 0)
         TerminalOutput.Brand("update", trailingBlankLine: false);
     else if (args[0].Equals("discovery", StringComparison.OrdinalIgnoreCase))
         TerminalOutput.Brand("discovery", trailingBlankLine: false);
+    else if (args[0].Equals("read", StringComparison.OrdinalIgnoreCase))
+        TerminalOutput.Brand("read", trailingBlankLine: false);
 }
 
 var app = ConsoleApp.Create();
@@ -54,6 +56,10 @@ app.Add("new nexus", NewCommands.Nexus);
 app.Add("new continuity-path", NewCommands.ContinuityPath);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
 app.Add("discovery document", DocumentDiscoveryCommands.Discover);
+app.Add("read document", QuestionReadCommands.Document);
+app.Add("read nexus", QuestionReadCommands.Nexus);
+app.Add("read continuity-path", QuestionReadCommands.ContinuityPath);
+app.Add("read support-note", QuestionReadCommands.SupportNote);
 app.Add("discovery support-note", SupportNoteDiscoveryCommands.Discover);
 app.Add("discovery nexus", RelationalDiscoveryCommands.Nexus);
 app.Add("discovery continuity-path", RelationalDiscoveryCommands.ContinuityPath);
