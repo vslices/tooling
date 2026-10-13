@@ -23,13 +23,13 @@ vslices update ruleset             # legacy singleton compatibility
 vslices update template-standard
 vslices new ruleset-standard [name] [--origin <source>]
 vslices update ruleset-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list ruleset-standards
+vslices list rulesets
 vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
 vslices delete ruleset-standard <name> [--skip-confirm]
 
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs-standards
+vslices list docs
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
@@ -47,7 +47,7 @@ vslices -v
 
 ## Ruleset Standard installations and lifecycle (PR #16)
 
-The [Ruleset Standard projection](design/multiple-ruleset-standards-lifecycle.md) uses the same installation, diff, confirmation and deletion safeguards as Docs Standard, but Discovery exposes target-specific lowering rules (`node`, bindings, mode, renderer, template), not documentary questions.
+The [Ruleset Standard projection](design/multiple-rulesets-lifecycle.md) uses the same installation, diff, confirmation and deletion safeguards as Docs Standard, but Discovery exposes target-specific lowering rules (`node`, bindings, mode, renderer, template), not documentary questions.
 
 ```text
 vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
@@ -62,21 +62,21 @@ Nodes may already contain dots. A qualified discovery key prefixes the installed
 
 ## Docs Standard installations and lifecycle (proposed in PR #16)
 
-The multi-installation implementation on this branch is the first projection of [the shared Standard lifecycle contract](design/standard-lifecycle.md); detailed documentary behavior lives in [its Docs Standard projection](design/multiple-docs-standards-lifecycle.md). This section documents **branch behavior**, not capabilities already released in `main`.
+The multi-installation implementation on this branch is the first projection of [the shared Standard lifecycle contract](design/standard-lifecycle.md); detailed documentary behavior lives in [its Docs Standard projection](design/multiple-docs-lifecycle.md). This section documents **branch behavior**, not capabilities already released in `main`.
 
 ```text
 vslices new docs-standard serviu
 vslices new docs-standard --origin "vslices/docs-standard:main"
 vslices new docs-standard imported --origin "C:/existing/standard"
 
-vslices list docs-standards
+vslices list docs
 vslices discovery docs-standard --structure serviu.context
 vslices update docs-standard --skip-confirm
 vslices update docs-standard imported --std-diff --skip-confirm
 vslices delete docs-standard imported --skip-confirm
 ```
 
-Each installation is named; a `manifest.yaml` `name` supplies the default name for imports, and positional `[name]` overrides *only the installation identity*. Locally created standards are editable at `.vslices/docs-standards/local/<name>/`; imported snapshots reside under `.vslices/docs-standards/<name>/`. Name collisions across both storage classes reject without replacement. A nonexistent physical `--origin` warns and makes no changes; an existing invalid source fails validation.
+Each installation is named; a `manifest.yaml` `name` supplies the default name for imports, and positional `[name]` overrides *only the installation identity*. Locally created standards are editable at `.vslices/docs/local/<name>/`; imported snapshots reside under `.vslices/docs/<name>/`. Name collisions across both storage classes reject without replacement. A nonexistent physical `--origin` warns and makes no changes; an existing invalid source fails validation.
 
 Without a name, `update docs-standard` prepares all external installations, **skips editable local standards**, generates Markdown change reports under `.vslices/reports/docs-standard-updates/`, and requires confirmation. `--std-diff` prints changes, `--skip-diff` omits the comparison, and `--skip-confirm` authorizes the installation in noninteractive contexts; diff and confirmation are separate controls. Managed installation updates preserve their former snapshot on validation failure.
 

@@ -5,7 +5,7 @@ Date: 2026-10-13
 Owner of CLI behavior: `vslices/tooling`  
 Owner of manifest/definition semantics: `vslices/docs-standard`
 
-> **Projection of a shared contract:** This document is the Docs Standard-specific projection of [Standard lifecycle — cross-product design contract](standard-lifecycle.md). The shared contract defines lifecycle invariants and operations intended also for a future Ruleset Standard (the planned rename of Ruleset) and Template Standard. Only documentary manifestations (manifest `name`, Documents/Nexus/Continuity Paths/Support Notes, documentary discovery and diff, and `.vslices/docs-standards/`) are specified here. Neither the abstraction nor this projection is implemented yet; future families require their own projections and validation against their existing semantics.
+> **Projection of a shared contract:** This document is the Docs Standard-specific projection of [Standard lifecycle — cross-product design contract](standard-lifecycle.md). The shared contract defines lifecycle invariants and operations intended also for a future Ruleset Standard (the planned rename of Ruleset) and Template Standard. Only documentary manifestations (manifest `name`, Documents/Nexus/Continuity Paths/Support Notes, documentary discovery and diff, and `.vslices/docs/`) are specified here. Neither the abstraction nor this projection is implemented yet; future families require their own projections and validation against their existing semantics.
 
 ## Problem and intention
 
@@ -22,8 +22,8 @@ Proposed layout:
 ```text
 .vslices/
   config.yaml
-  docs-standards/
-    vslices-standard/         # externally acquired installed snapshot
+  docs/
+    vslices/         # externally acquired installed snapshot
       manifest.yaml
     atom-dev/                 # another external snapshot
       manifest.yaml
@@ -36,7 +36,7 @@ Proposed layout:
         support-notes/
 ```
 
-`local` classifies project-owned/editable definitions, **not** an arbitrary filesystem source: importing `--origin "C:/path/to/folder"` still creates an externally acquired managed installation snapshot at `docs-standards/<name>/`. Local standards exist once, at `docs-standards/local/<name>/`; there is no second installed copy to silently replace.
+`local` classifies project-owned/editable definitions, **not** an arbitrary filesystem source: importing `--origin "C:/path/to/folder"` still creates an externally acquired managed installation snapshot at `docs/<name>/`. Local standards exist once, at `docs/local/<name>/`; there is no second installed copy to silently replace.
 
 No installation name may collide with any name under either location. A collision—whether defaulted from a manifest or explicitly supplied—**stops without modifying files**, reports the name conflict, and tells the caller to specify a different `[name]`. Never auto-rename, replace or use `--force` on `new`.
 
@@ -46,7 +46,7 @@ The project registry must record each identity, source kind, and external source
 
 Two modes, distinguished only by `--origin`:
 
-1. **Without `--origin`**, create a brand-new editable local standard under `.vslices/docs-standards/local/<name>/`. If `[name]` is omitted, request a name interactively; in noninteractive contexts where it cannot be obtained, explain that a name is required. Generate a minimally valid manifest with the selected `name`, and initial family directories only as useful. Do not invent documentary definitions to satisfy a validator. Register it immediately so `discovery` can see it. Local authoring changes the source itself.
+1. **Without `--origin`**, create a brand-new editable local standard under `.vslices/docs/local/<name>/`. If `[name]` is omitted, request a name interactively; in noninteractive contexts where it cannot be obtained, explain that a name is required. Generate a minimally valid manifest with the selected `name`, and initial family directories only as useful. Do not invent documentary definitions to satisfy a validator. Register it immediately so `discovery` can see it. Local authoring changes the source itself.
 2. **With `--origin`**, acquire an existing standard from a GitHub repository/ref, archive, or physical directory; use the source manifest's `name` unless positional `[name]` overrides it. Validate candidate before installing a managed snapshot. Record origin/ref for later updates. A local directory passed via `--origin` is still a separately managed imported snapshot, not a project-owned local standard.
 
 For `--origin` pointing to a nonexistent physical directory, display a **warning**, not a semantic-validation error, and make **no changes**. Distinguish this from an existing directory with an invalid manifest (validation error), unsupported origin, network error, or an installation-name collision. Exit-status handling of the missing-directory warning should be specified explicitly before scripting integrations; no successful installation may be reported.
@@ -86,7 +86,7 @@ vslices update docs-standard --std-diff --skip-confirm
 vslices update docs-standard serviu-alt --skip-diff
 ```
 
-## `vslices list docs-standards`
+## `vslices list docs`
 
 List every installed standard (local and external), effective installation name, source kind, source location and ref when available. This is a registry view, not a scan that grants undeclared files semantic authority.
 

@@ -50,25 +50,25 @@ explicit CLI argument
 .vslices/.ignore
   = project-specific discovery exclusions
 
-.vslices/ruleset-standards/registry.yaml
+.vslices/rulesets/registry.yaml
   = Ruleset Standard installation registry and source provenance
 
-.vslices/ruleset-standards/<name>/
+.vslices/rulesets/<name>/
   = imported, managed lowering-standard snapshot
 
-.vslices/ruleset-standards/local/<name>/
+.vslices/rulesets/local/<name>/
   = original, editable local Ruleset Standard
 
 .vslices/ruleset/
   = legacy singleton lowering snapshot (still readable)
 
-.vslices/docs-standards/registry.yaml
+.vslices/docs/registry.yaml
   = installation identity, source kind and provenance registry
 
-.vslices/docs-standards/<name>/
+.vslices/docs/<name>/
   = optional named imported documentation-vocabulary snapshot
 
-.vslices/docs-standards/local/<name>/
+.vslices/docs/local/<name>/
   = optional original editable project-owned Docs Standard definitions
 
 .vslices/docs-standard/
@@ -383,11 +383,11 @@ Configuration cannot disable correctness/safety guarantees such as atomic writes
 
 ## Multiple Docs Standards (branch design and implementation)
 
-The `docs-standards/registry.yaml` file records the installed names and source provenance while the individual `manifest.yaml` files retain each source's declared `name`. When a source is acquired as an alias, Tooling does not change its manifest. A locally created standard contains its original editable definitions under `local/`, not a second snapshot.
+The `docs/registry.yaml` file records the installed names and source provenance while the individual `manifest.yaml` files retain each source's declared `name`. When a source is acquired as an alias, Tooling does not change its manifest. A locally created standard contains its original editable definitions under `local/`, not a second snapshot.
 
-`vslices update docs-standard` updates all *imported* snapshots after presenting a diff/confirmation, while project-owned local definitions are left unchanged. Standard-specific authoring and discovery resolve uniquely named definitions with their original short names or explicitly qualified `<standard>.<structure>` identity. The ruleset and template-standard lifecycle remains unchanged by this Docs Standard projection. For design details see [the shared standard lifecycle](design/standard-lifecycle.md) and [Docs Standard projection](design/multiple-docs-standards-lifecycle.md).
+`vslices update docs-standard` updates all *imported* snapshots after presenting a diff/confirmation, while project-owned local definitions are left unchanged. Standard-specific authoring and discovery resolve uniquely named definitions with their original short names or explicitly qualified `<standard>.<structure>` identity. The ruleset and template-standard lifecycle remains unchanged by this Docs Standard projection. For design details see [the shared standard lifecycle](design/standard-lifecycle.md) and [Docs Standard projection](design/multiple-docs-lifecycle.md).
 
 
 ## Multiple Ruleset Standards (PR #16)
 
-The `ruleset-standards/registry.yaml` records imported or local installation names and origins independently from `.vslices/extensions`. Import with `vslices new ruleset-standard --origin`; create an editable standard using `vslices new ruleset-standard <name>`. Updates differentiate changes, require confirmation unless `--skip-confirm`, refresh imported sources independently and preserve local originals. C# lowering combines non-overlapping rules from all installed standards and explicitly rejects duplicate `node` definitions. See [Ruleset Standard lifecycle](design/multiple-ruleset-standards-lifecycle.md).
+The `rulesets/registry.yaml` records imported or local installation names and origins independently from `.vslices/extensions`. Import with `vslices new ruleset-standard --origin`; create an editable standard using `vslices new ruleset-standard <name>`. Updates differentiate changes, require confirmation unless `--skip-confirm`, refresh imported sources independently and preserve local originals. C# lowering combines non-overlapping rules from all installed standards and explicitly rejects duplicate `node` definitions. See [Ruleset Standard lifecycle](design/multiple-rulesets-lifecycle.md).

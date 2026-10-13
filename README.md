@@ -1,6 +1,6 @@
 # VSlices Tooling
 
-> **PR #16 integration:** This branch implements named, coexisting Docs Standards **and Ruleset Standards**. The reference release line on `main` still represents the previous singleton installation. Review [the shared lifecycle design](docs/design/standard-lifecycle.md), [the Docs Standard projection](docs/design/multiple-docs-standards-lifecycle.md), [the Ruleset Standard projection](docs/design/multiple-ruleset-standards-lifecycle.md), and [the CLI contract](docs/cli.md) for branch behavior. The Docs Standard manifest was merged in [vslices/docs-standard#4](https://github.com/vslices/docs-standard/pull/4). The Ruleset Standard manifest change is tracked in [vslices/ruleset-standard#5](https://github.com/vslices/ruleset-standard/pull/5).
+> **PR #16 integration:** This branch implements named, coexisting Docs Standards **and Ruleset Standards**. The reference release line on `main` still represents the previous singleton installation. Review [the shared lifecycle design](docs/design/standard-lifecycle.md), [the Docs Standard projection](docs/design/multiple-docs-lifecycle.md), [the Ruleset Standard projection](docs/design/multiple-rulesets-lifecycle.md), and [the CLI contract](docs/cli.md) for branch behavior. The Docs Standard manifest was merged in [vslices/docs-standard#4](https://github.com/vslices/docs-standard/pull/4). The Ruleset Standard manifest change is tracked in [vslices/ruleset-standard#5](https://github.com/vslices/ruleset-standard/pull/5).
 
 ## v0.3.0-preview — Current integrated CLI capabilities
 
@@ -83,12 +83,12 @@ vslices update ruleset        # legacy singleton compatibility
 vslices update template-standard
 vslices new ruleset-standard [name] [--origin <source>]
 vslices update ruleset-standard [name] [--skip-confirm]
-vslices list ruleset-standards
+vslices list rulesets
 vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
 vslices delete ruleset-standard <name> [--skip-confirm]
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs-standards
+vslices list docs
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
@@ -672,7 +672,7 @@ vslices update ruleset
 vslices update template-standard
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs-standards
+vslices list docs
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 ```

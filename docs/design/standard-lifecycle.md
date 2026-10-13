@@ -8,7 +8,7 @@ Scope: independently installable, named, versionable VSlices standards managed b
 
 The Docs Standard multiple-installation design revealed a recurring **lifecycle problem**, not a Docs Standard-specific semantic problem. A project may need multiple independent standards of the same family, sourced externally or authored locally. Their coexistence should provide extensibility without replacing or overriding an existing standard.
 
-This contract has two concrete Tooling projections: [Docs Standard](multiple-docs-standards-lifecycle.md) and [Ruleset Standard](multiple-ruleset-standards-lifecycle.md). Ruleset Standard uses the renamed repository `vslices/ruleset-standard` while preserving the legacy manifest kind and project extension boundary. **Template Standard** remains future work. Do not treat branch projections as shipped until the PR is integrated.
+This contract has two concrete Tooling projections: [Docs Standard](multiple-docs-lifecycle.md) and [Ruleset Standard](multiple-rulesets-lifecycle.md). Ruleset Standard uses the renamed repository `vslices/ruleset-standard` while preserving the legacy manifest kind and project extension boundary. **Template Standard** remains future work. Do not treat branch projections as shipped until the PR is integrated.
 
 ## Layers of responsibility
 
@@ -99,7 +99,7 @@ Requires explicit name; confirmation unless `--skip-confirm`. For managed instal
 | Dimension | Common lifecycle | Docs Standard projection | Ruleset Standard / Template Standard |
 |---|---|---|---|
 | Installation identity | Manifest name + optional alias | `vslices-standard` proposed official name | Family-owned names, not yet specified |
-| Storage | Named managed snapshots + `local/` | `.vslices/docs-standards/` | Collection names to decide |
+| Storage | Named managed snapshots + `local/` | `.vslices/docs/` | Collection names to decide |
 | Source acquisition | Local directory, GitHub/ref, supported archive | Existing Docs Standard materializer | Reuse mechanisms only where compatible |
 | Validation | Validate before install/swap | Document/Nexus/Path/Support Note catalogs | Respect actual target loader or template contract |
 | Diff | Markdown, CLI, none; confirmation independent | Documentary definition differences | Ruleset and template meanings must be defined separately |

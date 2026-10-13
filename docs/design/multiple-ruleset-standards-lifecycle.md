@@ -6,7 +6,7 @@ Source abstraction: [Standard lifecycle](standard-lifecycle.md)
 
 ## Purpose and ownership
 
-This is the **Ruleset Standard-specific projection** of the shared standard lifecycle, alongside [Docs Standard](multiple-docs-standards-lifecycle.md). It is not a new layer of ruleset semantics. The `vslices/ruleset-standard` repository owns its rule manifest and lowering vocabulary, while Tooling owns acquiring, validating, installing, discovering, comparing and retiring versions.
+This is the **Ruleset Standard-specific projection** of the shared standard lifecycle, alongside [Docs Standard](multiple-docs-lifecycle.md). It is not a new layer of ruleset semantics. The `vslices/ruleset-standard` repository owns its rule manifest and lowering vocabulary, while Tooling owns acquiring, validating, installing, discovering, comparing and retiring versions.
 
 Ruleset Standard remains distinct from `.vslices/extensions`, which is a project-owned **semantic extension overlay**, not an imported/local lowering standard. Importing or updating a standard must not overwrite or migrate project extensions.
 
@@ -14,13 +14,13 @@ The repository was renamed from `vslices/ruleset` to `vslices/ruleset-standard`.
 
 ## Installations and names
 
-The official manifest will declare `name: vslices-ruleset-standard` (see [normative PR #5](https://github.com/vslices/ruleset-standard/pull/5)). A positional `[name]` overrides only the installation identity, without mutating the source manifest. Names must be unique across local and imported Ruleset Standards, independent of Docs Standard names.
+The official manifest will declare `name: vslices` (see [normative PR #5](https://github.com/vslices/ruleset-standard/pull/5)). A positional `[name]` overrides only the installation identity, without mutating the source manifest. Names must be unique across local and imported Ruleset Standards, independent of Docs Standard names.
 
 ```text
 .vslices/
-  ruleset-standards/
+  rulesets/
     registry.yaml
-    vslices-ruleset-standard/        # managed imported snapshot
+    vslices/        # managed imported snapshot
       manifest.yaml
       csharp/
     local/
@@ -38,7 +38,7 @@ A new local standard can begin with an empty `targets: {}` and no fabricated rul
 vslices new ruleset-standard serviu
 vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
 vslices new ruleset-standard alternative --origin "../external-rules"
-vslices list ruleset-standards
+vslices list rulesets
 vslices discovery ruleset-standard
 vslices discovery ruleset-standard --ruleset-standard alternative --structure intrinsic.non-empty
 vslices discovery ruleset-standard --structure alternative.intrinsic.non-empty
@@ -64,7 +64,7 @@ Prepare every candidate before approval; apply each update with its own backup a
 
 ### List and discovery
 
-`list ruleset-standards` prints installation identity, source kind, provenance and reference.
+`list rulesets` prints installation identity, source kind, provenance and reference.
 
 `discovery ruleset-standard` asks which standard to inspect unless there is only one; then which admitted lowering rule (`node`). `--ruleset-standard [name]` and `--structure [name]` select those elements directly. C# nodes inherently use dots, e.g. `intrinsic.non-empty`; a fully-qualified reference is `<installed-standard>.intrinsic.non-empty`. Matching the *whole* node name before disambiguation avoids splitting the semantic node at its first dot.
 
@@ -84,7 +84,7 @@ C# is currently the only target with a complete snapshot validator. An empty loc
 
 ## Compatibility and transition
 
-The historical `vslices update ruleset`, `init --ruleset-origin`, `VSLICES_RULESET_SOURCE`, and `.vslices/ruleset` remain supported as **legacy** singleton mechanisms while users transition. The canonical new entrypoints are `new|update|discovery|delete ruleset-standard`, `list ruleset-standards`, `init --ruleset-standard-origin` and `VSLICES_RULESET_STANDARD_SOURCE`. `init --default-origin` uses the new named source path.
+The historical `vslices update ruleset`, `init --ruleset-origin`, `VSLICES_RULESET_SOURCE`, and `.vslices/ruleset` remain supported as **legacy** singleton mechanisms while users transition. The canonical new entrypoints are `new|update|discovery|delete ruleset-standard`, `list rulesets`, `init --ruleset-standard-origin` and `VSLICES_RULESET_STANDARD_SOURCE`. `init --default-origin` uses the new named source path.
 
 The new registry recognizes a legacy singleton with its original provenance and does not assume any locally customized snapshot is official. An explicit lifecycle mutation can migrate the old snapshot into the named collection. Source normalization points to `vslices/ruleset-standard`, preserving historical artifact snapshots and their evidence.
 
