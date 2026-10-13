@@ -160,9 +160,10 @@ internal static class QuestionReadOperation
             chain.Add(current);
             if (current.ParentSelectionPath is null)
                 break;
-            if (!bySelection.TryGetValue(current.ParentSelectionPath, out current))
+            if (!bySelection.TryGetValue(current.ParentSelectionPath, out var parent))
                 return QuestionReadResult.Failure(
                     $"READ010: Parent selection '{chain[^1].ParentSelectionPath}' is not present in this artifact.");
+            current = parent;
         }
 
         chain.Reverse();
