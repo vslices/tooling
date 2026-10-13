@@ -52,11 +52,11 @@ internal static class CommandInfrastructure
         VSlicesProjectContext project)
     {
         if (!string.IsNullOrWhiteSpace(requested))
-            return ValidateTarget(requested, project.RulesetRoot);
+            return ValidateTarget(requested, project);
 
         if (!string.IsNullOrWhiteSpace(project.Configuration.DefaultTarget))
         {
-            var configured = ValidateTarget(project.Configuration.DefaultTarget, project.RulesetRoot);
+            var configured = ValidateTarget(project.Configuration.DefaultTarget, project);
             if (configured.Diagnostic is not null)
             {
                 return (null, new(
@@ -67,11 +67,11 @@ internal static class CommandInfrastructure
             return configured;
         }
 
-        var installed = InstalledTargets(project.RulesetRoot);
+        var installed = InstalledTargets(project);
         return installed.Count switch
         {
             1 => (installed[0], null),
-            0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices update ruleset' to install one.")),
+            0 => (null, new("CLI021", "No supported target is installed in the project-local ruleset. Run 'vslices new ruleset-standard --origin vslices/ruleset-standard:main' to install one.")),
             _ => (null, new("CLI022", "More than one supported target is installed and no default target is configured. Specify -to explicitly or set targets.default in .vslices/config.yaml."))
         };
     }
@@ -182,7 +182,7 @@ internal static class CommandInfrastructure
 
     private static (string? Target, VsirDiagnostic? Diagnostic) ValidateTarget(
         string target,
-        string rulesetRoot)
+        VSlicesProjectContext project)
     {
         var normalized = NormalizeTarget(target);
         if (normalized != "csharp")
@@ -192,7 +192,7 @@ internal static class CommandInfrastructure
                 $"Target '{target}' is not supported. Current experimental target: C#."));
         }
 
-        if (!Directory.Exists(Path.Combine(rulesetRoot, normalized)))
+        if (!RulesetStandardRegistry.Load(project).HasTarget(normalized))
         {
             return (null, new(
                 "CLI024",
@@ -202,10 +202,10 @@ internal static class CommandInfrastructure
         return (normalized, null);
     }
 
-    private static IReadOnlyList<string> InstalledTargets(string rulesetRoot)
+    private static IReadOnlyList<string> InstalledTargets(VSlicesProjectContext project)
     {
         var installed = new List<string>();
-        if (Directory.Exists(Path.Combine(rulesetRoot, "csharp")))
+        if (RulesetStandardRegistry.Load(project).HasTarget("csharp"))
             installed.Add("csharp");
 
         return installed;
