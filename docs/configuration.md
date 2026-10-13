@@ -25,11 +25,12 @@ External knowledge is installed independently:
 
 ```text
 vslices update ruleset
+vslices new docs-standard --origin "vslices/docs-standard:main"
 vslices update docs-standard
 vslices update template-standard
 ```
 
-Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; it does not own a second installation mechanism.
+Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; the Docs Standard origin delegates to the same named-import lifecycle as `vslices new docs-standard --origin`, not an implicit aggregate update.
 
 Operational precedence is:
 
@@ -51,8 +52,17 @@ explicit CLI argument
 .vslices/ruleset/
   = optional local target-lowering snapshot
 
+.vslices/docs-standards/registry.yaml
+  = installation identity, source kind and provenance registry
+
+.vslices/docs-standards/<name>/
+  = optional named imported documentation-vocabulary snapshot
+
+.vslices/docs-standards/local/<name>/
+  = optional original editable project-owned Docs Standard definitions
+
 .vslices/docs-standard/
-  = optional local normative documentation-vocabulary snapshot
+  = legacy singleton Docs Standard snapshot (readable during migration)
 
 .vslices/template-standard/
   = optional local normative materialization-template snapshot
@@ -359,3 +369,10 @@ Docs Standard validation follows the manifest-reachable normative definitions an
 Project-specific recursive-discovery exclusions live in `.vslices/.ignore`. Built-in exclusions remain `.git/`, `.vslices/`, `bin/`, and `obj/`.
 
 Configuration cannot disable correctness/safety guarantees such as atomic writes, missing-rule failure, complete ruleset validation before swap, or trusted-ancestry requirements for rebase.
+
+
+## Multiple Docs Standards (branch design and implementation)
+
+The `docs-standards/registry.yaml` file records the installed names and source provenance while the individual `manifest.yaml` files retain each source's declared `name`. When a source is acquired as an alias, Tooling does not change its manifest. A locally created standard contains its original editable definitions under `local/`, not a second snapshot.
+
+`vslices update docs-standard` updates all *imported* snapshots after presenting a diff/confirmation, while project-owned local definitions are left unchanged. Standard-specific authoring and discovery resolve uniquely named definitions with their original short names or explicitly qualified `<standard>.<structure>` identity. The ruleset and template-standard lifecycle remains unchanged by this Docs Standard projection. For design details see [the shared standard lifecycle](design/standard-lifecycle.md) and [Docs Standard projection](design/multiple-docs-standards-lifecycle.md).
