@@ -24,13 +24,14 @@ updates:
 External knowledge is installed independently:
 
 ```text
-vslices update ruleset
+vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
+vslices update ruleset-standard
 vslices new docs-standard --origin "vslices/docs-standard:main"
 vslices update docs-standard
 vslices update template-standard
 ```
 
-Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; the Docs Standard origin delegates to the same named-import lifecycle as `vslices new docs-standard --origin`, not an implicit aggregate update.
+Initialization composes these operations with `--ruleset-standard-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin`. The legacy `--ruleset-origin` remains supported only as a singleton compatibility path.
 
 Operational precedence is:
 
@@ -49,8 +50,17 @@ explicit CLI argument
 .vslices/.ignore
   = project-specific discovery exclusions
 
+.vslices/ruleset-standards/registry.yaml
+  = Ruleset Standard installation registry and source provenance
+
+.vslices/ruleset-standards/<name>/
+  = imported, managed lowering-standard snapshot
+
+.vslices/ruleset-standards/local/<name>/
+  = original, editable local Ruleset Standard
+
 .vslices/ruleset/
-  = optional local target-lowering snapshot
+  = legacy singleton lowering snapshot (still readable)
 
 .vslices/docs-standards/registry.yaml
   = installation identity, source kind and provenance registry
@@ -376,3 +386,8 @@ Configuration cannot disable correctness/safety guarantees such as atomic writes
 The `docs-standards/registry.yaml` file records the installed names and source provenance while the individual `manifest.yaml` files retain each source's declared `name`. When a source is acquired as an alias, Tooling does not change its manifest. A locally created standard contains its original editable definitions under `local/`, not a second snapshot.
 
 `vslices update docs-standard` updates all *imported* snapshots after presenting a diff/confirmation, while project-owned local definitions are left unchanged. Standard-specific authoring and discovery resolve uniquely named definitions with their original short names or explicitly qualified `<standard>.<structure>` identity. The ruleset and template-standard lifecycle remains unchanged by this Docs Standard projection. For design details see [the shared standard lifecycle](design/standard-lifecycle.md) and [Docs Standard projection](design/multiple-docs-standards-lifecycle.md).
+
+
+## Multiple Ruleset Standards (PR #16)
+
+The `ruleset-standards/registry.yaml` records imported or local installation names and origins independently from `.vslices/extensions`. Import with `vslices new ruleset-standard --origin`; create an editable standard using `vslices new ruleset-standard <name>`. Updates differentiate changes, require confirmation unless `--skip-confirm`, refresh imported sources independently and preserve local originals. C# lowering combines non-overlapping rules from all installed standards and explicitly rejects duplicate `node` definitions. See [Ruleset Standard lifecycle](design/multiple-ruleset-standards-lifecycle.md).
