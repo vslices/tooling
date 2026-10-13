@@ -115,7 +115,7 @@ internal sealed class DocsStandardRegistry
         Directory.CreateDirectory(Root);
         var data = new YamlMappingNode { { "version", "0.1" } };
         var sequence = new YamlSequenceNode();
-        foreach (var installation in installations.OrderBy(i => i.Name, StringComparer.Ordinal))
+        foreach (var installation in installations.Where(i => !i.Legacy).OrderBy(i => i.Name, StringComparer.Ordinal))
         {
             var mapping = new YamlMappingNode
             {
