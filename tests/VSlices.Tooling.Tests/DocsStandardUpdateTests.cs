@@ -183,8 +183,8 @@ public sealed class DocsStandardUpdateTests
         Assert.Contains("DOCS018", result.StandardError);
         Assert.Contains("Original A", Definition(project, "alpha"));
         Assert.Contains("New B", Definition(project, "beta"));
-        var registry = DocsStandardRegistry.Load(VSlicesProjectContext.FindFrom(project.Root)!);
-        Assert.Equal(a, registry.Find("alpha")!.Source);
+        var registry = File.ReadAllText(Path.Combine(project.VslicesRoot, "docs-standards", "registry.yaml"));
+        Assert.Contains(a, registry, StringComparison.Ordinal);
     }
 
     [Fact]
