@@ -78,38 +78,18 @@ internal static class UpdateCommands
             cancellationToken);
     }
 
-    /// <summary>Installs or refreshes the project-local Docs Standard snapshot.</summary>
-    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    /// <summary>Refreshes one installed Docs Standard, or all managed Docs Standards when name is omitted.</summary>
+    /// <param name="name">Installed Docs Standard name (omit to update all imported standards).</param>
+    /// <param name="origin">Override the origin for a named installation.</param>
+    /// <param name="stdDiff">Show definition changes in the CLI rather than writing Markdown.</param>
+    /// <param name="skipDiff">Skip differentiation, without skipping confirmation.</param>
+    /// <param name="skipConfirm">Approve the prepared updates without an interactive prompt.</param>
     public static Task<int> DocsStandard(
-        string? origin = null,
-        CancellationToken cancellationToken = default)
-    {
-        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
-        if (project is null)
-        {
-            TerminalOutput.Error(
-                "UPD030: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Docs Standard.");
-            return Task.FromResult(1);
-        }
-
-        var resolved = ProjectOriginResolver.Resolve(
-            origin,
-            project.Configuration.DocsStandardSource,
-            project.Configuration.DocsStandardRef,
-            ProjectOrigin.OfficialDocsStandard,
-            "UPD035");
-        if (!resolved.IsSuccess)
-        {
-            TerminalOutput.Error(resolved.Error!);
-            return Task.FromResult(2);
-        }
-
-        return DocsStandardUpdater.Update(
-            project,
-            resolved.Origin!.Source,
-            resolved.Origin.Reference,
-            cancellationToken);
-    }
+        [Argument] string? name = null, string? origin = null,
+        bool stdDiff = false, bool skipDiff = false, bool skipConfirm = false,
+        CancellationToken cancellationToken = default) =>
+        DocsStandardCommands.InProject(project => DocsStandardLifecycle.Update(
+            project, name, origin, skipConfirm, stdDiff, skipDiff, cancellationToken));
 
     /// <summary>Installs or refreshes the project-local Template Standard snapshot.</summary>
     /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
