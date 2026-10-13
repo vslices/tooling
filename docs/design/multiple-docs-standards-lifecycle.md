@@ -5,6 +5,8 @@ Date: 2026-10-13
 Owner of CLI behavior: `vslices/tooling`  
 Owner of manifest/definition semantics: `vslices/docs-standard`
 
+> **Projection of a shared contract:** This document is the Docs Standard-specific projection of [Standard lifecycle — cross-product design contract](standard-lifecycle.md). The shared contract defines lifecycle invariants and operations intended also for a future Ruleset Standard (the planned rename of Ruleset) and Template Standard. Only documentary manifestations (manifest `name`, Documents/Nexus/Continuity Paths/Support Notes, documentary discovery and diff, and `.vslices/docs-standards/`) are specified here. Neither the abstraction nor this projection is implemented yet; future families require their own projections and validation against their existing semantics.
+
 ## Problem and intention
 
 The present Tooling model has one configured Docs Standard source/ref and an installed snapshot at `.vslices/docs-standard`. This makes adding project-specific documentary vocabulary look like replacing or modifying the installed standard. Instead, **multiple independent standards must coexist**. Extensibility comes from adding standards, **not** semantic overrides, priority ordering, overlays, or inheritance.
