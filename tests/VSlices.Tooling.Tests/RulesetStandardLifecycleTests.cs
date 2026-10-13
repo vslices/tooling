@@ -312,6 +312,6 @@ public sealed class RulesetStandardLifecycleTests
     private static void WriteManifestName(string root, string name)
     {
         var path = Path.Combine(root, "manifest.yaml");
-        File.WriteAllText(path, File.ReadAllText(path) + $"name: {name}\n");
+        File.WriteAllText(path, File.ReadAllText(path).TrimEnd() + Environment.NewLine + $"name: {name}\n");
     }
 }
