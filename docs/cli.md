@@ -23,13 +23,13 @@ vslices update ruleset             # legacy singleton compatibility
 vslices update template-standard
 vslices new ruleset-standard [name] [--origin <source>]
 vslices update ruleset-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list rulesets
+vslices list ruleset-standards
 vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
 vslices delete ruleset-standard <name> [--skip-confirm]
 
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs
+vslices list docs-standards
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
@@ -69,7 +69,7 @@ vslices new docs-standard serviu
 vslices new docs-standard --origin "vslices/docs-standard:main"
 vslices new docs-standard imported --origin "C:/existing/standard"
 
-vslices list docs
+vslices list docs-standards
 vslices discovery docs-standard --structure serviu.context
 vslices update docs-standard --skip-confirm
 vslices update docs-standard imported --std-diff --skip-confirm

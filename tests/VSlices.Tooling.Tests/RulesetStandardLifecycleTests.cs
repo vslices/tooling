@@ -11,7 +11,7 @@ public sealed class RulesetStandardLifecycleTests
         var manifest = Path.Combine(Local(project, "serviu"), "manifest.yaml");
         Assert.Contains("name: serviu", File.ReadAllText(manifest), StringComparison.Ordinal);
         Assert.Contains("targets: {}", File.ReadAllText(manifest), StringComparison.Ordinal);
-        var list = await project.Run(project.Root, "list", "rulesets");
+        var list = await project.Run(project.Root, "list", "ruleset-standards");
         Assert.Equal(0, list.ExitCode);
         Assert.Contains("serviu [local]", list.StandardOutput);
         var discovery = await project.Run(project.Root, "discovery", "ruleset-standard",
@@ -41,7 +41,7 @@ public sealed class RulesetStandardLifecycleTests
         Assert.True(File.Exists(Path.Combine(Managed(project, "alpha"), "manifest.yaml")));
         Assert.True(File.Exists(Path.Combine(Managed(project, "alternate"), "manifest.yaml")));
         Assert.Contains("name: alpha", File.ReadAllText(Path.Combine(source, "manifest.yaml")));
-        var listed = await project.Run(project.Root, "list", "rulesets");
+        var listed = await project.Run(project.Root, "list", "ruleset-standards");
         Assert.Contains("alternate [managed]", listed.StandardOutput);
         Assert.Contains(source, listed.StandardOutput);
     }
@@ -73,7 +73,7 @@ public sealed class RulesetStandardLifecycleTests
         Assert.Equal(0, missing.ExitCode);
         Assert.Contains("RSNEW006", missing.StandardOutput);
         Assert.Contains("No Ruleset Standards installed",
-            (await project.Run(project.Root, "list", "rulesets")).StandardOutput);
+            (await project.Run(project.Root, "list", "ruleset-standards")).StandardOutput);
 
         var invalid = Path.Combine(project.Root, "invalid");
         Directory.CreateDirectory(invalid);

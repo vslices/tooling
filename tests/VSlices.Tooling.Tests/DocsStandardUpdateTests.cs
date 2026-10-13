@@ -26,7 +26,7 @@ public sealed class DocsStandardUpdateTests
         Assert.Equal(0, created.ExitCode);
         var root = Local(project, "serviu");
         Assert.Contains("name: serviu", File.ReadAllText(Path.Combine(root, "manifest.yaml")), StringComparison.Ordinal);
-        Assert.Contains("serviu [local]", (await project.Run(project.Root, "list", "docs")).StandardOutput);
+        Assert.Contains("serviu [local]", (await project.Run(project.Root, "list", "docs-standards")).StandardOutput);
         var found = await project.Run(project.Root, "discovery", "docs-standard", "--docs-standard", "serviu");
         Assert.Equal(0, found.ExitCode);
         Assert.Contains("No manifest-promoted structures", found.StandardOutput);
@@ -57,7 +57,7 @@ public sealed class DocsStandardUpdateTests
         Assert.True(File.Exists(Path.Combine(Managed(project, "custom"), "manifest.yaml")));
         Assert.False(File.Exists(Path.Combine(Managed(project, "vendor"), "not-declared.txt")));
         Assert.Contains("name: vendor", File.ReadAllText(Path.Combine(source, "manifest.yaml")));
-        var list = await project.Run(project.Root, "list", "docs");
+        var list = await project.Run(project.Root, "list", "docs-standards");
         Assert.Contains("vendor [managed]", list.StandardOutput);
         Assert.Contains("custom [managed]", list.StandardOutput);
     }
@@ -86,7 +86,7 @@ public sealed class DocsStandardUpdateTests
             "--origin", Path.Combine(project.Root, "does-not-exist"));
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("STDNEW005", result.StandardOutput + result.StandardError);
-        var list = await project.Run(project.Root, "list", "docs");
+        var list = await project.Run(project.Root, "list", "docs-standards");
         Assert.Contains("No Docs Standards installed", list.StandardOutput);
     }
 
@@ -264,7 +264,7 @@ public sealed class DocsStandardUpdateTests
         WriteStandard(legacy, "legacy-vocabulary", "Preserve original question");
         Assert.Equal(0, (await project.Run(project.Root, "new", "docs-standard", "serviu")).ExitCode);
         // Local creation does not mutate a legacy installation; it remains recognized.
-        var list = await project.Run(project.Root, "list", "docs");
+        var list = await project.Run(project.Root, "list", "docs-standards");
         Assert.Contains("legacy-vocabulary", list.StandardOutput);
         Assert.True(File.Exists(Path.Combine(legacy, "manifest.yaml")));
     }

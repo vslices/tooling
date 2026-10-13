@@ -83,12 +83,12 @@ vslices update ruleset        # legacy singleton compatibility
 vslices update template-standard
 vslices new ruleset-standard [name] [--origin <source>]
 vslices update ruleset-standard [name] [--skip-confirm]
-vslices list rulesets
+vslices list ruleset-standards
 vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
 vslices delete ruleset-standard <name> [--skip-confirm]
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs
+vslices list docs-standards
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
@@ -672,7 +672,7 @@ vslices update ruleset
 vslices update template-standard
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
-vslices list docs
+vslices list docs-standards
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 ```
