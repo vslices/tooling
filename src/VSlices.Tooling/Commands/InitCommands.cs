@@ -7,7 +7,8 @@ internal static class InitCommands
         "# Built-in exclusions: .git/, .vslices/, bin/, obj/.\n";
 
     /// <summary>Initializes the minimum project-local VSlices surface.</summary>
-    /// <param name="rulesetOrigin">Optionally installs Ruleset through the same origin/update lifecycle as 'vslices update ruleset'.</param>
+    /// <param name="rulesetOrigin">Deprecated legacy singleton Ruleset install source; use --ruleset-standard-origin for new projects.</param>
+    /// <param name="rulesetStandardOrigin">Installs a named Ruleset Standard from an external source.</param>
     /// <param name="docsStandardOrigin">Optionally installs Docs Standard through the same installation lifecycle as 'vslices new docs-standard'.</param>
     /// <param name="templateStandardOrigin">Optionally installs Template Standard through the same origin/update lifecycle as 'vslices update template-standard'.</param>
     /// <param name="defaultOrigin">Installs any unspecified external knowledge source from its official VSlices origin.</param>
@@ -15,6 +16,7 @@ internal static class InitCommands
     /// <param name="force">Reinitializes the minimum project surface while preserving existing project policy not explicitly replaced.</param>
     public static async Task<int> Init(
         string? rulesetOrigin = null,
+        string? rulesetStandardOrigin = null,
         string? docsStandardOrigin = null,
         string? templateStandardOrigin = null,
         bool defaultOrigin = false,
@@ -22,6 +24,17 @@ internal static class InitCommands
         bool force = false,
         CancellationToken cancellationToken = default)
     {
+        var modernEnvironmentSource = Environment.GetEnvironmentVariable("VSLICES_RULESET_STANDARD_SOURCE");
+        if (!string.IsNullOrWhiteSpace(modernEnvironmentSource))
+        {
+            if (!string.IsNullOrWhiteSpace(rulesetStandardOrigin))
+            {
+                TerminalOutput.Error("CLI027: VSLICES_RULESET_STANDARD_SOURCE cannot be combined with --ruleset-standard-origin.");
+                return 2;
+            }
+            rulesetStandardOrigin = modernEnvironmentSource;
+        }
+
         var environmentSource = Environment.GetEnvironmentVariable("VSLICES_RULESET_SOURCE");
         if (!string.IsNullOrWhiteSpace(environmentSource))
         {
@@ -35,9 +48,15 @@ internal static class InitCommands
             rulesetOrigin = environmentSource;
         }
 
+        if (rulesetOrigin is not null && rulesetStandardOrigin is not null)
+        {
+            TerminalOutput.Error("CLI028: Use either --ruleset-origin (legacy) or --ruleset-standard-origin.");
+            return 2;
+        }
+
         if (defaultOrigin)
         {
-            rulesetOrigin ??=
+            if (rulesetOrigin is null) rulesetStandardOrigin ??=
                 $"{ProjectConfiguration.OfficialRulesetSource}#{ProjectConfiguration.OfficialRulesetRef}";
             docsStandardOrigin ??=
                 $"{ProjectConfiguration.OfficialDocsStandardSource}#{ProjectConfiguration.OfficialDocsStandardRef}";
@@ -107,6 +126,16 @@ internal static class InitCommands
                 cancellationToken: cancellationToken);
             if (rulesetExit != 0)
                 return rulesetExit;
+        }
+
+        if (!string.IsNullOrWhiteSpace(rulesetStandardOrigin))
+        {
+            TerminalOutput.BlankLine();
+            TerminalOutput.Info("→ Installing Ruleset Standard from requested origin");
+            var exit = await RulesetStandardCommands.New(
+                origin: rulesetStandardOrigin,
+                cancellationToken: cancellationToken);
+            if (exit != 0) return exit;
         }
 
         if (!string.IsNullOrWhiteSpace(docsStandardOrigin))
