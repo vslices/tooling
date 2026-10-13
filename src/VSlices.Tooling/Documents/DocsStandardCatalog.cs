@@ -81,7 +81,7 @@ internal sealed class DocsStandardCatalog
                 return DocsStandardCatalogResult.Failure(manifest.Error!);
 
             var manifestRoot = manifest.Mapping!;
-            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "documents", "support-notes");
+            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "name", "documents", "support-notes", "nexus", "continuity-paths");
             if (unknownManifestKey is not null)
             {
                 return DocsStandardCatalogResult.Failure(
@@ -102,12 +102,18 @@ internal sealed class DocsStandardCatalog
                     "DOCS005: Docs Standard manifest version must currently be '0.1'.");
             }
 
-            if (!manifestRoot.Children.TryGetValue(new YamlScalarNode("documents"), out var documentsNode) ||
-                documentsNode is not YamlSequenceNode documentPaths ||
-                documentPaths.Children.Count == 0)
+            if (manifestRoot.Children.TryGetValue(new YamlScalarNode("name"), out var nameNode) &&
+                (nameNode is not YamlScalarNode nameScalar || !DocsStandardRegistry.IsValidName(nameScalar.Value)))
+                return DocsStandardCatalogResult.Failure("DOCS028: Docs Standard manifest.name must be a valid identifier.");
+
+            var hasName = manifestRoot.Children.ContainsKey(new YamlScalarNode("name"));
+            if (!manifestRoot.Children.TryGetValue(new YamlScalarNode("documents"), out var documentsNode))
+                documentsNode = new YamlSequenceNode();
+            if (documentsNode is not YamlSequenceNode documentPaths ||
+                (!hasName && documentPaths.Children.Count == 0))
             {
                 return DocsStandardCatalogResult.Failure(
-                    "DOCS006: Docs Standard manifest must declare at least one document definition.");
+                    "DOCS006: Legacy manifests must declare at least one Document; named standards may start empty.");
             }
 
             var loaded = new Dictionary<string, DocumentDefinition>(StringComparer.OrdinalIgnoreCase);
