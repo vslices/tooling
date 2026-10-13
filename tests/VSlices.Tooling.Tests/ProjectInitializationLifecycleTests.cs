@@ -35,7 +35,7 @@ public sealed class ProjectInitializationLifecycleTests
     }
 
     [Fact]
-    public async Task Init_with_explicit_origins_delegates_to_the_same_component_update_lifecycles()
+    public async Task Init_with_explicit_origins_delegates_to_the_component_installation_lifecycles()
     {
         using var project = new ToolingTestProject();
 
@@ -59,7 +59,8 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.True(File.Exists(Path.Combine(project.RulesetRoot, "ruleset.marker")));
         Assert.True(File.Exists(Path.Combine(
             project.VslicesRoot,
-            "docs-standard",
+            "docs-standards",
+            "test-standard",
             "documents",
             "context-document.yml")));
         Assert.True(File.Exists(Path.Combine(
@@ -73,7 +74,7 @@ public sealed class ProjectInitializationLifecycleTests
         Assert.NotNull(configuration);
         Assert.Equal(rulesetOrigin, configuration!.RulesetSource);
         Assert.Null(configuration.RulesetRef);
-        Assert.Equal(docsOrigin, configuration.DocsStandardSource);
+        Assert.Null(configuration.DocsStandardSource);
         Assert.Null(configuration.DocsStandardRef);
         Assert.Equal(templateOrigin, configuration.TemplateStandardSource);
         Assert.Null(configuration.TemplateStandardRef);
@@ -180,6 +181,7 @@ public sealed class ProjectInitializationLifecycleTests
             """
             kind: vslices-docs-standard
             version: 0.1
+            name: test-standard
             documents:
               - documents/context-document.yml
             """);
