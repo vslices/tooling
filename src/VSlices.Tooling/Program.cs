@@ -40,6 +40,10 @@ var app = ConsoleApp.Create();
 
 app.Add("init", InitCommands.Init);
 app.Add("new vsir", NewCommands.Vsir);
+app.Add("new docs-standard", DocsStandardCommands.New);
+app.Add("list docs-standards", DocsStandardCommands.List);
+app.Add("delete docs-standard", DocsStandardCommands.Delete);
+app.Add("discovery docs-standard", DocsStandardDiscoveryCommands.Discover);
 app.Add("new document", NewCommands.Document);
 app.Add("new support-note", NewCommands.SupportNote);
 app.Add("new nexus", NewCommands.Nexus);
