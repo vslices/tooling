@@ -12,7 +12,7 @@ internal static class QuestionReadCommands
     public static Task<int> Document(
         [Argument] string document, string? questionId = null, bool deep = false,
         CancellationToken cancellationToken = default) =>
-        Execute(() => QuestionReadOperation.Document(document, questionId ?? "", deep, cancellationToken));
+        Execute(() => QuestionReadOperation.Document(document, questionId ?? "", deep, cancellationToken), deep);
 
     /// <summary>Reads one Nexus question and answer, optionally with its question ancestry.</summary>
     /// <param name="artifact">Nexus name or path, including directory-backed README artifacts.</param>
@@ -26,6 +26,7 @@ internal static class QuestionReadCommands
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(QuestionReadOperation.Relational(
                 artifact, "nexus", questionId ?? "", deep));
+        }, deep);
         });
 
     /// <summary>Reads one Continuity Path question and answer, optionally with its trajectory.</summary>
@@ -40,6 +41,7 @@ internal static class QuestionReadCommands
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(QuestionReadOperation.Relational(
                 artifact, "continuity-path", questionId ?? "", deep));
+        }, deep);
         });
 
     /// <summary>Reads a Support Note question, using the same question selection contract.</summary>
@@ -54,9 +56,9 @@ internal static class QuestionReadCommands
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(QuestionReadOperation.SupportNote(
                 artifact, questionId ?? "", deep));
-        });
+        }, deep);
 
-    private static async Task<int> Execute(Func<Task<QuestionReadResult>> read)
+    private static async Task<int> Execute(Func<Task<QuestionReadResult>> read, bool deep)
     {
         try
         {
@@ -68,7 +70,7 @@ internal static class QuestionReadCommands
             }
 
             var questions = result.Questions!;
-            var ancestry = questions.Count > 1;
+            var ancestry = deep;
             for (var index = 0; index < questions.Count; index++)
             {
                 var question = questions[index];
