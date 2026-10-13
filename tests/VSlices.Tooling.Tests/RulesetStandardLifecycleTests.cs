@@ -289,7 +289,7 @@ public sealed class RulesetStandardLifecycleTests
     private static async Task Install(ToolingTestProject project, string origin)
     {
         var result = await project.Run(project.Root, "new", "ruleset-standard", "--origin", origin);
-        Assert.Equal(0, result.ExitCode);
+        Assert.True(result.ExitCode == 0, $"Installation failed: exit={result.ExitCode}\\nstdout={result.StandardOutput}\\nstderr={result.StandardError}");
     }
 
     private static string Managed(ToolingTestProject project, string name) =>
