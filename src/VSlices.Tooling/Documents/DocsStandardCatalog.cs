@@ -69,6 +69,44 @@ internal sealed class DocsStandardCatalog
 
     public static string? FindInstalledRoot(string start)
     {
+        var project = VSlicesProjectContext.FindFrom(start);
+        if (project is not null)
+        {
+            var registry = DocsStandardRegistry.Load(project);
+            if (registry.Installations.Count > 0)
+            {
+                string? type = null;
+                if (File.Exists(start))
+                {
+                    var source = File.ReadAllText(start);
+                    var identity = DocumentFrontMatter.Read(source);
+                    if (identity.IsSuccess) type = identity.DocumentType;
+                }
+                if (type is not null && type.Contains('.', StringComparison.Ordinal))
+                {
+                    var qualifier = type[..type.IndexOf('.')];
+                    var selected = registry.Find(qualifier);
+                    return selected is null ? null : registry.PathFor(selected);
+                }
+                if (registry.Installations.Count == 1)
+                    return registry.PathFor(registry.Installations[0]);
+                if (type is not null)
+                {
+                    var matches = new List<string>();
+                    foreach (var installed in registry.Installations)
+                    {
+                        var root = registry.PathFor(installed);
+                        var catalog = Load(root);
+                        if (catalog.IsSuccess && catalog.Catalog!.TryGetDocument(type, out var definition) &&
+                            definition is not null)
+                            matches.Add(root);
+                    }
+                    if (matches.Count == 1) return matches[0];
+                }
+                return null; // Never pick an ambiguous definition based on directory ordering.
+            }
+        }
+
         var fullPath = Path.GetFullPath(start);
         var current = File.Exists(fullPath)
             ? new DirectoryInfo(Path.GetDirectoryName(fullPath)!)
@@ -79,10 +117,8 @@ internal sealed class DocsStandardCatalog
             var candidate = Path.Combine(current.FullName, ".vslices", "docs-standard");
             if (File.Exists(Path.Combine(candidate, "manifest.yaml")))
                 return candidate;
-
             current = current.Parent;
         }
-
         return null;
     }
 
