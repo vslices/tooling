@@ -1,5 +1,7 @@
 # VSlices Tooling
 
+> **PR #16 integration:** This branch implements named, coexisting Docs Standards. The reference release line on `main` still represents the previous singleton installation. Review [the shared lifecycle design](docs/design/standard-lifecycle.md), [the Docs Standard projection](docs/design/multiple-docs-standards-lifecycle.md), and [the CLI contract](docs/cli.md) for branch behavior. A companion manifest update lives in [vslices/docs-standard#4](https://github.com/vslices/docs-standard/pull/4).
+
 ## v0.3.0-preview — Current integrated CLI capabilities
 
 The v0.3.0-preview release line is integrated into `main` and adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. See [current CLI status](docs/releases/v0.3.0-preview.md). The previous v0.2.0 capability and safety boundaries remain in force.
@@ -8,9 +10,10 @@ Project bootstrap and installed knowledge:
 
 ```text
 vslices init
-vslices update docs-standard
+vslices new docs-standard --origin "vslices/docs-standard:main"   # first imported installation
+vslices update docs-standard --skip-confirm                      # refresh imported standards
 vslices update template-standard
-vslices update ruleset             # only when VSIR target lowering needs it
+vslices update ruleset             # only when VSIR target lowering needs it             # only when VSIR target lowering needs it
 ```
 
 `init` creates minimum project policy (`.vslices/config.yaml`, `.vslices/.ignore`); it does **not** imply an installed standard. `documents.route` (typically `docs`) governs user-facing document location, which is separate from operational `.vslices/` state. Docs Standard defines documentary semantics and questions; Template Standard defines materialization/reconstruction; Tooling implements acquisition, authoring and discovery.
@@ -77,8 +80,12 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
-vslices update docs-standard
 vslices update template-standard
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
@@ -657,8 +664,12 @@ The independent updater surfaces are:
 ```text
 vslices update self
 vslices update ruleset
-vslices update docs-standard
 vslices update template-standard
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 ```
 
 There is no aggregate `vslices update` operation.
