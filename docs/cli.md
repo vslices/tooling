@@ -20,8 +20,13 @@ vslices lower <artifact-or-project>
 
 vslices update self
 vslices update ruleset
-vslices update docs-standard
 vslices update template-standard
+
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
@@ -33,7 +38,31 @@ vslices -v
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
 
-`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset, Docs Standard, and Template Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin` are convenience composition over those same operations.
+`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset and Template Standard retain their current update-based acquisition; Docs Standard is now first-installed via `new docs-standard --origin`, or created locally via `new docs-standard [name]`, then refreshed via `update docs-standard`. `init --docs-standard-origin` composes the Docs Standard *new/import* path; the other init origin options preserve their corresponding operations.
+
+## Docs Standard installations and lifecycle (proposed in PR #16)
+
+The multi-installation implementation on this branch is the first projection of [the shared Standard lifecycle contract](design/standard-lifecycle.md); detailed documentary behavior lives in [its Docs Standard projection](design/multiple-docs-standards-lifecycle.md). This section documents **branch behavior**, not capabilities already released in `main`.
+
+```text
+vslices new docs-standard serviu
+vslices new docs-standard --origin "vslices/docs-standard:main"
+vslices new docs-standard imported --origin "C:/existing/standard"
+
+vslices list docs-standards
+vslices discovery docs-standard --structure serviu.context
+vslices update docs-standard --skip-confirm
+vslices update docs-standard imported --std-diff --skip-confirm
+vslices delete docs-standard imported --skip-confirm
+```
+
+Each installation is named; a `manifest.yaml` `name` supplies the default name for imports, and positional `[name]` overrides *only the installation identity*. Locally created standards are editable at `.vslices/docs-standards/local/<name>/`; imported snapshots reside under `.vslices/docs-standards/<name>/`. Name collisions across both storage classes reject without replacement. A nonexistent physical `--origin` warns and makes no changes; an existing invalid source fails validation.
+
+Without a name, `update docs-standard` prepares all external installations, **skips editable local standards**, generates Markdown change reports under `.vslices/reports/docs-standard-updates/`, and requires confirmation. `--std-diff` prints changes, `--skip-diff` omits the comparison, and `--skip-confirm` authorizes the installation in noninteractive contexts; diff and confirmation are separate controls. Managed installation updates preserve their former snapshot on validation failure.
+
+`discovery docs-standard` explores manifest-admitted Documents, Support Notes, Nexus, and Continuity Paths. It presents family-specific semantics (not a universal question tree). A structure's short name works when unique; otherwise use `<standard>.<structure>`, including in artifact authoring to preserve stable provenance. Legacy singleton installations at `.vslices/docs-standard` remain readable while migration proceeds.
+
+`delete docs-standard <name>` removes only the selected installation; it never deletes imported source directories. Deletion of editable local definitions is warned and requires confirmation; deletion is refused when known qualified authored references exist. Potential references the current scanner cannot establish remain a limitation.
 
 ## 2. Core authoring protocol
 
