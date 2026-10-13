@@ -24,18 +24,22 @@ Current knowledge artifact commands:
 vslices new document <name> --kind <type>
 vslices discovery document <name>
 vslices update document <name> --question-id <selection> --answer "<markdown>"
+vslices read document <name> --question-id <selection> [--deep]
 
 vslices new nexus <name> --kind <type> --target <target>
 vslices discovery nexus <name>
 vslices update nexus <name> --question-id <selection> --answer "<answer>"
+vslices read nexus <name> --question-id <selection> [--deep]
 
 vslices new continuity-path <name> --kind <type> --target <target>
 vslices discovery continuity-path <name>
 vslices update continuity-path <name> --question-id <selection> --answer "<answer>"
+vslices read continuity-path <name> --question-id <selection> [--deep]
 
 vslices new support-note <name> --kind <type>
 vslices discovery support-note <name>
 vslices update support-note <name> --question-id <selection> --answer "<answer>"
+vslices read support-note <name> --question-id <selection> [--deep]
 
 vslices search --filter kind:equals:document
 vslices search --filter tags:contains:example
@@ -46,6 +50,8 @@ Nexus and Continuity Path support question/recommendation traversal, concrete as
 Support Notes admit definitions installed through the Docs Standard manifest, including the current draft/result/validation/risk vocabulary; the questions remain deliberately small. All four documentary artifact families support operational searchable tags (`--tags`, `--add-tags`, `--remove-tags`) and participate in `vslices search` alongside VSIR. Tags do not alter documentary semantics.
 
 The CLI manages self-updates through `vslices update self`; no separate manual application publication step is required by the intended workflow.
+
+The `read` operations retrieve the complete answer for a current question selection and, with `--deep`, the ordered chain of ancestor questions and answers; they do not write artifacts. These operations use existing Document/Nexus/Continuity Path/Support Note reconstruction (and distinguish recommendations from questions). See [read command examples](docs/cli.md#reading-documentary-questions-pr-16).
 
 For Documents, question ids come from Docs Standard, visible selections such as `2.1` are ephemeral, and repeated `one|many` AnswerInstances and scoped child questions are handled through Template Standard reconstruction. Nexus/Path recommendation commands are discoverable from the current artifact state. Authoring must follow `new -> discovery -> update -> discovery` and must not invent definitions or silently drop unknown structure.
 
