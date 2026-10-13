@@ -257,7 +257,7 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
-    public async Task Existing_legacy_snapshot_migrates_without_losing_data_when_new_standard_is_created()
+    public async Task Existing_legacy_snapshot_remains_readable_when_local_standard_is_created()
     {
         using var project = NewProject();
         var legacy = Path.Combine(project.VslicesRoot, "docs-standard");
