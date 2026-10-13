@@ -19,8 +19,13 @@ vslices rebase <artifact>
 vslices lower <artifact-or-project>
 
 vslices update self
-vslices update ruleset
+vslices update ruleset             # legacy singleton compatibility
 vslices update template-standard
+vslices new ruleset-standard [name] [--origin <source>]
+vslices update ruleset-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list ruleset-standards
+vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
+vslices delete ruleset-standard <name> [--skip-confirm]
 
 vslices new docs-standard [name] [--origin <source>]
 vslices update docs-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
@@ -39,6 +44,21 @@ vslices -v
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
 
 `vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset and Template Standard retain their current update-based acquisition; Docs Standard is now first-installed via `new docs-standard --origin`, or created locally via `new docs-standard [name]`, then refreshed via `update docs-standard`. `init --docs-standard-origin` composes the Docs Standard *new/import* path; the other init origin options preserve their corresponding operations.
+
+## Ruleset Standard installations and lifecycle (PR #16)
+
+The [Ruleset Standard projection](design/multiple-ruleset-standards-lifecycle.md) uses the same installation, diff, confirmation and deletion safeguards as Docs Standard, but Discovery exposes target-specific lowering rules (`node`, bindings, mode, renderer, template), not documentary questions.
+
+```text
+vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
+vslices new ruleset-standard serviu
+vslices update ruleset-standard --skip-confirm
+vslices discovery ruleset-standard --structure intrinsic.non-empty
+vslices discovery ruleset-standard --structure serviu.intrinsic.non-empty
+vslices delete ruleset-standard serviu
+```
+
+Nodes may already contain dots. A qualified discovery key prefixes the installed standard name. When multiple standards define the same C# lowering `node`, transpilation fails with a diagnostic rather than choosing a source silently. Project semantic extensions remain independent under `.vslices/extensions`. The previous `update ruleset` and `init --ruleset-origin` paths remain as transitional legacy singleton operations; modern initialization uses `--ruleset-standard-origin`.
 
 ## Docs Standard installations and lifecycle (proposed in PR #16)
 
