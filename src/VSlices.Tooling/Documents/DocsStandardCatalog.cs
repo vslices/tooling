@@ -41,6 +41,27 @@ internal sealed class DocsStandardCatalog
         this.documents = documents;
     }
 
+    /// <summary>Builds a project-wide catalog. Qualified keys remain stable; short keys work only when unique.</summary>
+    public static DocsStandardCatalog Combine(IReadOnlyList<(string Name, DocsStandardCatalog Catalog)> installed)
+    {
+        var all = new Dictionary<string, DocumentDefinition>(StringComparer.OrdinalIgnoreCase);
+        var shortTypes = new Dictionary<string, List<DocumentDefinition>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, catalog) in installed)
+        {
+            foreach (var definition in catalog.Documents)
+            {
+                var qualified = definition with { Type = name + "." + definition.Type };
+                all.Add(qualified.Type, qualified);
+                if (!shortTypes.TryGetValue(definition.Type, out var values))
+                    shortTypes[definition.Type] = values = [];
+                values.Add(qualified);
+            }
+        }
+        foreach (var (type, values) in shortTypes)
+            if (values.Count == 1) all[type] = values[0];
+        return new DocsStandardCatalog(all);
+    }
+
     public IEnumerable<DocumentDefinition> Documents => documents.Values;
 
     public bool TryGetDocument(string kind, out DocumentDefinition? definition) =>
