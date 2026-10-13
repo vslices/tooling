@@ -1,6 +1,6 @@
 # Standard lifecycle — cross-product design contract
 
-Status: **proposed abstraction; not implemented**  
+Status: **cross-family design contract; Docs Standard and Ruleset Standard projections implemented on PR #16, pending integration**  
 Date: 2026-10-13  
 Scope: independently installable, named, versionable VSlices standards managed by Tooling.
 
@@ -8,7 +8,7 @@ Scope: independently installable, named, versionable VSlices standards managed b
 
 The Docs Standard multiple-installation design revealed a recurring **lifecycle problem**, not a Docs Standard-specific semantic problem. A project may need multiple independent standards of the same family, sourced externally or authored locally. Their coexistence should provide extensibility without replacing or overriding an existing standard.
 
-The [Docs Standard projection](multiple-docs-standards-lifecycle.md) specializes this contract. The same lifecycle is intended for the current **Ruleset** (candidate public name: **Ruleset Standard**) and future **Template Standard**, but not necessarily for every kind of project extension. The naming transition and concrete projections are future work; do not treat them as shipped changes.
+This contract has two concrete Tooling projections: [Docs Standard](multiple-docs-standards-lifecycle.md) and [Ruleset Standard](multiple-ruleset-standards-lifecycle.md). Ruleset Standard uses the renamed repository `vslices/ruleset-standard` while preserving the legacy manifest kind and project extension boundary. **Template Standard** remains future work. Do not treat branch projections as shipped until the PR is integrated.
 
 ## Layers of responsibility
 
@@ -106,13 +106,13 @@ Requires explicit name; confirmation unless `--skip-confirm`. For managed instal
 | Discovery | Identity selection and ambiguity safety | Documentary structures/question graphs | No assumption of documentary structures |
 | Existing local overlay | Do not overwrite project-owned work | Local standard is first-class | Current `.vslices/extensions` remains distinct from Ruleset sources |
 
-The current `.vslices/extensions` semantic overlay **is not automatically a local Ruleset Standard** and must not be migrated or overwritten by applying this pattern. Ruleset Standard renaming is a proposed public nomenclature change, not permission to collapse responsibilities.
+The current `.vslices/extensions` semantic overlay **is not automatically a local Ruleset Standard** and must not be migrated or overwritten by applying this pattern. Ruleset Standard is now the public product/repository name, not permission to collapse responsibilities.
 
 ## Projection and implementation sequence
 
 1. Keep this document as a **proposed cross-family lifecycle contract**, not a new normative standard-definition language.
 2. Use the Docs Standard design as its **first concrete projection**, including documentary manifest and family-specific discovery/diff semantics.
-3. Test the abstract lifecycle against the current Ruleset acquisition/validation behavior before declaring a Ruleset Standard projection. Preserve the existing extensions boundary.
+3. Review the existing Ruleset Standard projection against the actual C# rule loader, preserving duplicate-node failure and the separation from `.vslices/extensions`. Preserve the existing extensions boundary.
 4. Test it separately against Template Standard's actual template materialization/selection behavior.
 5. Extract shared Tooling mechanisms only as common behavior is evidenced; avoid one generic engine that erases family-specific invariants.
 
