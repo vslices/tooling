@@ -32,11 +32,18 @@ internal static class TranspilationOperation
         string? requestedTarget)
     {
         var project = VSlicesProjectContext.FindFrom(projectEvidencePath);
-        if (project is null || !File.Exists(Path.Combine(project.RulesetRoot, "manifest.yaml")))
+        if (project is null)
         {
             return TranspilationEnvironmentResult.Failure([new(
                 "CLI010",
-                "No project-local Ruleset is installed. Expected .vslices/config.yaml and .vslices/ruleset/manifest.yaml in the path ancestry. Run 'vslices init' first if needed, then 'vslices update ruleset'.")]);
+                "No VSlices project found. Run 'vslices init' and install a Ruleset Standard.")]);
+        }
+        var registry = RulesetStandardRegistry.Load(project);
+        if (!registry.HasTarget("csharp"))
+        {
+            return TranspilationEnvironmentResult.Failure([new(
+                "CLI010",
+                "No C# Ruleset Standard installed. Use 'vslices new ruleset-standard --origin vslices/ruleset-standard:main'.")]);
         }
 
         var target = CommandInfrastructure.ResolveTarget(requestedTarget, project);
@@ -54,8 +61,8 @@ internal static class TranspilationOperation
         if (!extensions.IsSuccess)
             return TranspilationEnvironmentResult.Failure(extensions.Diagnostics);
 
-        var rules = CSharpLoweringRuleSet.Load(
-            project.RulesetRoot,
+        var rules = CSharpLoweringRuleSet.LoadMany(
+            registry.Targets(target.Target!),
             extensions.Extensions!.CSharpRules);
         if (!rules.IsSuccess)
             return TranspilationEnvironmentResult.Failure(rules.Diagnostics);
