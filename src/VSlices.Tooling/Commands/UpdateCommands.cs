@@ -78,6 +78,19 @@ internal static class UpdateCommands
             cancellationToken);
     }
 
+    /// <summary>Updates one or all installed Ruleset Standards without overwriting project-owned originals.</summary>
+    /// <param name="name">Optional name; omission targets every imported standard.</param>
+    /// <param name="origin">Override the source of the named standard.</param>
+    /// <param name="stdDiff">Display rule-level changes in the terminal.</param>
+    /// <param name="skipDiff">Skip change reports but not confirmation.</param>
+    /// <param name="skipConfirm">Skip approval prompt for automation.</param>
+    public static Task<int> RulesetStandard(
+        [Argument] string? name = null, string? origin = null,
+        bool stdDiff = false, bool skipDiff = false, bool skipConfirm = false,
+        CancellationToken cancellationToken = default) =>
+        RulesetStandardCommands.InProject(project => RulesetStandardLifecycle.Update(
+            project, name, origin, skipConfirm, stdDiff, skipDiff, cancellationToken));
+
     /// <summary>Refreshes one installed Docs Standard, or all managed Docs Standards when name is omitted.</summary>
     /// <param name="name">Installed Docs Standard name (omit to update all imported standards).</param>
     /// <param name="origin">Override the origin for a named installation.</param>
