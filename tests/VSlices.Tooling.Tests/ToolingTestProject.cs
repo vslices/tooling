@@ -40,7 +40,7 @@ internal sealed class ToolingTestProject : IDisposable
             targets:
               default: csharp
             ruleset:
-              source: {rulesetSource ?? "https://github.com/vslices/ruleset"}
+              source: {rulesetSource ?? "https://github.com/vslices/ruleset-standard"}
             {refText}{lineage}updates:
               source: https://github.com/vslices/tooling
               channel: preview
