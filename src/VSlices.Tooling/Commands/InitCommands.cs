@@ -8,7 +8,7 @@ internal static class InitCommands
 
     /// <summary>Initializes the minimum project-local VSlices surface.</summary>
     /// <param name="rulesetOrigin">Optionally installs Ruleset through the same origin/update lifecycle as 'vslices update ruleset'.</param>
-    /// <param name="docsStandardOrigin">Optionally installs Docs Standard through the same origin/update lifecycle as 'vslices update docs-standard'.</param>
+    /// <param name="docsStandardOrigin">Optionally installs Docs Standard through the same installation lifecycle as 'vslices new docs-standard'.</param>
     /// <param name="templateStandardOrigin">Optionally installs Template Standard through the same origin/update lifecycle as 'vslices update template-standard'.</param>
     /// <param name="defaultOrigin">Installs any unspecified external knowledge source from its official VSlices origin.</param>
     /// <param name="target">-t, Default lowering target. Current experimental target: C#.</param>
@@ -113,7 +113,7 @@ internal static class InitCommands
         {
             TerminalOutput.BlankLine();
             TerminalOutput.Info("→ Installing Docs Standard from requested origin");
-            var docsExit = await UpdateCommands.DocsStandard(
+            var docsExit = await DocsStandardCommands.New(
                 origin: docsStandardOrigin,
                 cancellationToken: cancellationToken);
             if (docsExit != 0)
