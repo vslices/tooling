@@ -42,7 +42,7 @@ public sealed class SupportNoteDefinitionTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--origin", source);
+            "new", "docs-standard", "--origin", source);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("SUPSTD020", result.StandardError, StringComparison.Ordinal);
