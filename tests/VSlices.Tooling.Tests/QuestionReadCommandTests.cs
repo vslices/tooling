@@ -93,6 +93,33 @@ public sealed class QuestionReadCommandTests
     }
 
     [Fact]
+    public async Task Read_works_with_named_multi_standard_installations_and_qualified_artifact_types()
+    {
+        using var project = new ToolingTestProject();
+        WriteDocumentEnvironment(project);
+        var sourceRoot = Path.Combine(project.Root, "imported-vocabulary");
+        Directory.Move(StandardRoot(project), sourceRoot);
+        var manifest = Path.Combine(sourceRoot, "manifest.yaml");
+        File.WriteAllText(manifest, File.ReadAllText(manifest).Replace(
+            "version: 0.1", "version: 0.1\\nname: vslices", StringComparison.Ordinal));
+        await Success(project, "new", "docs-standard", "--origin", sourceRoot);
+        await Success(project, "new", "docs-standard", "serviu");
+        Assert.True(File.Exists(Path.Combine(project.VslicesRoot, "docs", "vslices", "manifest.yaml")));
+
+        await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
+        Assert.Contains("type: vslices.context", File.ReadAllText(Path.Combine(project.Root, "sistema.md")));
+        await Success(project, "update", "document", "sistema",
+            "--question-id", "1", "--answer", "Versión oficial.");
+        await Success(project, "update", "document", "sistema",
+            "--question-id", "2", "--answer", "Funcionarios.");
+
+        var result = await Success(project, "read", "document", "sistema",
+            "--question-id", "2", "--deep");
+        AssertInOrder(result, "[1] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?");
+        AssertInOrder(result, "Versión oficial.", "Funcionarios.");
+    }
+
+    [Fact]
     public async Task Unanswered_and_inaccessible_document_questions_are_not_invented()
     {
         using var project = new ToolingTestProject();
