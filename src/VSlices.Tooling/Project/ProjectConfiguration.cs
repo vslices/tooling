@@ -20,7 +20,7 @@ internal sealed record ProjectConfiguration(
     string? DocumentsRoute = null)
 {
     public const string CurrentVersion = "0.1";
-    public const string OfficialRulesetSource = "https://github.com/vslices/ruleset";
+    public const string OfficialRulesetSource = "https://github.com/vslices/ruleset-standard";
     public const string OfficialRulesetRef = "main";
     public const string OfficialToolingSource = "https://github.com/vslices/tooling";
     public const string OfficialDocsStandardSource = "https://github.com/vslices/docs-standard";
