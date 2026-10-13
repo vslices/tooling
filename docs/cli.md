@@ -2,7 +2,7 @@
 
 Status: v0.3.0-preview integrated into `main`; see [current CLI status](releases/v0.3.0-preview.md). This document retains historical experimental text for provenance; current implementation is summarized in the release status.
 
-VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset`](https://github.com/vslices/ruleset). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
+VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset-standard`](https://github.com/vslices/ruleset-standard). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
 
 ## 1. Public command surface
 

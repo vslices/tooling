@@ -6,7 +6,7 @@ VSlices separates revisable upstream target knowledge from project-owned semanti
 VSIR
   = semantic document
 
-vslices/ruleset
+vslices/ruleset-standard
   = official revisable lowering knowledge
 
 project/.vslices/ruleset

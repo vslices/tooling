@@ -230,7 +230,7 @@ A local directory with `ruleset.ref` is rejected rather than silently treating t
 If no Ruleset provenance has been configured yet, `vslices update ruleset` resolves the official origin:
 
 ```text
-source: https://github.com/vslices/ruleset
+source: https://github.com/vslices/ruleset-standard
 ref: main
 ```
 
@@ -277,7 +277,7 @@ owner/repository:ref
 For example:
 
 ```text
-vslices update ruleset --origin vslices/ruleset:main
+vslices update ruleset --origin vslices/ruleset-standard:main
 vslices update docs-standard --origin vslices/docs-standard:feat/document-authoring-preview
 vslices update template-standard --origin vslices/template-standard:feat/initial-markdown-template
 ```

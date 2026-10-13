@@ -163,7 +163,7 @@ vslices/tooling
   = parser/validator, authoring/discovery/search/update,
     lowering orchestration, lineage/rebase, CLI and target adapters
 
-vslices/ruleset
+vslices/ruleset-standard
   = revisable deterministic target-realization knowledge
 
 .vslices/config.yaml
