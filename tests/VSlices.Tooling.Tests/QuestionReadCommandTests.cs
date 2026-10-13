@@ -101,7 +101,7 @@ public sealed class QuestionReadCommandTests
         Directory.Move(StandardRoot(project), sourceRoot);
         var manifest = Path.Combine(sourceRoot, "manifest.yaml");
         File.WriteAllText(manifest, File.ReadAllText(manifest).Replace(
-            "version: 0.1", "version: 0.1\\nname: vslices", StringComparison.Ordinal));
+            "version: 0.1", "version: 0.1\nname: vslices", StringComparison.Ordinal));
         await Success(project, "new", "docs-standard", "--origin", sourceRoot);
         await Success(project, "new", "docs-standard", "serviu");
         Assert.True(File.Exists(Path.Combine(project.VslicesRoot, "docs", "vslices", "manifest.yaml")));
