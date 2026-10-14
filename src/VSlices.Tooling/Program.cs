@@ -1,8 +1,9 @@
-﻿using VSlices.Tooling;
+﻿using System.Text.Json;
+using VSlices.Tooling;
 
 ConsoleApp.Version = CliVersion.Display;
 
-if (SemanticRefactoringCompanionHealth.ShouldNotify(args))
+if (args is not ["--cli-schema"] && SemanticRefactoringCompanionHealth.ShouldNotify(args))
 {
     Console.Error.WriteLine(
         "UPD016: The semantic-refactoring companion is not installed for this VSlices build.");
@@ -77,5 +78,16 @@ app.Add("update template-standard", UpdateCommands.TemplateStandard);
 app.Add("lower", VsirCommands.Lower);
 app.Add("transpile", VsirCommands.Transpile);
 app.Add("rebase", VsirCommands.Rebase);
+
+// Machine-readable schema is generated from these registered commands, not a second catalogue.
+// Handle it before executing any command, and suppress all human terminal decoration.
+if (args is ["--cli-schema"])
+{
+    var schema = app.GetCliSchema();
+    Console.WriteLine(JsonSerializer.Serialize(
+        schema,
+        CliSchemaJsonSerializerContext.Default.CommandHelpDefinitionArray));
+    return;
+}
 
 app.Run(args);
