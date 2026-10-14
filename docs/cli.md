@@ -1,5 +1,7 @@
 # VSlices CLI specification
 
+**Machine-readable command contract:** the running executable exports its registered commands/options with `vslices --cli-schema` (see [CLI schema export](cli-schema.md)). This JSON is authoritative for the installed version's names, arguments and flags. The material below describes behavior, flows and design/history, not a second synchronized parameter catalog. When the CLI changes, regenerate from the binary rather than copying every option into this document.
+
 Status: v0.3.0-preview integrated into `main`; see [current CLI status](releases/v0.3.0-preview.md). This document retains historical experimental text for provenance; current implementation is summarized in the release status.
 
 VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset-standard`](https://github.com/vslices/ruleset-standard). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
