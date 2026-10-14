@@ -2,6 +2,10 @@
 
 > **PR #16 integration:** This branch implements named, coexisting Docs Standards **and Ruleset Standards**. The reference release line on `main` still represents the previous singleton installation. Review [the shared lifecycle design](docs/design/standard-lifecycle.md), [the Docs Standard projection](docs/design/multiple-docs-lifecycle.md), [the Ruleset Standard projection](docs/design/multiple-rulesets-lifecycle.md), and [the CLI contract](docs/cli.md) for branch behavior. The Docs Standard manifest was merged in [vslices/docs-standard#4](https://github.com/vslices/docs-standard/pull/4). The Ruleset Standard manifest change is tracked in [vslices/ruleset-standard#5](https://github.com/vslices/ruleset-standard/pull/5).
 
+## Agent access to the command catalog
+
+`vslices --cli-schema` emits ConsoleAppFramework's actual command metadata as clean, Native AOT-compatible JSON. See [the CLI schema contract and CI artifacts](docs/cli-schema.md) and the [agent execution protocol in `vslices/protocols`](https://github.com/vslices/protocols/blob/docs/tooling-agent-capability-protocol/vslices-tooling-usage/README.md). Agents can inspect the current command's name/options from JSON and use the protocol only for workflow decisions and evidence discipline; manual lists of options are not the source of truth.
+
 ## v0.3.0-preview — Current integrated CLI capabilities
 
 The v0.3.0-preview release line is integrated into `main` and adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. See [current CLI status](docs/releases/v0.3.0-preview.md). The previous v0.2.0 capability and safety boundaries remain in force.
