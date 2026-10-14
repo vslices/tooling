@@ -24,6 +24,10 @@ consumer evidence
   -> validation evidence
 ```
 
+## Executable command catalog
+
+When editing public CLI commands, maintain truthful method XML documentation and command registration: ConsoleAppFramework.CliSchema generates the machine-readable `vslices --cli-schema` contract from those sources. Validate the generated JSON and command-specific `--help` through integration tests and Native AOT smoke tests. Do not keep a second handwritten flag schema in protocol documentation. The [agent operations protocol](https://github.com/vslices/protocols/tree/docs/tooling-agent-capability-protocol/vslices-tooling-usage) owns operational traversals and interpretation of evidence, not executable argument definitions. The built schema is uploaded by CI with an exact CLI version and source commit.
+
 ## Command architecture
 
 Command handlers are adapters. They should parse the CLI request, invoke an operation/coordinator and present/write the result.
