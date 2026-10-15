@@ -315,7 +315,10 @@ public sealed class DocsStandardUpdateTests
         Assert.Equal("docs", before!.DocumentsRoute);
         Assert.Null(before.DocumentsTemplate);
 
-        var installed = await project.Run(project.Root, "update", "template-standard");
+        ToolingTestProject.WriteDocumentAuthoringSupport(project.Root);
+        var source = Path.Combine(project.Root, "template-origin");
+        Directory.Move(Path.Combine(project.VslicesRoot, "template-standard"), source);
+        var installed = await project.Run(project.Root, "update", "template-standard", "--origin", source);
         Assert.Equal(0, installed.ExitCode);
         var after = ProjectConfiguration.LoadFromProjectRoot(project.Root);
         Assert.NotNull(after);
