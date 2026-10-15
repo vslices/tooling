@@ -315,7 +315,11 @@ public sealed class DocsStandardUpdateTests
         Assert.Equal("docs", before!.DocumentsRoute);
         Assert.Null(before.DocumentsTemplate);
 
+        // Fixture helper also writes config; restore the pending (unselected) policy.
+        var configPath = Path.Combine(project.VslicesRoot, "config.yaml");
+        var pendingConfig = File.ReadAllText(configPath);
         ToolingTestProject.WriteDocumentAuthoringSupport(project.Root);
+        File.WriteAllText(configPath, pendingConfig);
         var source = Path.Combine(project.Root, "template-origin");
         Directory.Move(Path.Combine(project.VslicesRoot, "template-standard"), source);
         var installed = await project.Run(project.Root, "update", "template-standard", "--origin", source);
