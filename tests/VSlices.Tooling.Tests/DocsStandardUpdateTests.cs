@@ -279,6 +279,51 @@ public sealed class DocsStandardUpdateTests
     }
 
     [Fact]
+    public void First_install_defaults_route_and_warns_when_no_template_standard_is_installed()
+    {
+        using var project = NewProject();
+        var output = new StringWriter();
+        var policy = DocumentPolicyBootstrap.PromptMissing(
+            ProjectConfiguration.Default(), project.Root, new StringReader("\n"), output);
+        Assert.Equal("docs", policy.DocumentsRoute);
+        Assert.Null(policy.DocumentsTemplate);
+        Assert.Contains("No compatible Document template", output.ToString(), StringComparison.Ordinal);
+        Assert.Contains("vslices update template-standard", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void First_install_chooses_the_single_installed_compatible_template_without_a_prompt()
+    {
+        using var project = NewProject();
+        ToolingTestProject.WriteDocumentAuthoringSupport(project.Root);
+        var output = new StringWriter();
+        var policy = DocumentPolicyBootstrap.PromptMissing(
+            ProjectConfiguration.Default(), project.Root, new StringReader("\n"), output);
+        Assert.Equal("docs", policy.DocumentsRoute);
+        Assert.Equal("markdown.question-tree", policy.DocumentsTemplate);
+        Assert.Contains("automatically selected", output.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Choose a number", output.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Installing_template_standard_after_docs_standard_completes_deferred_document_policy()
+    {
+        using var project = NewProject();
+        Assert.Equal(0, (await project.Run(project.Root, "new", "docs-standard", "sample")).ExitCode);
+        var before = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(before);
+        Assert.Equal("docs", before!.DocumentsRoute);
+        Assert.Null(before.DocumentsTemplate);
+
+        var installed = await project.Run(project.Root, "update", "template-standard");
+        Assert.Equal(0, installed.ExitCode);
+        var after = ProjectConfiguration.LoadFromProjectRoot(project.Root);
+        Assert.NotNull(after);
+        Assert.Equal("markdown.question-tree", after!.DocumentsTemplate);
+        Assert.Equal("docs", after.DocumentsRoute);
+    }
+
+    [Fact]
     public void First_install_prompt_preserves_existing_document_policy()
     {
         using var project = NewProject();
