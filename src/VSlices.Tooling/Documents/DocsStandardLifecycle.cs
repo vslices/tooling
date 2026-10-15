@@ -44,8 +44,8 @@ internal static class DocsStandardLifecycle
                     throw new InvalidDataException(check.Error);
                 registry.Add(new DocsStandardInstallation(name!, name!, true, null, null));
                 await registry.SaveAsync(cancellationToken);
-                if (!existed) await BootstrapPolicy(project, cancellationToken);
                 Console.WriteLine($"Created local Docs Standard '{name}' at '{root}'.");
+                if (!existed) await BootstrapPolicy(project, cancellationToken);
                 return 0;
             }
             catch
@@ -128,8 +128,8 @@ internal static class DocsStandardLifecycle
                 Directory.Delete(target, recursive: true);
                 throw;
             }
-            if (registry.Installations.Count == 1) await BootstrapPolicy(project, cancellationToken);
             Console.WriteLine($"Installed Docs Standard '{installationName}' from '{source}'.");
+            if (registry.Installations.Count == 1) await BootstrapPolicy(project, cancellationToken);
             return 0;
         }
         finally
