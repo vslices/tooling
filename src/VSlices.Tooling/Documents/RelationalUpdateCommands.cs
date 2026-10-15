@@ -4,6 +4,13 @@ namespace VSlices.Tooling;
 
 internal static class RelationalUpdateCommands
 {
+    /// <summary>Updates a Nexus question answer or its searchable tags.</summary>
+    /// <param name="artifact">Existing Nexus name or path.</param>
+    /// <param name="questionId">Current question selection from Nexus discovery.</param>
+    /// <param name="answer">Answer text for the selected question.</param>
+    /// <param name="tags">Replacement set of searchable tags.</param>
+    /// <param name="addTags">Searchable tags to add.</param>
+    /// <param name="removeTags">Searchable tags to remove.</param>
     public static Task<int> Nexus(
         [Argument] string artifact,
         string? questionId = null,
@@ -14,6 +21,13 @@ internal static class RelationalUpdateCommands
         CancellationToken cancellationToken = default) =>
         Update(artifact, "nexus", questionId, answer, tags, addTags, removeTags, cancellationToken);
 
+    /// <summary>Updates a Continuity Path question answer or its searchable tags.</summary>
+    /// <param name="artifact">Existing Continuity Path name or path.</param>
+    /// <param name="questionId">Current question selection from Continuity Path discovery.</param>
+    /// <param name="answer">Answer text for the selected question.</param>
+    /// <param name="tags">Replacement set of searchable tags.</param>
+    /// <param name="addTags">Searchable tags to add.</param>
+    /// <param name="removeTags">Searchable tags to remove.</param>
     public static Task<int> ContinuityPath(
         [Argument] string artifact,
         string? questionId = null,
