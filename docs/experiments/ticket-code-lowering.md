@@ -21,7 +21,7 @@ TicketCode.vsir
   -> CSL031
      no target-specific intrinsic.trim realization
 
-  -> vslices/ruleset#2 supplies intrinsic.trim
+  -> vslices/ruleset-standard#2 supplies intrinsic.trim
   -> real consumer lower succeeds
      deterministic witness computed
      existing human materialization preserved

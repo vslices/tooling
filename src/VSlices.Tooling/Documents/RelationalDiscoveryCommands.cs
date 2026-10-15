@@ -4,8 +4,12 @@ namespace VSlices.Tooling;
 
 internal static class RelationalDiscoveryCommands
 {
+    /// <summary>Discovers questions, recommendations, and associations in an existing Nexus artifact.</summary>
+    /// <param name="artifact">Nexus name or path to inspect.</param>
     public static Task<int> Nexus([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "nexus", cancellationToken));
+    /// <summary>Discovers questions, graph connections, recommendations, and associations in a Continuity Path.</summary>
+    /// <param name="artifact">Continuity Path name or path to inspect.</param>
     public static Task<int> ContinuityPath([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "continuity-path", cancellationToken));
 

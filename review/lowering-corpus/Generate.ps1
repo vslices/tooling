@@ -129,7 +129,7 @@ $entries = Import-Csv -Path $corpusPath -Delimiter "`t"
 - Tooling CLI version: $toolingVersion
 - Tooling source HEAD: $sourceHead
 - Workflow checkout SHA: $workflowCheckout
-- Ruleset: vslices/ruleset@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
+- Ruleset: vslices/ruleset-standard@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
 - Generated at UTC: $generatedAt
 - Corpus entries: $($entries.Count)
 - Command shape: vslices lower <artifact.vsir> --namespace <manifest namespace> --stdout

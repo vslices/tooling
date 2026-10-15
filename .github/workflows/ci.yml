@@ -32,6 +32,28 @@ jobs:
       - name: Test
         run: dotnet test tooling.slnx --configuration Release --no-build
 
+      - name: Export versioned CLI schema from actual executable
+        shell: bash
+        run: |
+          mkdir -p cli-schema
+          dotnet src/VSlices.Tooling/bin/Release/net10.0/vslices.dll --cli-schema > cli-schema/cli-schema.json
+          dotnet src/VSlices.Tooling/bin/Release/net10.0/vslices.dll --version > cli-schema/cli-version.txt
+          jq -e 'type == "array" and length >= 25' cli-schema/cli-schema.json > /dev/null
+          jq -e 'any(.[]; .CommandName == "read document")' cli-schema/cli-schema.json > /dev/null
+          jq -e 'any(.[]; .CommandName == "update ruleset-standard")' cli-schema/cli-schema.json > /dev/null
+          jq -n --arg version "$(cat cli-schema/cli-version.txt)" \
+            --arg sourceCommit "$GITHUB_SHA" \
+            --arg schemaType "ConsoleAppFramework.CliSchema/5.7.13" \
+            '{cliVersion:$version, sourceCommit:$sourceCommit, schemaType:$schemaType}' \
+            > cli-schema/metadata.json
+
+      - name: Upload CLI schema linked to source commit
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-schema-${{ github.sha }}
+          path: cli-schema/*
+          if-no-files-found: error
+
       - name: Smoke test Roslyn semantic namespace blast radius
         shell: bash
         run: |
@@ -237,6 +259,9 @@ jobs:
           "$VSLICES" --help | grep -q "transpile"
           "$VSLICES" --help | grep -q "rebase"
           "$VSLICES" --help | grep -q "update"
+          "$VSLICES" --cli-schema > native-cli-schema.json
+          grep -q '"CommandName"' native-cli-schema.json
+          grep -q '"read document"' native-cli-schema.json
 
           LONG_VERSION="$("$VSLICES" --version)"
           SHORT_VERSION="$("$VSLICES" -v)"
@@ -325,6 +350,12 @@ jobs:
           $vslices = "$publish/vslices.exe"
           & $vslices --version
           if ($LASTEXITCODE -ne 0) { throw 'win-x64 executable smoke test failed.' }
+          $schemaJson = & $vslices --cli-schema
+          if ($LASTEXITCODE -ne 0) { throw 'win-x64 CLI schema export failed.' }
+          $schema = $schemaJson | ConvertFrom-Json
+          if (-not ($schema | Where-Object { $_.CommandName -eq 'read document' })) {
+            throw 'win-x64 Native AOT CLI schema omitted read document.'
+          }
 
       - name: Package ${{ matrix.rid }} PR build
         if: github.event_name == 'pull_request'
@@ -388,6 +419,9 @@ jobs:
           "$VSLICES" --help | grep -q "transpile"
           "$VSLICES" --help | grep -q "rebase"
           "$VSLICES" --help | grep -q "update"
+          "$VSLICES" --cli-schema > native-cli-schema.json
+          grep -q '"CommandName"' native-cli-schema.json
+          grep -q '"read document"' native-cli-schema.json
 
           LONG_VERSION="$("$VSLICES" --version)"
           SHORT_VERSION="$("$VSLICES" -v)"

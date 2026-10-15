@@ -23,7 +23,7 @@ consumer project = evidencia
 .vslices/config.yaml = política operacional
 .vslices/ruleset = snapshot local de conocimiento de lowering
 .vslices/lineage = evidencia operacional de ancestry
-vslices/ruleset = conocimiento oficial revisable
+vslices/ruleset-standard = conocimiento oficial revisable
 vslices/tooling = mecanismos, coordinación, garantías y adapters
 target-native tooling = autoridad del target
 ```

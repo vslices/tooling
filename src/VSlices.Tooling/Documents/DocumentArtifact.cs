@@ -100,6 +100,49 @@ internal sealed class DocumentArtifact
     public string DocumentType => definition.Type;
     public IReadOnlyList<DocumentQuestionAffordance> Surface { get; }
 
+    /// <summary>Reads the complete stored answer for a question on the current surface.</summary>
+    /// <remarks>
+    /// Unlike AnswerPreview, this preserves multiline Markdown and resolves repeated
+    /// answers through their concrete AnswerInstance and scoped parent identity.
+    /// </remarks>
+    public string? AnswerFor(DocumentQuestionAffordance question)
+    {
+        if (!question.IsAnswered)
+            return null;
+
+        int start;
+        int end;
+        if (question.AnswerInstanceId is not null)
+        {
+            if (!answerInstances.TryGetValue(question.QuestionId, out var instances))
+                return null;
+            var instance = instances.FirstOrDefault(value =>
+                value.Id.Equals(question.AnswerInstanceId, StringComparison.Ordinal));
+            if (instance is null)
+                return null;
+            start = instance.StartLine;
+            end = instance.EndLine;
+        }
+        else if (question.ScopeAnswerInstanceId is not null)
+        {
+            var key = new ScopedQuestionKey(question.ScopeAnswerInstanceId, question.QuestionId);
+            if (!scopedBlocks.TryGetValue(key, out var scoped))
+                return null;
+            start = scoped.StartLine;
+            end = scoped.EndLine;
+        }
+        else
+        {
+            if (!blocks.TryGetValue(question.QuestionId, out var block))
+                return null;
+            start = block.StartLine;
+            end = block.EndLine;
+        }
+
+        var lines = normalizedSource.Split('\n');
+        return string.Join("\n", lines.Skip(start + 1).Take(Math.Max(0, end - start - 1))).Trim();
+    }
+
     public static DocumentArtifactReadResult Read(
         string source,
         DocsStandardCatalog catalog,

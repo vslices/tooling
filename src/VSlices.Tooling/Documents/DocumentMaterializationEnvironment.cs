@@ -40,7 +40,9 @@ internal static class DocumentMaterializationEnvironment
         if (string.IsNullOrWhiteSpace(configuredTemplate))
         {
             return DocumentMaterializationEnvironmentResult.Failure(
-                "DOCMAT003: Project configuration must declare documents.template.");
+                "DOCMAT003: Document authoring requires documents.template in .vslices/config.yaml. " +
+                "Configure it with an installed template ID (for example: documents:\\n  template: markdown.question-tree). " +
+                "Install Template Standard with 'vslices update template-standard' if needed.");
         }
 
         if (!catalog.Catalog!.TryGetTemplate(

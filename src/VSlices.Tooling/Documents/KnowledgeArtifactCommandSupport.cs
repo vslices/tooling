@@ -31,17 +31,46 @@ internal static class KnowledgeArtifactCommandSupport
 {
     public static KnowledgeStandardsResult LoadStandards(string start)
     {
-        var root = DocsStandardCatalog.FindInstalledRoot(start);
-        if (root is null)
-            return KnowledgeStandardsResult.Failure("RELCLI001: Could not locate an installed Docs Standard snapshot at .vslices/docs-standard. Run 'vslices update docs-standard'.");
-        var documents = DocsStandardCatalog.Load(root);
-        if (!documents.IsSuccess) return KnowledgeStandardsResult.Failure(documents.Error!);
-        var supportNotes = SupportNoteStandardCatalog.Load(root);
-        if (!supportNotes.IsSuccess) return KnowledgeStandardsResult.Failure(supportNotes.Error!);
-        var relational = RelationalStandardCatalog.Load(root);
-        if (!relational.IsSuccess) return KnowledgeStandardsResult.Failure(relational.Error!);
-        return KnowledgeStandardsResult.Success(
-            new KnowledgeStandards(root, documents.Catalog!, supportNotes.Catalog!, relational.Catalog!));
+        var project = VSlicesProjectContext.FindFrom(start);
+        var registry = project is null ? null : DocsStandardRegistry.Load(project);
+        if (registry is { Installations.Count: > 0 } &&
+            !(registry.Installations.Count == 1 && registry.Installations[0].Legacy))
+        {
+            var documents = new List<(string Name, DocsStandardCatalog Catalog)>();
+            var notes = new List<(string Name, SupportNoteStandardCatalog Catalog)>();
+            var relations = new List<(string Name, RelationalStandardCatalog Catalog)>();
+            foreach (var entry in registry.Installations)
+            {
+                var root = registry.PathFor(entry);
+                var documentCatalog = DocsStandardCatalog.Load(root);
+                if (!documentCatalog.IsSuccess) return KnowledgeStandardsResult.Failure(documentCatalog.Error!);
+                var noteCatalog = SupportNoteStandardCatalog.Load(root);
+                if (!noteCatalog.IsSuccess) return KnowledgeStandardsResult.Failure(noteCatalog.Error!);
+                var relationalCatalog = RelationalStandardCatalog.Load(root);
+                if (!relationalCatalog.IsSuccess) return KnowledgeStandardsResult.Failure(relationalCatalog.Error!);
+                documents.Add((entry.Name, documentCatalog.Catalog!));
+                notes.Add((entry.Name, noteCatalog.Catalog!));
+                relations.Add((entry.Name, relationalCatalog.Catalog!));
+            }
+            return KnowledgeStandardsResult.Success(new KnowledgeStandards(
+                registry.Root,
+                DocsStandardCatalog.Combine(documents),
+                SupportNoteStandardCatalog.Combine(notes),
+                RelationalStandardCatalog.Combine(relations)));
+        }
+
+        // Legacy projects keep the exact singular Document vocabulary until migrated.
+        var legacyRoot = DocsStandardCatalog.FindInstalledRoot(start);
+        if (legacyRoot is null)
+            return KnowledgeStandardsResult.Failure("RELCLI001: No Docs Standard installed. Run 'vslices new docs-standard'.");
+        var legacyDocuments = DocsStandardCatalog.Load(legacyRoot);
+        if (!legacyDocuments.IsSuccess) return KnowledgeStandardsResult.Failure(legacyDocuments.Error!);
+        var legacyNotes = SupportNoteStandardCatalog.Load(legacyRoot);
+        if (!legacyNotes.IsSuccess) return KnowledgeStandardsResult.Failure(legacyNotes.Error!);
+        var legacyRelational = RelationalStandardCatalog.Load(legacyRoot);
+        if (!legacyRelational.IsSuccess) return KnowledgeStandardsResult.Failure(legacyRelational.Error!);
+        return KnowledgeStandardsResult.Success(new KnowledgeStandards(
+            legacyRoot, legacyDocuments.Catalog!, legacyNotes.Catalog!, legacyRelational.Catalog!));
     }
 
     public static ExistingArtifactResolutionResult ResolveExistingArtifact(string artifact, string start)

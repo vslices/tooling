@@ -132,7 +132,7 @@ public sealed class RulesetUpdateTests
         var localSource = Path.Combine(project.Root, "local-ruleset");
         ToolingTestProject.WriteValidRuleset(localSource, "local.marker");
         ToolingTestProject.WriteValidRuleset(project.RulesetRoot, "old.marker");
-        project.WriteConfiguration("https://github.com/vslices/ruleset", "main");
+        project.WriteConfiguration("https://github.com/vslices/ruleset-standard", "main");
 
         var initialized = await project.Run(
             project.Root,
@@ -178,12 +178,12 @@ public sealed class RulesetUpdateTests
     public void GitHub_ref_resolution_represents_branch_tag_and_commit_candidates_explicitly()
     {
         var candidates = RulesetSourceMaterializer.GitHubArchiveCandidates(
-            new Uri("https://github.com/vslices/ruleset"),
+            new Uri("https://github.com/vslices/ruleset-standard"),
             "feat/example");
 
         Assert.Equal(3, candidates.Count);
-        Assert.Equal("https://github.com/vslices/ruleset/archive/refs/heads/feat/example.zip", candidates[0]);
-        Assert.Equal("https://github.com/vslices/ruleset/archive/refs/tags/feat/example.zip", candidates[1]);
+        Assert.Equal("https://github.com/vslices/ruleset-standard/archive/refs/heads/feat/example.zip", candidates[0]);
+        Assert.Equal("https://github.com/vslices/ruleset-standard/archive/refs/tags/feat/example.zip", candidates[1]);
         Assert.Contains("/archive/feat%2Fexample.zip", candidates[2], StringComparison.OrdinalIgnoreCase);
     }
 

@@ -1,8 +1,10 @@
 # VSlices CLI specification
 
+**Machine-readable command contract:** the running executable exports its registered commands/options with `vslices --cli-schema` (see [CLI schema export](cli-schema.md)). This JSON is authoritative for the installed version's names, arguments and flags. The material below describes behavior, flows and design/history, not a second synchronized parameter catalog. When the CLI changes, regenerate from the binary rather than copying every option into this document.
+
 Status: v0.3.0-preview integrated into `main`; see [current CLI status](releases/v0.3.0-preview.md). This document retains historical experimental text for provenance; current implementation is summarized in the release status.
 
-VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset`](https://github.com/vslices/ruleset). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
+VSIR language semantics are owned by [`vslices/intermediate-representation`](https://github.com/vslices/intermediate-representation). This document describes CLI behavior. Target realization knowledge belongs to [`vslices/ruleset-standard`](https://github.com/vslices/ruleset-standard). Migration traversal belongs to [`vslices/planifications`](https://github.com/vslices/planifications).
 
 ## 1. Public command surface
 
@@ -19,13 +21,27 @@ vslices rebase <artifact>
 vslices lower <artifact-or-project>
 
 vslices update self
-vslices update ruleset
-vslices update docs-standard
+vslices update ruleset             # legacy singleton compatibility
 vslices update template-standard
+vslices new ruleset-standard [name] [--origin <source>]
+vslices update ruleset-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list ruleset-standards
+vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
+vslices delete ruleset-standard <name> [--skip-confirm]
+
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--origin <source>] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
-vslices update document <name> --question-id <N> --answer "<markdown>"
+vslices update document <name> --question-id <selection> --answer "<markdown>"
+vslices read document <name> --question-id <selection> [--deep]
+vslices read nexus <name> --question-id <selection> [--deep]
+vslices read continuity-path <name> --question-id <selection> [--deep]
+vslices read support-note <name> --question-id <selection> [--deep]
 
 vslices --version
 vslices -v
@@ -33,7 +49,82 @@ vslices -v
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
 
-`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset, Docs Standard, and Template Standard are first-installed or refreshed by their own update commands. `init --ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin` are convenience composition over those same operations.
+`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset and Template Standard retain their current update-based acquisition; Docs Standard is now first-installed via `new docs-standard --origin`, or created locally via `new docs-standard [name]`, then refreshed via `update docs-standard`. `init --docs-standard-origin` composes the Docs Standard *new/import* path; the other init origin options preserve their corresponding operations.
+
+## Ruleset Standard installations and lifecycle (PR #16)
+
+The [Ruleset Standard projection](design/multiple-rulesets-lifecycle.md) uses the same installation, diff, confirmation and deletion safeguards as Docs Standard, but Discovery exposes target-specific lowering rules (`node`, bindings, mode, renderer, template), not documentary questions.
+
+```text
+vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
+vslices new ruleset-standard serviu
+vslices update ruleset-standard --skip-confirm
+vslices discovery ruleset-standard --structure intrinsic.non-empty
+vslices discovery ruleset-standard --structure serviu.intrinsic.non-empty
+vslices delete ruleset-standard serviu
+```
+
+Nodes may already contain dots. A qualified discovery key prefixes the installed standard name. When multiple standards define the same C# lowering `node`, transpilation fails with a diagnostic rather than choosing a source silently. Project semantic extensions remain independent under `.vslices/extensions`. The previous `update ruleset` and `init --ruleset-origin` paths remain as transitional legacy singleton operations; modern initialization uses `--ruleset-standard-origin`.
+
+## Reading documentary questions (PR #16)
+
+The `read` command is a **read-only** complement to `new -> discovery -> update`. It shows the complete answer for one selected question in a Document, Nexus, Continuity Path, or Support Note, without editing the Markdown artifact. `--question-id` uses the **current discovery selection** for that artifact (e.g. `2.1`), not the stable semantic `question.id` declared in Docs Standard. Selections are navigation aids and may change when the question surface changes.
+
+```sh
+vslices read document sistema --question-id 2.1
+vslices read document sistema --question-id 2.1 --deep
+vslices read nexus perspectivas --question-id 1.1 --deep
+vslices read continuity-path trayectoria --question-id 3.1.2 --deep
+vslices read support-note borrador --question-id 1.1
+```
+
+Without `--deep`, the command prints only the selected question and its answer when present:
+
+```text
+Question: ¿Qué puede hacer un funcionario?
+Answer: Crear y consultar solicitudes.
+```
+
+With `--deep`, it prints every ancestor question/answer **on the real parent chain**, followed by the selected question, each showing the full answer when present:
+
+```text
+[1] ¿Qué es el sistema?
+  Una plataforma de gestión de solicitudes.
+
+[2] ¿Quién utiliza el sistema?
+  Funcionarios y administradores.
+
+[2.1] ¿Qué puede hacer un funcionario?
+  Crear y consultar solicitudes.
+```
+
+This is deliberately *not* `--path`. Document selections may use a top-level sibling number like `2` whose parent is `1`; the command follows its recorded parent rather than assuming dot-prefix ancestry. Repeated AnswerInstances and their scoped descendants resolve their own complete multiline responses. For Nexus and Continuity Paths, only actual questions are readable; recommendation entries are **not** invented as question/answer pairs. Files may be addressed by name or path; directory-backed relational artifacts resolve to their `README.md`.
+
+When a question is unanswered, its question text is still shown, with no fabricated answer. A nonexistent or currently inaccessible selection fails explicitly and directs the caller to `discovery`. The command does not change any artifact or its metadata.
+
+## Docs Standard installations and lifecycle (proposed in PR #16)
+
+The multi-installation implementation on this branch is the first projection of [the shared Standard lifecycle contract](design/standard-lifecycle.md); detailed documentary behavior lives in [its Docs Standard projection](design/multiple-docs-lifecycle.md). This section documents **branch behavior**, not capabilities already released in `main`.
+
+```text
+vslices new docs-standard serviu
+vslices new docs-standard --origin "vslices/docs-standard:main"
+vslices new docs-standard imported --origin "C:/existing/standard"
+
+vslices list docs-standards
+vslices discovery docs-standard --structure serviu.context
+vslices update docs-standard --skip-confirm
+vslices update docs-standard imported --std-diff --skip-confirm
+vslices delete docs-standard imported --skip-confirm
+```
+
+Each installation is named; a `manifest.yaml` `name` supplies the default name for imports, and positional `[name]` overrides *only the installation identity*. Locally created standards are editable at `.vslices/docs/local/<name>/`; imported snapshots reside under `.vslices/docs/<name>/`. Name collisions across both storage classes reject without replacement. A nonexistent physical `--origin` warns and makes no changes; an existing invalid source fails validation.
+
+Without a name, `update docs-standard` prepares all external installations, **skips editable local standards**, generates Markdown change reports under `.vslices/reports/docs-standard-updates/`, and requires confirmation. `--std-diff` prints changes, `--skip-diff` omits the comparison, and `--skip-confirm` authorizes the installation in noninteractive contexts; diff and confirmation are separate controls. Managed installation updates preserve their former snapshot on validation failure.
+
+`discovery docs-standard` explores manifest-admitted Documents, Support Notes, Nexus, and Continuity Paths. It presents family-specific semantics (not a universal question tree). A structure's short name works when unique; otherwise use `<standard>.<structure>`, including in artifact authoring to preserve stable provenance. Legacy singleton installations at `.vslices/docs-standard` remain readable while migration proceeds.
+
+`delete docs-standard <name>` removes only the selected installation; it never deletes imported source directories. Deletion of editable local definitions is warned and requires confirmation; deletion is refused when known qualified authored references exist. Potential references the current scanner cannot establish remain a limitation.
 
 ## 2. Core authoring protocol
 

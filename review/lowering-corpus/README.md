@@ -8,7 +8,7 @@ The goal is deliberately concrete: a reviewer should be able to inspect real `.v
 
 - `artifacts/*.vsir` are the review inputs.
 - `corpus.tsv` records each artifact's target namespace, provenance, and the capability it is meant to expose.
-- `ruleset/` is an exact review snapshot of `vslices/ruleset@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668` (the merge commit of Ruleset #4).
+- `ruleset/` is an exact review snapshot of `vslices/ruleset-standard@e2f5ea85283cc3a91e8c87107a06e0c23ccc1668` (the merge commit of Ruleset #4).
 - `Generate.ps1` invokes the **actual VSlices CLI** with `lower ... --stdout` for every corpus entry.
 - generated `.vsir.cs` files are evidence produced by a particular Tooling + Ruleset cut; they are intentionally not committed as semantic authority.
 

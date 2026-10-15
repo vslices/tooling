@@ -21,6 +21,42 @@ public sealed class CSharpLoweringRuleSet
     private CSharpLoweringRuleSet(IReadOnlyDictionary<string, CSharpLoweringRule> rules) =>
         _rules = rules;
 
+    public IReadOnlyList<CSharpLoweringRule> Rules => _rules.Values.ToArray();
+
+    /// <summary>Combine multiple independent ruleset snapshots without an implicit override order.</summary>
+    public static CSharpLoweringRuleSetLoadResult LoadMany(
+        IReadOnlyList<(string Name, string Root)> installations,
+        IReadOnlyList<CSharpLoweringRule>? additionalRules = null)
+    {
+        var diagnostics = new List<VsirDiagnostic>();
+        var combined = new Dictionary<string, CSharpLoweringRule>(StringComparer.Ordinal);
+        var owners = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (name, root) in installations)
+        {
+            var loaded = Load(root);
+            if (!loaded.IsSuccess)
+            {
+                diagnostics.AddRange(loaded.Diagnostics);
+                continue;
+            }
+            foreach (var rule in loaded.RuleSet!.Rules)
+            {
+                if (!combined.TryAdd(rule.Node, rule))
+                {
+                    diagnostics.Add(new("CSR020",
+                        $"Lowering node '{rule.Node}' appears in Ruleset Standards '{owners[rule.Node]}' and '{name}'. " +
+                        "No implicit precedence exists: make the active vocabulary unambiguous."));
+                }
+                else owners.Add(rule.Node, name);
+            }
+        }
+        foreach (var rule in additionalRules ?? [])
+            AddRule(rule, ".vslices/extensions", combined, diagnostics);
+        return diagnostics.Count == 0
+            ? new(new CSharpLoweringRuleSet(combined), [])
+            : new(null, diagnostics);
+    }
+
     public static CSharpLoweringRuleSetLoadResult Load(
         string rulesetRoot,
         IReadOnlyList<CSharpLoweringRule>? additionalRules = null)
@@ -37,7 +73,7 @@ public sealed class CSharpLoweringRuleSet
             var manifest = LoadMapping(manifestPath);
             RejectUnknownKeys(
                 manifest,
-                ["$schema", "kind", "version", "targets"],
+                ["$schema", "kind", "version", "name", "targets"],
                 "ruleset manifest",
                 diagnostics);
 

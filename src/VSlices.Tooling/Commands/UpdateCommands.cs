@@ -78,42 +78,35 @@ internal static class UpdateCommands
             cancellationToken);
     }
 
-    /// <summary>Installs or refreshes the project-local Docs Standard snapshot.</summary>
-    /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
+    /// <summary>Updates one or all installed Ruleset Standards without overwriting project-owned originals.</summary>
+    /// <param name="name">Optional name; omission targets every imported standard.</param>
+    /// <param name="origin">Override the source of the named standard.</param>
+    /// <param name="stdDiff">Display rule-level changes in the terminal.</param>
+    /// <param name="skipDiff">Skip change reports but not confirmation.</param>
+    /// <param name="skipConfirm">Skip approval prompt for automation.</param>
+    public static Task<int> RulesetStandard(
+        [Argument] string? name = null, string? origin = null,
+        bool stdDiff = false, bool skipDiff = false, bool skipConfirm = false,
+        CancellationToken cancellationToken = default) =>
+        RulesetStandardCommands.InProject(project => RulesetStandardLifecycle.Update(
+            project, name, origin, skipConfirm, stdDiff, skipDiff, cancellationToken));
+
+    /// <summary>Refreshes one installed Docs Standard, or all managed Docs Standards when name is omitted.</summary>
+    /// <param name="name">Installed Docs Standard name (omit to update all imported standards).</param>
+    /// <param name="origin">Override the origin for a named installation.</param>
+    /// <param name="stdDiff">Show definition changes in the CLI rather than writing Markdown.</param>
+    /// <param name="skipDiff">Skip differentiation, without skipping confirmation.</param>
+    /// <param name="skipConfirm">Approve the prepared updates without an interactive prompt.</param>
     public static Task<int> DocsStandard(
-        string? origin = null,
-        CancellationToken cancellationToken = default)
-    {
-        var project = VSlicesProjectContext.FindFrom(Environment.CurrentDirectory);
-        if (project is null)
-        {
-            TerminalOutput.Error(
-                "UPD030: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Docs Standard.");
-            return Task.FromResult(1);
-        }
-
-        var resolved = ProjectOriginResolver.Resolve(
-            origin,
-            project.Configuration.DocsStandardSource,
-            project.Configuration.DocsStandardRef,
-            ProjectOrigin.OfficialDocsStandard,
-            "UPD035");
-        if (!resolved.IsSuccess)
-        {
-            TerminalOutput.Error(resolved.Error!);
-            return Task.FromResult(2);
-        }
-
-        return DocsStandardUpdater.Update(
-            project,
-            resolved.Origin!.Source,
-            resolved.Origin.Reference,
-            cancellationToken);
-    }
+        [Argument] string? name = null, string? origin = null,
+        bool stdDiff = false, bool skipDiff = false, bool skipConfirm = false,
+        CancellationToken cancellationToken = default) =>
+        DocsStandardCommands.InProject(project => DocsStandardLifecycle.Update(
+            project, name, origin, skipConfirm, stdDiff, skipDiff, cancellationToken));
 
     /// <summary>Installs or refreshes the project-local Template Standard snapshot.</summary>
     /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
-    public static Task<int> TemplateStandard(
+    public static async Task<int> TemplateStandard(
         string? origin = null,
         CancellationToken cancellationToken = default)
     {
@@ -122,7 +115,7 @@ internal static class UpdateCommands
         {
             TerminalOutput.Error(
                 "UPD040: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Template Standard.");
-            return Task.FromResult(1);
+            return 1;
         }
 
         var resolved = ProjectOriginResolver.Resolve(
@@ -134,14 +127,27 @@ internal static class UpdateCommands
         if (!resolved.IsSuccess)
         {
             TerminalOutput.Error(resolved.Error!);
-            return Task.FromResult(2);
+            return 2;
         }
 
-        return TemplateStandardUpdater.Update(
+        var result = await TemplateStandardUpdater.Update(
             project,
             resolved.Origin!.Source,
             resolved.Origin.Reference,
             cancellationToken);
+        if (result != 0) return result;
+
+        // Complete deferred Document policy only when documentary authoring is in use.
+        // Never override a project-owned selection already present in config.
+        if (DocsStandardRegistry.Load(project).Installations.Count == 0)
+            return 0;
+
+        var current = ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot) ?? project.Configuration;
+        var updated = DocumentPolicyBootstrap.ConfigureFirstInstall(current, project.ProjectRoot);
+        if (updated.DocumentsRoute != current.DocumentsRoute ||
+            updated.DocumentsTemplate != current.DocumentsTemplate)
+            await ProjectConfiguration.WriteAsync(project.ProjectRoot, updated, cancellationToken);
+        return 0;
     }
 
     /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
@@ -203,7 +209,7 @@ internal static class UpdateCommands
             return 1;
         }
 
-        var catalog = DocsStandardCatalog.Load(standardRoot);
+        var catalog = DocsStandardCatalog.LoadInstalled(standardRoot);
         if (!catalog.IsSuccess)
         {
             TerminalOutput.Error(catalog.Error!);

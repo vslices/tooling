@@ -32,7 +32,7 @@ vslices/intermediate-representation
 VSlices.Vsir model/parser/validator/tests
   = executable Tooling support for that specification
 
-vslices/ruleset
+vslices/ruleset-standard
   = revisable target-lowering knowledge
 
 Tooling lowering mechanisms

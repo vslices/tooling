@@ -34,7 +34,7 @@ internal static class DocumentDiscoveryCommands
             return 1;
         }
 
-        var catalog = DocsStandardCatalog.Load(standardRoot);
+        var catalog = DocsStandardCatalog.LoadInstalled(standardRoot);
         if (!catalog.IsSuccess)
         {
             TerminalOutput.Error(catalog.Error!);

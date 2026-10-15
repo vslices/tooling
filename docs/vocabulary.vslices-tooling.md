@@ -89,7 +89,7 @@ La ausencia de una regla determinista no demuestra por s√≠ sola que una operaci√
 
 Conjunto revisable de conocimiento de lowering externo al ejecutable.
 
-El ruleset oficial vive en `vslices/ruleset`; un proyecto materializa un snapshot local bajo:
+El ruleset oficial vive en `vslices/ruleset-standard`; un proyecto materializa un snapshot local bajo:
 
 ```text
 .vslices/ruleset/
