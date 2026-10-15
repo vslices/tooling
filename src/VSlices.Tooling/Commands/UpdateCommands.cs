@@ -106,7 +106,7 @@ internal static class UpdateCommands
 
     /// <summary>Installs or refreshes the project-local Template Standard snapshot.</summary>
     /// <param name="origin">Compact origin. GitHub shorthand accepts owner/repository:ref; local directories and ZIP URLs may be passed directly.</param>
-    public static Task<int> TemplateStandard(
+    public static async Task<int> TemplateStandard(
         string? origin = null,
         CancellationToken cancellationToken = default)
     {
@@ -115,7 +115,7 @@ internal static class UpdateCommands
         {
             TerminalOutput.Error(
                 "UPD040: Could not locate .vslices/config.yaml. Run 'vslices init' before updating Template Standard.");
-            return Task.FromResult(1);
+            return 1;
         }
 
         var resolved = ProjectOriginResolver.Resolve(
@@ -127,14 +127,24 @@ internal static class UpdateCommands
         if (!resolved.IsSuccess)
         {
             TerminalOutput.Error(resolved.Error!);
-            return Task.FromResult(2);
+            return 2;
         }
 
-        return TemplateStandardUpdater.Update(
+        var result = await TemplateStandardUpdater.Update(
             project,
             resolved.Origin!.Source,
             resolved.Origin.Reference,
             cancellationToken);
+        if (result != 0) return result;
+
+        // Complete previously deferred policy after the first compatible template arrives.
+        // Never override a project-owned selection already present in config.
+        var updated = DocumentPolicyBootstrap.ConfigureFirstInstall(
+            ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot) ?? project.Configuration,
+            project.ProjectRoot);
+        if (!Equals(updated, ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot)))
+            await ProjectConfiguration.WriteAsync(project.ProjectRoot, updated, cancellationToken);
+        return 0;
     }
 
     /// <summary>Answers or replaces one question on the current valid Document authoring surface.</summary>
