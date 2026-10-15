@@ -137,8 +137,11 @@ internal static class UpdateCommands
             cancellationToken);
         if (result != 0) return result;
 
-        // Complete previously deferred policy after the first compatible template arrives.
+        // Complete deferred Document policy only when documentary authoring is in use.
         // Never override a project-owned selection already present in config.
+        if (DocsStandardRegistry.Load(project).Installations.Count == 0)
+            return 0;
+
         var current = ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot) ?? project.Configuration;
         var updated = DocumentPolicyBootstrap.ConfigureFirstInstall(current, project.ProjectRoot);
         if (updated.DocumentsRoute != current.DocumentsRoute ||
