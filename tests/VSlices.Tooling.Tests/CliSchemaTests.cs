@@ -62,6 +62,35 @@ public sealed class CliSchemaTests
     }
 
     [Fact]
+    public async Task Relational_discovery_and_update_commands_have_useful_descriptions()
+    {
+        using var environment = new ToolingTestProject();
+        var schema = await environment.Run(environment.Root, "--cli-schema");
+        Assert.Equal(0, schema.ExitCode);
+
+        using var data = JsonDocument.Parse(schema.StandardOutput);
+        foreach (var commandName in new[]
+        {
+            "discovery continuity-path", "discovery nexus", "discovery support-note",
+            "update continuity-path", "update nexus", "update support-note"
+        })
+        {
+            var command = data.RootElement.EnumerateArray().Single(
+                item => item.GetProperty("CommandName").GetString() == commandName);
+            var description = command.GetProperty("Description").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(description),
+                $"Missing CLI schema description for '{commandName}'.");
+            Assert.True(description!.Length > 20,
+                $"Description for '{commandName}' is not sufficiently useful.");
+
+            var help = await environment.Run(environment.Root,
+                commandName.Split(' ').Concat(["--help"]).ToArray());
+            Assert.Equal(0, help.ExitCode);
+            Assert.Contains(description, help.StandardOutput, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task Json_schema_flags_match_executable_help_surface()
     {
         using var environment = new ToolingTestProject();
