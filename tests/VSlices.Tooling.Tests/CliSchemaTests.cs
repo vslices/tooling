@@ -91,6 +91,29 @@ public sealed class CliSchemaTests
     }
 
     [Fact]
+    public async Task Documentary_discovery_and_update_commands_have_descriptions_in_schema()
+    {
+        using var environment = new ToolingTestProject();
+        var result = await environment.Run(environment.Root, "--cli-schema");
+        Assert.Equal(0, result.ExitCode);
+
+        using var json = JsonDocument.Parse(result.StandardOutput);
+        var commands = json.RootElement.EnumerateArray().ToArray();
+        foreach (var family in new[] { "continuity-path", "nexus", "support-note" })
+        {
+            foreach (var verb in new[] { "discovery", "update" })
+            {
+                var name = $"{verb} {family}";
+                var command = Assert.Single(commands.Where(item =>
+                    item.GetProperty("CommandName").GetString() == name));
+                var description = command.GetProperty("Description").GetString();
+                Assert.False(string.IsNullOrWhiteSpace(description),
+                    $"{name} must describe its capability in --help and --cli-schema.");
+            }
+        }
+    }
+
+    [Fact]
     public async Task Json_schema_flags_match_executable_help_surface()
     {
         using var environment = new ToolingTestProject();
