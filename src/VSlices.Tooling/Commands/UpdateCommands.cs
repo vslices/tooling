@@ -139,10 +139,10 @@ internal static class UpdateCommands
 
         // Complete previously deferred policy after the first compatible template arrives.
         // Never override a project-owned selection already present in config.
-        var updated = DocumentPolicyBootstrap.ConfigureFirstInstall(
-            ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot) ?? project.Configuration,
-            project.ProjectRoot);
-        if (!Equals(updated, ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot)))
+        var current = ProjectConfiguration.LoadFromProjectRoot(project.ProjectRoot) ?? project.Configuration;
+        var updated = DocumentPolicyBootstrap.ConfigureFirstInstall(current, project.ProjectRoot);
+        if (updated.DocumentsRoute != current.DocumentsRoute ||
+            updated.DocumentsTemplate != current.DocumentsTemplate)
             await ProjectConfiguration.WriteAsync(project.ProjectRoot, updated, cancellationToken);
         return 0;
     }
