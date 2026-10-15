@@ -109,6 +109,9 @@ public sealed class CliSchemaTests
                 var description = command.GetProperty("Description").GetString();
                 Assert.False(string.IsNullOrWhiteSpace(description),
                     $"{name} must describe its capability in --help and --cli-schema.");
+                var help = await environment.Run(environment.Root, verb, family, "--help");
+                Assert.Equal(0, help.ExitCode);
+                Assert.Contains(description!, help.StandardOutput, StringComparison.Ordinal);
             }
         }
     }
