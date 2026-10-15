@@ -4,6 +4,13 @@ namespace VSlices.Tooling;
 
 internal static class SupportNoteUpdateCommands
 {
+    /// <summary>Updates a Support Note question answer or its searchable tags.</summary>
+    /// <param name="artifact">Existing Support Note name or path.</param>
+    /// <param name="questionId">Current question selection from Support Note discovery.</param>
+    /// <param name="answer">Answer text for the selected question.</param>
+    /// <param name="tags">Replacement set of searchable tags.</param>
+    /// <param name="addTags">Searchable tags to add.</param>
+    /// <param name="removeTags">Searchable tags to remove.</param>
     public static async Task<int> Update(
         [Argument] string artifact,
         string? questionId = null,
