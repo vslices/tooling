@@ -1,9 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\framework\src\VSlices.Application\VSlices.Application.csproj" />
-    <ProjectReference Include="..\framework\src\VSlices.Domain\VSlices.Domain.csproj" />
-    <ProjectReference Include="..\framework\src\VSlices.Infrastructure\VSlices.Infrastructure.csproj" />
+    <ProjectReference Include="..\framework\src\VSlices\VSlices.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -11,9 +9,5 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Using Include="VSlices.Application" />
-  </ItemGroup>
 
 </Project>

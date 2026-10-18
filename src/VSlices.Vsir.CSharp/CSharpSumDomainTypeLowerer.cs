@@ -52,9 +52,12 @@ public static class CSharpSumDomainTypeLowerer
         var constructor = document.State.Fields.Count == 0
             ? string.Empty
             : $"({Parameters(document.State.Fields, rules, camelNames: true)})";
-        source.AppendLine($"public abstract class {document.Name}{constructor} :");
-
         var contracts = RootContracts(document, rules).ToArray();
+        source.AppendLine(
+            contracts.Length == 0
+                ? $"public abstract class {document.Name}{constructor}"
+                : $"public abstract class {document.Name}{constructor} :");
+
         for (var index = 0; index < contracts.Length; index++)
             source.AppendLine($"    {contracts[index]}{(index == contracts.Length - 1 ? string.Empty : ",")}");
 
@@ -102,8 +105,6 @@ public static class CSharpSumDomainTypeLowerer
 
     private static IEnumerable<string> RootContracts(DomainTypeVsir document, CSharpLoweringRuleSet rules)
     {
-        yield return $"DomainType<{document.Name}, {document.Name}.Repr>";
-
         if (document.Classification == "aggregate-root" && document.Identity is not null)
             yield return $"AggregateRoot<{document.Name}, {RenderType(document.Identity.Type, rules)}>";
         else if (document.Classification == "entity" && document.Identity is not null)
@@ -168,7 +169,7 @@ public static class CSharpSumDomainTypeLowerer
 
         source.AppendLine($"public sealed class {variant.Name} :");
         source.AppendLine($"    {root.Name},");
-        source.AppendLine($"    Transform<{variant.Name}, {inputType}>");
+        source.AppendLine($"    Transformable<{inputType}, {variant.Name}>");
         source.AppendLine("{");
 
         if (effectiveRepresentation.Length == 0)
@@ -206,7 +207,7 @@ public static class CSharpSumDomainTypeLowerer
         source.AppendLine("    }");
 
         source.AppendLine();
-        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {variant.Name}>.Full Invariants =>");
+        source.AppendLine($"    public static VSlices.Arrows.Req<{inputType}, {variant.Name}>.Full Transformation =>");
         if (pipeline.Count == 0)
         {
             source.AppendLine($"        VSlices.Arrows.Req<{inputType}, {variant.Name}>.Transform(({inputType} input) => Instance(input));");
