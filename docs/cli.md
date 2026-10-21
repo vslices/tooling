@@ -35,6 +35,7 @@ vslices list docs-standards
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
+vslices relate support-note <existing> --to <existing> --role "<text>"
 vslices new document <name> --kind <type>
 vslices discovery document <name>
 vslices update document <name> --question-id <selection> --answer "<markdown>"
