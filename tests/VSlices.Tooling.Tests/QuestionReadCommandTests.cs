@@ -218,7 +218,7 @@ public sealed class QuestionReadCommandTests
         await Success(project, "new", "support-note", "first-submission",
             "--kind", "draft", "--target", "Serviu");
         await Success(project, "update", "support-note", "first-submission",
-            "--question-id", "purpose", "--answer", "A request workflow.");
+            "--question-id", "root", "--answer", "A request workflow.");
         await Success(project, "update", "support-note", "first-submission",
             "--question-id", "1", "--answer", "Authentication details.");
         var deep = await Success(project, "read", "support-note", "first-submission",
