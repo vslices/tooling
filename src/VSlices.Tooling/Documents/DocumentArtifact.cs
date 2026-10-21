@@ -1181,7 +1181,7 @@ internal sealed class DocumentArtifact
         if (!rootMaterialized)
             return surface;
 
-        var nextTopLevel = 2;
+        var nextTopLevel = 1;
         AddChildren(
             definition.RootQuestion.Children,
             depth: 1,
