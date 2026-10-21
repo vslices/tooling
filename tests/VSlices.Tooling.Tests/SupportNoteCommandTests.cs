@@ -119,6 +119,59 @@ public sealed class SupportNoteCommandTests
     }
 
     [Fact]
+    public async Task Existing_support_notes_can_be_related_bidirectionally()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "first", "--kind", "draft", "--target", "One");
+        await Success(project, "new", "support-note", "second", "--kind", "result", "--target", "Two");
+        await Success(project, "relate", "support-note", "first", "--to", "second", "--role", "Complements");
+
+        var first = Assert.Single(Relations(project, "first"));
+        var second = Assert.Single(Relations(project, "second"));
+        Assert.Equal("second.md", Value(first, "target"));
+        Assert.Equal("result", Value(first, "type"));
+        Assert.Equal("first.md", Value(second, "target"));
+        Assert.Equal("draft", Value(second, "type"));
+        Assert.Equal("Complements", Value(first, "role"));
+        Assert.Equal("Complements", Value(second, "role"));
+        Assert.Contains("second.md", await Success(project, "discovery", "support-note", "first"));
+        Assert.Contains("first.md", await Success(project, "discovery", "support-note", "second"));
+
+        await Success(project, "update", "support-note", "first", "--question-id", "root", "--answer", "Done");
+        Assert.Single(Relations(project, "first"));
+        Assert.Single(Relations(project, "second"));
+    }
+
+    [Fact]
+    public async Task Existing_support_note_relation_rejects_invalid_requests_without_mutation()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "first", "--kind", "draft", "--target", "One");
+        await Success(project, "new", "support-note", "second", "--kind", "result", "--target", "Two");
+        var beforeFirst = Read(project, "first");
+        var beforeSecond = Read(project, "second");
+
+        Assert.Contains("RELATE003", await Failure(project,
+            "relate", "support-note", "first", "--to", "first", "--role", "Self"));
+        Assert.Contains("RELCLI002", await Failure(project,
+            "relate", "support-note", "first", "--to", "nonexistent", "--role", "Missing"));
+        Assert.Contains("RELATE001", await Failure(project,
+            "relate", "support-note", "first", "--to", "second"));
+        Assert.Equal(beforeFirst, Read(project, "first"));
+        Assert.Equal(beforeSecond, Read(project, "second"));
+
+        await Success(project, "relate", "support-note", "first", "--to", "second", "--role", "First link");
+        var linkedFirst = Read(project, "first");
+        var linkedSecond = Read(project, "second");
+        Assert.Contains("RELATE004", await Failure(project,
+            "relate", "support-note", "second", "--to", "first", "--role", "Duplicate"));
+        Assert.Equal(linkedFirst, Read(project, "first"));
+        Assert.Equal(linkedSecond, Read(project, "second"));
+    }
+
+    [Fact]
     public async Task Support_note_requires_a_known_type_and_target()
     {
         using var project = new ToolingTestProject();
