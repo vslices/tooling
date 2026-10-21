@@ -35,7 +35,7 @@ vslices list docs-standards
 vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
 vslices delete docs-standard <name> [--skip-confirm]
 
-vslices relate support-note <existing> --to <existing> --role "<text>"
+vslices relate <source> --to <destination> --role "<text>"
 vslices new document <name> --kind <type>
 vslices discovery document <name>
 vslices update document <name> --question-id <selection> --answer "<markdown>"
@@ -76,6 +76,16 @@ vslices delete ruleset-standard serviu
 ```
 
 Nodes may already contain dots. A qualified discovery key prefixes the installed standard name. When multiple standards define the same C# lowering `node`, transpilation fails with a diagnostic rather than choosing a source silently. Project semantic extensions remain independent under `.vslices/extensions`. The previous `update ruleset` and `init --ruleset-origin` paths remain as transitional legacy singleton operations; modern initialization uses `--ruleset-standard-origin`.
+
+## Relating existing documentary artifacts (PR #16)
+
+`vslices relate <source> --to <destination> --role "<text>"` connects two existing artifacts of any supported documentary family (Document, Support Note, Nexus or Continuity Path). The CLI resolves each artifact by its existing name or path and records a reciprocal generic `related` association on both sides. The role explains the link without implying dependency or causal precedence. Nexus and Continuity Path associated-artifact tables are synchronized with their front matter. Self-links and duplicate links are rejected; updates to the two artifacts use the transactional file writer.
+
+```sh
+vslices relate exploration-note --to domain-context --role "Provides evidence for the domain context"
+vslices discovery support-note exploration-note
+vslices discovery document domain-context
+```
 
 ## Reading documentary questions (PR #16)
 
