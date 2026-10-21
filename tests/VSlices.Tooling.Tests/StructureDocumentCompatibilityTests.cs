@@ -32,11 +32,11 @@ public sealed class StructureDocumentCompatibilityTests
         Assert.Equal(0, nextDiscovery.ExitCode);
         Assert.Contains("[root] ¿Cómo se organiza?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", nextDiscovery.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[2] ¿Qué estructura estamos describiendo?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[1] ¿Qué estructura estamos describiendo?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", nextDiscovery.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("vslices update document architecture --question-id 2 --answer \"<answer>\"", nextDiscovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("vslices update document architecture --question-id 1 --answer \"<answer>\"", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         var childUpdate = await project.Run(project.Root, "update", "document", "architecture",
-            "--question-id", "2", "--answer", "La estructura del sistema y sus partes principales.");
+            "--question-id", "1", "--answer", "La estructura del sistema y sus partes principales.");
         Assert.Equal(0, childUpdate.ExitCode);
         var completed = File.ReadAllText(path);
         Assert.Contains("## ¿Qué estructura estamos describiendo?", completed, StringComparison.Ordinal);
