@@ -26,25 +26,25 @@ public sealed class SupportNoteCommandTests
         Assert.Equal("support-note.question-tree", Value(metadata, "tooling", "template", "name"));
 
         var initial = await Success(project, "discovery", "support-note", "first-submission");
-        Assert.Contains("[1] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
-        Assert.DoesNotContain("[1.1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain("[1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(project.Root, "first-submission.md")));
         Assert.DoesNotContain("¿Qué sigue abierto?", Read(project, "first-submission"), StringComparison.Ordinal);
 
         Assert.Contains("SUPART002", await Failure(
             project, "update", "support-note", "first-submission",
-            "--question-id", "1.1", "--answer", "Premature child answer."), StringComparison.Ordinal);
+            "--question-id", "1", "--answer", "Premature child answer."), StringComparison.Ordinal);
 
         await Success(
             project, "update", "support-note", "first-submission",
-            "--question-id", "1", "--answer", "Reconstructed external-user flow up to first submission.");
+            "--question-id", "root", "--answer", "Reconstructed external-user flow up to first submission.");
         var afterRoot = await Success(project, "discovery", "support-note", "first-submission");
-        Assert.Contains("[1.1] ¿Qué sigue abierto?", afterRoot, StringComparison.Ordinal);
-        Assert.Contains("parent: [1]", afterRoot, StringComparison.Ordinal);
+        Assert.Contains("[1] ¿Qué sigue abierto?", afterRoot, StringComparison.Ordinal);
+        Assert.Contains("parent: [root]", afterRoot, StringComparison.Ordinal);
         Assert.Contains("¿Qué sigue abierto?", Read(project, "first-submission"), StringComparison.Ordinal);
         await Success(
             project, "update", "support-note", "first-submission",
-            "--question-id", "1.1", "--answer", "Institutional confirmation of decree-specific variants.");
+            "--question-id", "1", "--answer", "Institutional confirmation of decree-specific variants.");
 
         var source = Read(project, "first-submission");
         Assert.Contains("Reconstructed external-user flow", source, StringComparison.Ordinal);
@@ -93,13 +93,13 @@ public sealed class SupportNoteCommandTests
         await Success(
             project,
             "update", "support-note", "advance-observation",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "The inspected external route validates one financial line.");
 
         await Success(
             project,
             "update", "support-note", "advance-validation",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "The observed route does not by itself demonstrate the complete target rule.");
 
         var resultRelationAfterUpdate = Assert.Single(Relations(project, "advance-observation"));
