@@ -79,6 +79,8 @@ internal static class RelationalDiscoveryCommands
         }
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(state.State!.Questions.Select(q => new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
         var entries = new List<DiscoveryEntry>();
         entries.AddRange(state.State!.Questions.Select(question => new DiscoveryEntry(question.SelectionPath, question, null, null)));
         entries.AddRange(recommendations.Select(item => new DiscoveryEntry(item.Id, null, item.Recommendation,
