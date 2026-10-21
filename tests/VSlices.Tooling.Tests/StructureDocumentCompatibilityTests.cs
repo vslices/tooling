@@ -21,16 +21,16 @@ public sealed class StructureDocumentCompatibilityTests
         var initialDiscovery = await project.Run(project.Root, "discovery", "document", "architecture");
         Assert.Equal(0, initialDiscovery.ExitCode);
         Assert.Contains("type: structure", initialDiscovery.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[1] ¿Cómo se organiza?", initialDiscovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Cómo se organiza?", initialDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: unanswered", initialDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("¿Qué estructura estamos describiendo?", initialDiscovery.StandardOutput, StringComparison.Ordinal);
         var rootUpdate = await project.Run(project.Root, "update", "document", "architecture",
-            "--question-id", "1", "--answer", "Se organiza como un conjunto de partes con responsabilidades explícitas.");
+            "--question-id", "root", "--answer", "Se organiza como un conjunto de partes con responsabilidades explícitas.");
         Assert.Equal(0, rootUpdate.ExitCode);
         Assert.DoesNotContain("vslices:question question=structure", File.ReadAllText(path), StringComparison.Ordinal);
         var nextDiscovery = await project.Run(project.Root, "discovery", "document", "architecture");
         Assert.Equal(0, nextDiscovery.ExitCode);
-        Assert.Contains("[1] ¿Cómo se organiza?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Cómo se organiza?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[2] ¿Qué estructura estamos describiendo?", nextDiscovery.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", nextDiscovery.StandardOutput, StringComparison.Ordinal);
