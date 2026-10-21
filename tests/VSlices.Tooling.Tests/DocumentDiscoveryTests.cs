@@ -22,10 +22,10 @@ public sealed class DocumentDiscoveryTests
             "discovery", "document", "tooling-context");
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("[1] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: unanswered", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains(
-            "vslices update document tooling-context --question-id 1 --answer \"<answer>\"",
+            "vslices update document tooling-context --question-id root --answer \"<answer>\"",
             result.StandardOutput,
             StringComparison.Ordinal);
         Assert.DoesNotContain("¿Qué estamos asumiendo como cierto?", result.StandardOutput, StringComparison.Ordinal);
@@ -43,7 +43,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         var sourceAfterRoot = File.ReadAllText(
@@ -58,7 +58,7 @@ public sealed class DocumentDiscoveryTests
             "discovery", "document", "tooling-context");
 
         Assert.Equal(0, discovered.ExitCode);
-        Assert.Contains("[1] ¿Dónde existe?", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Dónde existe?", discovered.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", discovered.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", discovered.StandardOutput, StringComparison.Ordinal);
@@ -91,7 +91,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         var beforeParent = await project.Run(
@@ -134,7 +134,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         var before = await project.Run(
@@ -225,7 +225,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
@@ -292,7 +292,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
@@ -381,7 +381,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         Assert.Equal(0, (await project.Run(
@@ -485,7 +485,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         Assert.Equal(0, (await project.Run(
@@ -531,7 +531,7 @@ public sealed class DocumentDiscoveryTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         var result = await project.Run(
