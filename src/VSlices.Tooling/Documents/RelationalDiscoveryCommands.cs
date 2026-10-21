@@ -151,6 +151,19 @@ internal static class RelationalDiscoveryCommands
             if (ReferenceEquals(left, right)) return 0;
             if (left is null) return -1;
             if (right is null) return 1;
+            // Reserved semantic selections precede numeric question/recommendation paths.
+            var special = new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["purpose"] = 0, ["traversal"] = 1, ["root"] = 2
+            };
+            var leftSpecial = special.TryGetValue(left, out var leftRank);
+            var rightSpecial = special.TryGetValue(right, out var rightRank);
+            if (leftSpecial && rightSpecial) return leftRank.CompareTo(rightRank);
+            if (leftSpecial) return -1;
+            if (rightSpecial) return 1;
+            if (!left.Split('.').All(part => int.TryParse(part, out _)) ||
+                !right.Split('.').All(part => int.TryParse(part, out _)))
+                return StringComparer.Ordinal.Compare(left, right);
             var a = left.Split('.').Select(int.Parse).ToArray();
             var b = right.Split('.').Select(int.Parse).ToArray();
             for (var index = 0; index < Math.Min(a.Length, b.Length); index++)
