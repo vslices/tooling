@@ -17,7 +17,7 @@ public sealed class QuestionReadCommandTests
         await Success(project, "update", "document", "sistema",
             "--question-id", "2.1", "--answer", "Crear y consultar solicitudes.\n\nTambién pueden revisar su estado.");
 
-        var path = Path.Combine(project.Root, "docs", "sistema.md");
+        var path = Path.Combine(project.Root, "sistema.md");
         var before = File.ReadAllBytes(path);
         var direct = await Success(project, "read", "document", "sistema",
             "--question-id", "2.1");
@@ -107,7 +107,7 @@ public sealed class QuestionReadCommandTests
         Assert.True(File.Exists(Path.Combine(project.VslicesRoot, "docs", "vslices", "manifest.yaml")));
 
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
-        Assert.Contains("type: vslices.context", File.ReadAllText(Path.Combine(project.Root, "sistema.md")));
+        Assert.Contains("type: vslices.context", File.ReadAllText(Path.Combine(project.Root, "docs", "sistema.md")));
         await Success(project, "update", "document", "sistema",
             "--question-id", "root", "--answer", "Versión oficial.");
         await Success(project, "update", "document", "sistema",
