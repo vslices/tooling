@@ -125,7 +125,7 @@ public sealed class SupportNoteCommandTests
         WriteEnvironment(project);
         await Success(project, "new", "support-note", "first", "--kind", "draft", "--target", "One");
         await Success(project, "new", "support-note", "second", "--kind", "result", "--target", "Two");
-        await Success(project, "relate", "support-note", "first", "--to", "second", "--role", "Complements");
+        await Success(project, "relate", "first", "--to", "second", "--role", "Complements");
 
         var first = Assert.Single(Relations(project, "first"));
         var second = Assert.Single(Relations(project, "second"));
@@ -154,19 +154,19 @@ public sealed class SupportNoteCommandTests
         var beforeSecond = Read(project, "second");
 
         Assert.Contains("RELATE003", await Failure(project,
-            "relate", "support-note", "first", "--to", "first", "--role", "Self"));
+            "relate", "first", "--to", "first", "--role", "Self"));
         Assert.Contains("RELCLI002", await Failure(project,
-            "relate", "support-note", "first", "--to", "nonexistent", "--role", "Missing"));
+            "relate", "first", "--to", "nonexistent", "--role", "Missing"));
         Assert.Contains("RELATE001", await Failure(project,
-            "relate", "support-note", "first", "--to", "second"));
+            "relate", "first", "--to", "second"));
         Assert.Equal(beforeFirst, Read(project, "first"));
         Assert.Equal(beforeSecond, Read(project, "second"));
 
-        await Success(project, "relate", "support-note", "first", "--to", "second", "--role", "First link");
+        await Success(project, "relate", "first", "--to", "second", "--role", "First link");
         var linkedFirst = Read(project, "first");
         var linkedSecond = Read(project, "second");
         Assert.Contains("RELATE004", await Failure(project,
-            "relate", "support-note", "second", "--to", "first", "--role", "Duplicate"));
+            "relate", "second", "--to", "first", "--role", "Duplicate"));
         Assert.Equal(linkedFirst, Read(project, "first"));
         Assert.Equal(linkedSecond, Read(project, "second"));
     }
