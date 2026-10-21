@@ -546,7 +546,8 @@ public sealed class DocumentDiscoveryTests
     private static string SliceQuestion(string output, string selectionPath)
     {
         var marker = $"[{selectionPath}] ";
-        var start = output.IndexOf(marker, StringComparison.Ordinal);
+        var start = output.LastIndexOf(Environment.NewLine + marker, StringComparison.Ordinal);
+        if (start >= 0) start += Environment.NewLine.Length;
         Assert.True(start >= 0, $"Selection [{selectionPath}] was not found in discovery output.");
 
         var next = output.IndexOf(
