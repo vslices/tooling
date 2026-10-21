@@ -11,7 +11,7 @@ public sealed class QuestionReadCommandTests
         WriteDocumentEnvironment(project);
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "1", "--answer", "Una plataforma de gestión de solicitudes.");
+            "--question-id", "root", "--answer", "Una plataforma de gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
             "--question-id", "2", "--answer", "Funcionarios y administradores.");
         await Success(project, "update", "document", "sistema",
@@ -39,7 +39,7 @@ public sealed class QuestionReadCommandTests
         WriteDocumentEnvironment(project);
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "1", "--answer", "Una plataforma de gestión de solicitudes.");
+            "--question-id", "root", "--answer", "Una plataforma de gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
             "--question-id", "2", "--answer", "Funcionarios y administradores.");
         await Success(project, "update", "document", "sistema",
@@ -47,15 +47,15 @@ public sealed class QuestionReadCommandTests
 
         var deep = await Success(project, "read", "document", "sistema",
             "--question-id", "2.1", "--deep");
-        AssertInOrder(deep, "[1] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?",
+        AssertInOrder(deep, "[root] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?",
             "[2.1] ¿Qué puede hacer un funcionario?");
         AssertInOrder(deep, "Una plataforma de gestión de solicitudes.",
             "Funcionarios y administradores.", "Crear y consultar solicitudes.");
         Assert.DoesNotContain("Question:", deep, StringComparison.Ordinal);
 
         var rootOnly = await Success(project, "read", "document", "sistema",
-            "--question-id", "1", "--deep");
-        Assert.Contains("[1] ¿Qué es el sistema?", rootOnly, StringComparison.Ordinal);
+            "--question-id", "root", "--deep");
+        Assert.Contains("[root] ¿Qué es el sistema?", rootOnly, StringComparison.Ordinal);
         Assert.DoesNotContain("[2]", rootOnly, StringComparison.Ordinal);
     }
 
@@ -66,7 +66,7 @@ public sealed class QuestionReadCommandTests
         WriteDocumentEnvironment(project);
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "1", "--answer", "Gestión de solicitudes.");
+            "--question-id", "root", "--answer", "Gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
             "--question-id", "2", "--answer", "Funcionarios\nCon cuentas habilitadas.");
         await Success(project, "update", "document", "sistema",
@@ -84,7 +84,7 @@ public sealed class QuestionReadCommandTests
 
         var scoped = await Success(project, "read", "document", "sistema",
             "--question-id", "3.1", "--deep");
-        AssertInOrder(scoped, "[1] ¿Qué es el sistema?", "[3] ¿Quién utiliza el sistema?",
+        AssertInOrder(scoped, "[root] ¿Qué es el sistema?", "[3] ¿Quién utiliza el sistema?",
             "[3.1] ¿Qué puede hacer un funcionario?");
         Assert.Contains("Administradores.", scoped, StringComparison.Ordinal);
         Assert.Contains("Revisar permisos.", scoped, StringComparison.Ordinal);
@@ -109,13 +109,13 @@ public sealed class QuestionReadCommandTests
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
         Assert.Contains("type: vslices.context", File.ReadAllText(Path.Combine(project.Root, "sistema.md")));
         await Success(project, "update", "document", "sistema",
-            "--question-id", "1", "--answer", "Versión oficial.");
+            "--question-id", "root", "--answer", "Versión oficial.");
         await Success(project, "update", "document", "sistema",
             "--question-id", "2", "--answer", "Funcionarios.");
 
         var result = await Success(project, "read", "document", "sistema",
             "--question-id", "2", "--deep");
-        AssertInOrder(result, "[1] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?");
+        AssertInOrder(result, "[root] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?");
         AssertInOrder(result, "Versión oficial.", "Funcionarios.");
     }
 
@@ -125,7 +125,7 @@ public sealed class QuestionReadCommandTests
         using var project = new ToolingTestProject();
         WriteDocumentEnvironment(project);
         await Success(project, "new", "document", "sistema", "--kind", "context", "--target", "Serviu");
-        var first = await Success(project, "read", "document", "sistema", "--question-id", "1");
+        var first = await Success(project, "read", "document", "sistema", "--question-id", "root");
         Assert.Contains("Question: ¿Qué es el sistema?", first, StringComparison.Ordinal);
         Assert.DoesNotContain("Answer:", first, StringComparison.Ordinal);
         Assert.Equal(2, (await project.Run(project.Root,
@@ -238,7 +238,7 @@ public sealed class QuestionReadCommandTests
         Assert.NotEqual(0, wrong.ExitCode);
         Assert.Contains("READ002", wrong.StandardError, StringComparison.Ordinal);
         var absent = await project.Run(project.Root, "read", "document",
-            "missing-document", "--question-id", "1");
+            "missing-document", "--question-id", "root");
         Assert.NotEqual(0, absent.ExitCode);
         Assert.Contains("READ001", absent.StandardError, StringComparison.Ordinal);
     }
