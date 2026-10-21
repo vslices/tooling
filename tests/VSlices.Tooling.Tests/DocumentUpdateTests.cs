@@ -12,7 +12,7 @@ public sealed class DocumentUpdateTests
         var result = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Existe dentro del experimento de authoring documental.");
 
         Assert.Equal(0, result.ExitCode);
@@ -41,7 +41,7 @@ public sealed class DocumentUpdateTests
         var root = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Existe en Tooling.");
         Assert.Equal(0, root.ExitCode);
 
@@ -74,7 +74,7 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Respuesta inicial.")).ExitCode);
         Assert.Equal(0, (await project.Run(
             project.Root,
@@ -85,7 +85,7 @@ public sealed class DocumentUpdateTests
         var updated = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Respuesta raíz revisada.");
 
         Assert.Equal(0, updated.ExitCode);
@@ -132,7 +132,7 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Existe en Tooling.")).ExitCode);
 
         var tooEarly = await project.Run(
@@ -176,7 +176,7 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Root answer")).ExitCode);
 
         var child = await project.Run(
@@ -201,7 +201,7 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Existe en Tooling.")).ExitCode);
 
         WriteDocsStandard(
@@ -234,7 +234,7 @@ public sealed class DocumentUpdateTests
         var root = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "Documento creado antes del front-matter.");
 
         Assert.Equal(0, root.ExitCode);
