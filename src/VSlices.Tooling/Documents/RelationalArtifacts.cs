@@ -99,11 +99,11 @@ internal static class RelationalArtifact
         var surfaces = new List<RelationalQuestionSurface>();
         if (isPath)
         {
-            surfaces.Add(new("1", "__purpose", "Propósito del recorrido", HasAnswer(answers, "__purpose"), Answer(answers, "__purpose"), null, []));
-            surfaces.Add(new("2", "__recommended-traversal", "Recorrido recomendado", HasAnswer(answers, "__recommended-traversal"), Answer(answers, "__recommended-traversal"), null, []));
+            surfaces.Add(new("purpose", "__purpose", "Propósito del recorrido", HasAnswer(answers, "__purpose"), Answer(answers, "__purpose"), null, []));
+            surfaces.Add(new("traversal", "__recommended-traversal", "Recorrido recomendado", HasAnswer(answers, "__recommended-traversal"), Answer(answers, "__recommended-traversal"), null, []));
         }
         for (var index = 0; index < roots.Count; index++)
-            AddQuestionSurface(roots[index], (index + (isPath ? 3 : 1)).ToString(), null, answers, surfaces, revealTraversal: isPath);
+            AddQuestionSurface(roots[index], isPath ? "root" : (index + 1).ToString(), null, answers, surfaces, revealTraversal: isPath);
         return RelationalArtifactStateResult.Success(new RelationalArtifactState(metadata.Metadata, surfaces, source));
     }
 
@@ -224,7 +224,7 @@ internal static class RelationalArtifact
         // A Path is a navigable trajectory, not a prerequisite checklist. Its complete graph is available before answers exist.
         if (!answered && !revealTraversal) return;
         for (var index = 0; index < question.Children.Count; index++)
-            AddQuestionSurface(question.Children[index], $"{path}.{question.Recommendations.Count + index + 1}", path, answers, result, revealTraversal);
+            AddQuestionSurface(question.Children[index], path == "root" ? (question.Recommendations.Count + index + 1).ToString() : $"{path}.{question.Recommendations.Count + index + 1}", path, answers, result, revealTraversal);
     }
 
     private static Dictionary<string, string> ReadQuestionAnswers(string source, HashSet<string> expected, out string? error)
