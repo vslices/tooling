@@ -49,7 +49,17 @@ vslices -v
 
 `update` is a command group. The current contract does not include legacy `update --self` / `update --ruleset` aliases or one aggregate updater operation.
 
-`vslices init` creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. Ruleset and Template Standard retain their current update-based acquisition; Docs Standard is now first-installed via `new docs-standard --origin`, or created locally via `new docs-standard [name]`, then refreshed via `update docs-standard`. `init --docs-standard-origin` composes the Docs Standard *new/import* path; the other init origin options preserve their corresponding operations.
+`vslices init` alone creates only the minimum project surface. Its configuration records `documents.template: markdown.question-tree` as the current default Document materialization policy. It does **not** install external standards unless an origin option is provided.
+
+### Initialize with official standard origins
+
+```sh
+vslices init --default-origin
+```
+
+`--default-origin` requests all three official VSlices sources: **Docs Standard**, **Ruleset Standard**, and **Template Standard**. This is composition, not a separate installer: it imports Docs Standard with `new docs-standard --origin`, Ruleset Standard with `new ruleset-standard --origin`, and Template Standard with `update template-standard --origin`. Explicit `--docs-standard-origin`, `--ruleset-standard-origin`, or `--template-standard-origin` values override the corresponding default. Legacy `--ruleset-origin` remains a separate compatibility path and is not selected by default.
+
+For an already initialized project, `init` rejects reinitialization without `--force`. Use `vslices init --default-origin --force` only when refreshing the project initialization is intentional; do not assume `--force` is a standards-only update operation. Each installation can fail independently, and the command must not be interpreted as successful unless all requested installations complete. To inspect Docs Standard and Ruleset Standard installations, use `vslices list docs-standards` and `vslices list ruleset-standards`; Template Standard currently uses its own singleton update lifecycle.
 
 ## Ruleset Standard installations and lifecycle (PR #16)
 
