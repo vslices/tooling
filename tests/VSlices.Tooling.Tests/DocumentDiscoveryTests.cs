@@ -516,7 +516,7 @@ public sealed class DocumentDiscoveryTests
             .ToArray();
 
         Assert.Equal(2, instanceLines.Length);
-        Assert.NotEqual(instanceLines[-1], instanceLines[0]);
+        Assert.NotEqual(instanceLines[1], instanceLines[0]);
     }
 
     [Fact]
