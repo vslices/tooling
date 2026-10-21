@@ -138,17 +138,6 @@ internal static class InitCommands
             if (exit != 0) return exit;
         }
 
-        if (!string.IsNullOrWhiteSpace(docsStandardOrigin))
-        {
-            TerminalOutput.BlankLine();
-            TerminalOutput.Info("→ Installing Docs Standard from requested origin");
-            var docsExit = await DocsStandardCommands.New(
-                origin: docsStandardOrigin,
-                cancellationToken: cancellationToken);
-            if (docsExit != 0)
-                return docsExit;
-        }
-
         if (!string.IsNullOrWhiteSpace(templateStandardOrigin))
         {
             TerminalOutput.BlankLine();
@@ -158,6 +147,17 @@ internal static class InitCommands
                 cancellationToken: cancellationToken);
             if (templateExit != 0)
                 return templateExit;
+        }
+
+        if (!string.IsNullOrWhiteSpace(docsStandardOrigin))
+        {
+            TerminalOutput.BlankLine();
+            TerminalOutput.Info("→ Installing Docs Standard from requested origin");
+            var docsExit = await DocsStandardCommands.New(
+                origin: docsStandardOrigin,
+                cancellationToken: cancellationToken);
+            if (docsExit != 0)
+                return docsExit;
         }
 
         return 0;
