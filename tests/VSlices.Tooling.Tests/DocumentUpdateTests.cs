@@ -48,7 +48,7 @@ public sealed class DocumentUpdateTests
         var child = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "Asumimos que el Docs Standard instalado es la autoridad normativa.");
 
         Assert.Equal(0, child.ExitCode);
@@ -79,7 +79,7 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "Respuesta hija que debe conservarse.")).ExitCode);
 
         var updated = await project.Run(
@@ -114,7 +114,7 @@ public sealed class DocumentUpdateTests
         var result = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "No debería poder entrar todavía.");
 
         Assert.NotEqual(0, result.ExitCode);
@@ -138,7 +138,7 @@ public sealed class DocumentUpdateTests
         var tooEarly = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2.1",
+            "--question-id", "1.1",
             "--answer", "Todavía no corresponde.");
         Assert.NotEqual(0, tooEarly.ExitCode);
         Assert.Contains("UPDATE105", tooEarly.StandardError, StringComparison.Ordinal);
@@ -146,13 +146,13 @@ public sealed class DocumentUpdateTests
         Assert.Equal(0, (await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "Asumimos que la fuente normativa está instalada.")).ExitCode);
 
         var risk = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2.1",
+            "--question-id", "1.1",
             "--answer", "Si cambia, discovery debe reconstruir otra superficie.");
 
         Assert.Equal(0, risk.ExitCode);
@@ -182,7 +182,7 @@ public sealed class DocumentUpdateTests
         var child = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "Child answer");
 
         Assert.Equal(0, child.ExitCode);
@@ -211,7 +211,7 @@ public sealed class DocumentUpdateTests
         var child = await project.Run(
             project.Root,
             "update", "document", "tooling-context",
-            "--question-id", "2",
+            "--question-id", "1",
             "--answer", "El estándar define el vocabulario.");
 
         Assert.Equal(0, child.ExitCode);
@@ -250,7 +250,7 @@ public sealed class DocumentUpdateTests
             "discovery", "document", "tooling-context");
 
         Assert.Equal(0, discovered.ExitCode);
-        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[1] ¿Qué estamos asumiendo como cierto?", discovered.StandardOutput, StringComparison.Ordinal);
     }
 
     private static async Task CreateContextDocument(ToolingTestProject project)
