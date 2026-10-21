@@ -365,7 +365,7 @@ public sealed class DocsStandardUpdateTests
         var created = await project.Run(project.Root,
             "new", "document", "qualified", "--kind", "alpha.context", "--target", "Tooling");
         Assert.Equal(0, created.ExitCode);
-        var source = File.ReadAllText(Path.Combine(project.Root, "qualified.md"));
+        var source = File.ReadAllText(Path.Combine(project.Root, "docs", "qualified.md"));
         Assert.Contains("type: alpha.context", source, StringComparison.Ordinal);
         Assert.Contains("Alpha question", source, StringComparison.Ordinal);
         var discovered = await project.Run(project.Root, "discovery", "document", "qualified");
@@ -386,7 +386,7 @@ public sealed class DocsStandardUpdateTests
             "new", "document", "short", "--kind", "context", "--target", "Tooling");
         Assert.Equal(0, created.ExitCode);
         Assert.Contains("type: alpha.context",
-            File.ReadAllText(Path.Combine(project.Root, "short.md")), StringComparison.Ordinal);
+            File.ReadAllText(Path.Combine(project.Root, "docs", "short.md")), StringComparison.Ordinal);
     }
 
     private static ToolingTestProject NewProject()
