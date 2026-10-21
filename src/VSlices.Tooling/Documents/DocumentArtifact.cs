@@ -1145,7 +1145,7 @@ internal sealed class DocumentArtifact
         {
             surface.Add(new DocumentQuestionAffordance(
                 1,
-                "1",
+                "root",
                 definition.RootQuestion.Id,
                 definition.RootQuestion.Text,
                 0,
@@ -1164,7 +1164,7 @@ internal sealed class DocumentArtifact
         var rootMaterialized = blocks.ContainsKey(definition.RootQuestion.Id);
         surface.Add(new DocumentQuestionAffordance(
             1,
-            "1",
+            "root",
             definition.RootQuestion.Id,
             definition.RootQuestion.Text,
             0,
@@ -1187,7 +1187,7 @@ internal sealed class DocumentArtifact
             depth: 1,
             scopeAnswerInstanceId: null,
             parentSelection: 1,
-            parentSelectionPath: "1",
+            parentSelectionPath: "root",
             topLevel: true);
 
         return surface;
