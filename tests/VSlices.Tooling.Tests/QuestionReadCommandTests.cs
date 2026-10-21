@@ -13,14 +13,14 @@ public sealed class QuestionReadCommandTests
         await Success(project, "update", "document", "sistema",
             "--question-id", "root", "--answer", "Una plataforma de gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2", "--answer", "Funcionarios y administradores.");
+            "--question-id", "1", "--answer", "Funcionarios y administradores.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2.1", "--answer", "Crear y consultar solicitudes.\n\nTambién pueden revisar su estado.");
+            "--question-id", "1.1", "--answer", "Crear y consultar solicitudes.\n\nTambién pueden revisar su estado.");
 
         var path = Path.Combine(project.Root, "sistema.md");
         var before = File.ReadAllBytes(path);
         var direct = await Success(project, "read", "document", "sistema",
-            "--question-id", "2.1");
+            "--question-id", "1.1");
         Assert.Contains("Question: ¿Qué puede hacer un funcionario?", direct, StringComparison.Ordinal);
         Assert.Contains("Answer: Crear y consultar solicitudes.", direct, StringComparison.Ordinal);
         Assert.Contains("También pueden revisar su estado.", direct, StringComparison.Ordinal);
@@ -28,7 +28,7 @@ public sealed class QuestionReadCommandTests
         Assert.DoesNotContain("Funcionarios y administradores.", direct, StringComparison.Ordinal);
         Assert.Equal(before, File.ReadAllBytes(path));
 
-        var explicitPath = await Success(project, "read", "document", path, "--question-id", "2.1");
+        var explicitPath = await Success(project, "read", "document", path, "--question-id", "1.1");
         Assert.Contains("Crear y consultar solicitudes.", explicitPath, StringComparison.Ordinal);
     }
 
@@ -41,14 +41,14 @@ public sealed class QuestionReadCommandTests
         await Success(project, "update", "document", "sistema",
             "--question-id", "root", "--answer", "Una plataforma de gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2", "--answer", "Funcionarios y administradores.");
+            "--question-id", "1", "--answer", "Funcionarios y administradores.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2.1", "--answer", "Crear y consultar solicitudes.");
+            "--question-id", "1.1", "--answer", "Crear y consultar solicitudes.");
 
         var deep = await Success(project, "read", "document", "sistema",
-            "--question-id", "2.1", "--deep");
-        AssertInOrder(deep, "[root] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?",
-            "[2.1] ¿Qué puede hacer un funcionario?");
+            "--question-id", "1.1", "--deep");
+        AssertInOrder(deep, "[root] ¿Qué es el sistema?", "[1] ¿Quién utiliza el sistema?",
+            "[1.1] ¿Qué puede hacer un funcionario?");
         AssertInOrder(deep, "Una plataforma de gestión de solicitudes.",
             "Funcionarios y administradores.", "Crear y consultar solicitudes.");
         Assert.DoesNotContain("Question:", deep, StringComparison.Ordinal);
@@ -56,7 +56,7 @@ public sealed class QuestionReadCommandTests
         var rootOnly = await Success(project, "read", "document", "sistema",
             "--question-id", "root", "--deep");
         Assert.Contains("[root] ¿Qué es el sistema?", rootOnly, StringComparison.Ordinal);
-        Assert.DoesNotContain("[2]", rootOnly, StringComparison.Ordinal);
+        Assert.DoesNotContain("[1]", rootOnly, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -68,24 +68,24 @@ public sealed class QuestionReadCommandTests
         await Success(project, "update", "document", "sistema",
             "--question-id", "root", "--answer", "Gestión de solicitudes.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2", "--answer", "Funcionarios\nCon cuentas habilitadas.");
+            "--question-id", "1", "--answer", "Funcionarios\nCon cuentas habilitadas.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2.1", "--answer", "Crear y consultar solicitudes.");
+            "--question-id", "1.1", "--answer", "Crear y consultar solicitudes.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "3", "--answer", "Administradores.");
+            "--question-id", "2", "--answer", "Administradores.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "3.1", "--answer", "Revisar permisos.");
+            "--question-id", "2.1", "--answer", "Revisar permisos.");
 
         var first = await Success(project, "read", "document", "sistema",
-            "--question-id", "2", "--deep");
+            "--question-id", "1", "--deep");
         Assert.Contains("Funcionarios", first, StringComparison.Ordinal);
         Assert.Contains("Con cuentas habilitadas.", first, StringComparison.Ordinal);
         Assert.DoesNotContain("Administradores.", first, StringComparison.Ordinal);
 
         var scoped = await Success(project, "read", "document", "sistema",
-            "--question-id", "3.1", "--deep");
-        AssertInOrder(scoped, "[root] ¿Qué es el sistema?", "[3] ¿Quién utiliza el sistema?",
-            "[3.1] ¿Qué puede hacer un funcionario?");
+            "--question-id", "2.1", "--deep");
+        AssertInOrder(scoped, "[root] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?",
+            "[2.1] ¿Qué puede hacer un funcionario?");
         Assert.Contains("Administradores.", scoped, StringComparison.Ordinal);
         Assert.Contains("Revisar permisos.", scoped, StringComparison.Ordinal);
         Assert.DoesNotContain("Funcionarios\n", scoped, StringComparison.Ordinal);
@@ -111,11 +111,11 @@ public sealed class QuestionReadCommandTests
         await Success(project, "update", "document", "sistema",
             "--question-id", "root", "--answer", "Versión oficial.");
         await Success(project, "update", "document", "sistema",
-            "--question-id", "2", "--answer", "Funcionarios.");
+            "--question-id", "1", "--answer", "Funcionarios.");
 
         var result = await Success(project, "read", "document", "sistema",
-            "--question-id", "2", "--deep");
-        AssertInOrder(result, "[root] ¿Qué es el sistema?", "[2] ¿Quién utiliza el sistema?");
+            "--question-id", "1", "--deep");
+        AssertInOrder(result, "[root] ¿Qué es el sistema?", "[1] ¿Quién utiliza el sistema?");
         AssertInOrder(result, "Versión oficial.", "Funcionarios.");
     }
 
@@ -129,7 +129,7 @@ public sealed class QuestionReadCommandTests
         Assert.Contains("Question: ¿Qué es el sistema?", first, StringComparison.Ordinal);
         Assert.DoesNotContain("Answer:", first, StringComparison.Ordinal);
         Assert.Equal(2, (await project.Run(project.Root,
-            "read", "document", "sistema", "--question-id", "2.1")).ExitCode);
+            "read", "document", "sistema", "--question-id", "1.1")).ExitCode);
         var missingFlag = await project.Run(project.Root, "read", "document", "sistema");
         Assert.NotEqual(0, missingFlag.ExitCode);
         Assert.Contains("READ007", missingFlag.StandardError, StringComparison.Ordinal);
