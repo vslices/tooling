@@ -5,7 +5,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class SupportNoteCommandTests
 {
     [Fact]
-    public async Task Draft_support_note_exposes_its_complete_two_question_surface()
+    public async Task Draft_support_note_reveals_children_only_after_parent_is_answered()
     {
         using var project = new ToolingTestProject();
         WriteEnvironment(project);
@@ -27,21 +27,22 @@ public sealed class SupportNoteCommandTests
 
         var initial = await Success(project, "discovery", "support-note", "first-submission");
         Assert.Contains("[1] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
-        Assert.Contains("[1.1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
-        Assert.Contains("parent: [1]", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain("[1.1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(project.Root, "first-submission.md")));
 
-        // Support Notes are deliberately tiny, so both questions remain directly authorable.
-        await Success(
-            project,
-            "update", "support-note", "first-submission",
-            "--question-id", "1.1",
-            "--answer", "Institutional confirmation of decree-specific variants.");
+        Assert.Contains("SUPART002", await Failure(
+            project, "update", "support-note", "first-submission",
+            "--question-id", "1.1", "--answer", "Premature child answer."), StringComparison.Ordinal);
 
         await Success(
-            project,
-            "update", "support-note", "first-submission",
-            "--question-id", "1",
-            "--answer", "Reconstructed external-user flow up to first submission.");
+            project, "update", "support-note", "first-submission",
+            "--question-id", "1", "--answer", "Reconstructed external-user flow up to first submission.");
+        var afterRoot = await Success(project, "discovery", "support-note", "first-submission");
+        Assert.Contains("[1.1] ¿Qué sigue abierto?", afterRoot, StringComparison.Ordinal);
+        Assert.Contains("parent: [1]", afterRoot, StringComparison.Ordinal);
+        await Success(
+            project, "update", "support-note", "first-submission",
+            "--question-id", "1.1", "--answer", "Institutional confirmation of decree-specific variants.");
 
         var source = Read(project, "first-submission");
         Assert.Contains("Reconstructed external-user flow", source, StringComparison.Ordinal);
@@ -75,16 +76,16 @@ public sealed class SupportNoteCommandTests
 
         Assert.Equal("support-note", Value(resultRelation, "kind"));
         Assert.Equal("validation", Value(resultRelation, "type"));
-        Assert.Equal("../advance-validation/README.md", Value(resultRelation, "target"));
+        Assert.Equal("advance-validation.md", Value(resultRelation, "target"));
         Assert.Equal("support-note", Value(validationRelation, "kind"));
         Assert.Equal("result", Value(validationRelation, "type"));
-        Assert.Equal("../advance-observation/README.md", Value(validationRelation, "target"));
+        Assert.Equal("advance-observation.md", Value(validationRelation, "target"));
 
         var resultDiscovery = await Success(project, "discovery", "support-note", "advance-observation");
         var validationDiscovery = await Success(project, "discovery", "support-note", "advance-validation");
 
-        Assert.Contains("../advance-validation/README.md", resultDiscovery, StringComparison.Ordinal);
-        Assert.Contains("../advance-observation/README.md", validationDiscovery, StringComparison.Ordinal);
+        Assert.Contains("advance-validation.md", resultDiscovery, StringComparison.Ordinal);
+        Assert.Contains("advance-observation.md", validationDiscovery, StringComparison.Ordinal);
         Assert.Contains("Interprets this observed result", resultDiscovery, StringComparison.Ordinal);
 
         await Success(
@@ -102,13 +103,13 @@ public sealed class SupportNoteCommandTests
         var resultRelationAfterUpdate = Assert.Single(Relations(project, "advance-observation"));
         var validationRelationAfterUpdate = Assert.Single(Relations(project, "advance-validation"));
 
-        Assert.Equal("../advance-validation/README.md", Value(resultRelationAfterUpdate, "target"));
+        Assert.Equal("advance-validation.md", Value(resultRelationAfterUpdate, "target"));
         Assert.Equal("validation", Value(resultRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
             Value(resultRelationAfterUpdate, "role"));
 
-        Assert.Equal("../advance-observation/README.md", Value(validationRelationAfterUpdate, "target"));
+        Assert.Equal("advance-observation.md", Value(validationRelationAfterUpdate, "target"));
         Assert.Equal("result", Value(validationRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
@@ -131,8 +132,8 @@ public sealed class SupportNoteCommandTests
             await Failure(project, "new", "support-note", "unknown", "--kind", "invented", "--target", "Thing"),
             StringComparison.Ordinal);
 
-        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target", "README.md")));
-        Assert.False(File.Exists(Path.Combine(project.Root, "unknown", "README.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "unknown.md")));
     }
 
     private static void WriteEnvironment(ToolingTestProject project)
@@ -204,7 +205,7 @@ public sealed class SupportNoteCommandTests
     }
 
     private static string Read(ToolingTestProject project, string name) =>
-        File.ReadAllText(Path.Combine(project.Root, name, "README.md"))
+        File.ReadAllText(Path.Combine(project.Root, name + ".md"))
             .Replace("\r\n", "\n", StringComparison.Ordinal);
 
     private static YamlMappingNode Metadata(ToolingTestProject project, string name) =>
