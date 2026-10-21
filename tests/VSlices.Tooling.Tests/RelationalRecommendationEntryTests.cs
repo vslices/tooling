@@ -7,8 +7,8 @@ public sealed class RelationalRecommendationEntryTests
     [Theory]
     [InlineData("nexus", "capability", "--from-nexus", "1", "document", "origin/context", "README.md")]
     [InlineData("nexus", "capability", "--from-nexus", "2", "nexus", "origin/detail", "../README.md")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.1", "document", "origin/context", "README.md")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.2.1", "nexus", "origin/capability", "../README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "1.1", "document", "origin/context", "README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "1.2.1", "nexus", "origin/capability", "../README.md")]
     public async Task Prepared_recommendation_commands_work_without_positional_name(
         string sourceFamily, string sourceType, string flag, string selection, string family, string expectedName, string expectedSourceRelation)
     {
