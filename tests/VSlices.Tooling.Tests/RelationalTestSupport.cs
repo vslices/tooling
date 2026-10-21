@@ -128,7 +128,7 @@ internal static class RelationalTestSupport
 
     public static string Selection(string output, string id)
     {
-        var start = output.IndexOf("\n[" + id + "] ", StringComparison.Ordinal);
+        var start = output.LastIndexOf("\n[" + id + "] ", StringComparison.Ordinal);
         Assert.True(start >= 0, $"Missing selection [{id}] in:\n{output}");
         var next = output.IndexOf("\n[", start + 1, StringComparison.Ordinal);
         var associations = output.IndexOf("\nArtifacts asociados:", start + 1, StringComparison.Ordinal);
