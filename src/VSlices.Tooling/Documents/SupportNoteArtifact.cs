@@ -13,7 +13,8 @@ internal sealed record SupportNoteQuestionSurface(
 internal sealed record SupportNoteArtifactState(
     KnowledgeArtifactMetadata Metadata,
     IReadOnlyList<SupportNoteQuestionSurface> Questions,
-    string Source);
+    string Source,
+    SupportNoteDefinition Definition);
 
 internal sealed record SupportNoteArtifactStateResult(
     SupportNoteArtifactState? State,
@@ -48,7 +49,7 @@ internal static class SupportNoteArtifact
         sb.AppendLine();
         sb.AppendLine($"# Nota de soporte — {definition.Type} — {target}");
         sb.AppendLine();
-        RenderQuestionTree(sb, definition.RootQuestion, 2);
+        RenderQuestion(sb, definition.RootQuestion, 2);
         return KnowledgeArtifactFrontMatter.Normalize(sb.ToString());
     }
 
@@ -69,7 +70,7 @@ internal static class SupportNoteArtifact
 
         var expected = new HashSet<string>(StringComparer.Ordinal);
         CollectQuestionIds(definition.RootQuestion, expected);
-        var answers = ReadQuestionAnswers(source, expected, out var error);
+        var answers = ReadQuestionAnswers(source, expected, definition.RootQuestion.Id, out var error);
         if (error is not null)
             return SupportNoteArtifactStateResult.Failure(error);
 
@@ -77,7 +78,7 @@ internal static class SupportNoteArtifact
         AddQuestionSurface(definition.RootQuestion, "1", null, answers, surfaces);
 
         return SupportNoteArtifactStateResult.Success(
-            new SupportNoteArtifactState(metadata.Metadata, surfaces, source));
+            new SupportNoteArtifactState(metadata.Metadata, surfaces, source, definition));
     }
 
     public static string UpdateQuestion(
@@ -113,6 +114,21 @@ internal static class SupportNoteArtifact
         }
 
         var updated = normalized[..contentStart] + "\n" + answer.Trim() + "\n" + normalized[end..];
+        // Materialize only newly reachable children. Never duplicate regions in legacy artifacts.
+        var definition = FindQuestion(state.Definition.RootQuestion, selected.Id);
+        if (definition is not null && definition.Children.Count > 0)
+        {
+            var missing = definition.Children.Where(child =>
+                !updated.Contains(QuestionPrefix + child.Id + QuestionSuffix, StringComparison.Ordinal)).ToArray();
+            if (missing.Length > 0)
+            {
+                var children = new StringBuilder();
+                foreach (var child in missing)
+                    RenderQuestion(children, child, 2 + selected.SelectionPath.Count(c => c == '.') + 1);
+                var insertion = updated.IndexOf(QuestionEnd, contentStart, StringComparison.Ordinal) + QuestionEnd.Length;
+                updated = updated.Insert(insertion, "\n\n" + children.ToString().TrimEnd());
+            }
+        }
         return KnowledgeArtifactFrontMatter.WithMetadata(updated, state.Metadata, state.Metadata.Relations);
     }
 
@@ -149,6 +165,7 @@ internal static class SupportNoteArtifact
     private static Dictionary<string, string> ReadQuestionAnswers(
         string source,
         HashSet<string> expected,
+        string expectedRootId,
         out string? error)
     {
         error = null;
@@ -193,7 +210,7 @@ internal static class SupportNoteArtifact
             }
         }
 
-        if (current is not null || expected.Any(id => !answers.ContainsKey(id)))
+        if (current is not null || !answers.ContainsKey(expectedRootId))
             error = "SUPART005: A required Support Note question region is missing or unclosed.";
 
         return answers;
@@ -208,17 +225,22 @@ internal static class SupportNoteArtifact
             CollectQuestionIds(child, ids);
     }
 
-    private static void RenderQuestionTree(
-        StringBuilder sb,
-        SupportNoteQuestionDefinition question,
-        int headingLevel)
+    private static SupportNoteQuestionDefinition? FindQuestion(SupportNoteQuestionDefinition question, string id)
+    {
+        if (question.Id == id) return question;
+        foreach (var child in question.Children)
+        {
+            var found = FindQuestion(child, id);
+            if (found is not null) return found;
+        }
+        return null;
+    }
+
+    private static void RenderQuestion(StringBuilder sb, SupportNoteQuestionDefinition question, int headingLevel)
     {
         sb.AppendLine(new string('#', Math.Min(headingLevel, 6)) + " " + question.Text);
         sb.AppendLine(QuestionPrefix + question.Id + QuestionSuffix);
         sb.AppendLine(QuestionEnd);
         sb.AppendLine();
-
-        foreach (var child in question.Children)
-            RenderQuestionTree(sb, child, headingLevel + 1);
     }
 }
