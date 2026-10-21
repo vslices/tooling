@@ -172,25 +172,25 @@ public sealed class QuestionReadCommandTests
         await Success(project, "new", "continuity-path", "trayectoria",
             "--kind", "domain-context", "--target", "Serviu");
         await Success(project, "update", "continuity-path", "trayectoria",
-            "--question-id", "3", "--answer", "Contexto de permisos.");
+            "--question-id", "root", "--answer", "Contexto de permisos.");
         await Success(project, "update", "continuity-path", "trayectoria",
-            "--question-id", "3.1", "--answer", "Conocimiento del proceso.");
+            "--question-id", "1", "--answer", "Conocimiento del proceso.");
         await Success(project, "update", "continuity-path", "trayectoria",
-            "--question-id", "3.1.2", "--answer", "Capacidad de autorización.");
+            "--question-id", "1.2", "--answer", "Capacidad de autorización.");
 
         var selected = await Success(project, "read", "continuity-path", "trayectoria",
-            "--question-id", "3.1.2");
+            "--question-id", "1.2");
         Assert.Contains("Question: Which capability composes it?", selected, StringComparison.Ordinal);
         Assert.Contains("Answer: Capacidad de autorización.", selected, StringComparison.Ordinal);
         var deep = await Success(project, "read", "continuity-path", "trayectoria",
-            "--question-id", "3.1.2", "--deep");
-        AssertInOrder(deep, "[3] Which context?", "[3.1] What \"knowledge\" matters?",
-            "[3.1.2] Which capability composes it?");
+            "--question-id", "1.2", "--deep");
+        AssertInOrder(deep, "[root] Which context?", "[1] What \"knowledge\" matters?",
+            "[1.2] Which capability composes it?");
         AssertInOrder(deep, "Contexto de permisos.", "Conocimiento del proceso.",
             "Capacidad de autorización.");
-        Assert.DoesNotContain("[1] Propósito del recorrido", deep, StringComparison.Ordinal);
+        Assert.DoesNotContain("[purpose] Propósito del recorrido", deep, StringComparison.Ordinal);
         var purpose = await Success(project, "read", "continuity-path", "trayectoria",
-            "--question-id", "1");
+            "--question-id", "purpose");
         Assert.Contains("Answer: Preserve contextual continuity", purpose, StringComparison.Ordinal);
     }
 
@@ -218,12 +218,12 @@ public sealed class QuestionReadCommandTests
         await Success(project, "new", "support-note", "first-submission",
             "--kind", "draft", "--target", "Serviu");
         await Success(project, "update", "support-note", "first-submission",
-            "--question-id", "1", "--answer", "A request workflow.");
+            "--question-id", "purpose", "--answer", "A request workflow.");
         await Success(project, "update", "support-note", "first-submission",
-            "--question-id", "1.1", "--answer", "Authentication details.");
+            "--question-id", "1", "--answer", "Authentication details.");
         var deep = await Success(project, "read", "support-note", "first-submission",
-            "--question-id", "1.1", "--deep");
-        AssertInOrder(deep, "[1] What are we drafting?", "[1.1] What remains open?");
+            "--question-id", "1", "--deep");
+        AssertInOrder(deep, "[root] What are we drafting?", "[1] What remains open?");
         AssertInOrder(deep, "A request workflow.", "Authentication details.");
     }
 
