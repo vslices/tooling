@@ -133,6 +133,8 @@ internal static class SupportNoteArtifact
             answer,
             parentSelectionPath));
 
+        if (!answered) return;
+
         for (var index = 0; index < question.Children.Count; index++)
         {
             AddQuestionSurface(
