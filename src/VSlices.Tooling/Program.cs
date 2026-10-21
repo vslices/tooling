@@ -53,7 +53,7 @@ app.Add("delete docs-standard", DocsStandardCommands.Delete);
 app.Add("discovery docs-standard", DocsStandardDiscoveryCommands.Discover);
 app.Add("new document", NewCommands.Document);
 app.Add("new support-note", NewCommands.SupportNote);
-app.Add("relate support-note", RelateCommands.SupportNote);
+app.Add("relate", RelateCommands.Relate);
 app.Add("new nexus", NewCommands.Nexus);
 app.Add("new continuity-path", NewCommands.ContinuityPath);
 app.Add("discovery vsir", DiscoveryCommands.Vsir);
