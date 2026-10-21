@@ -98,7 +98,7 @@ public sealed class NewDocumentCommandTests
         Assert.Equal(0, discovery.ExitCode);
         Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
         var update = await project.Run(project.Root, "update", "document", "tooling-context",
-            "--question-id", "1", "--answer", "Routed answer");
+            "--question-id", "root", "--answer", "Routed answer");
         Assert.Equal(0, update.ExitCode);
         Assert.Contains("Routed answer", File.ReadAllText(Path.Combine(project.Root, "docs", "knowledge", "tooling-context.md")), StringComparison.Ordinal);
     }
