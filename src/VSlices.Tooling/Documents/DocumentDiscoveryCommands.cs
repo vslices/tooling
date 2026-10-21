@@ -90,6 +90,9 @@ internal static class DocumentDiscoveryCommands
         }
         Console.WriteLine();
         Console.WriteLine("Current document surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(artifact.Surface.Select(q =>
+            new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
 
         var answerLabels = artifact.Surface
             .Where(question => question.AnswerInstanceId is not null)
