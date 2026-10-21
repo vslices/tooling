@@ -75,7 +75,7 @@ internal static class SupportNoteArtifact
             return SupportNoteArtifactStateResult.Failure(error);
 
         var surfaces = new List<SupportNoteQuestionSurface>();
-        AddQuestionSurface(definition.RootQuestion, "1", null, answers, surfaces);
+        AddQuestionSurface(definition.RootQuestion, "root", null, answers, surfaces);
 
         return SupportNoteArtifactStateResult.Success(
             new SupportNoteArtifactState(metadata.Metadata, surfaces, source, definition));
@@ -155,7 +155,7 @@ internal static class SupportNoteArtifact
         {
             AddQuestionSurface(
                 question.Children[index],
-                $"{selectionPath}.{index + 1}",
+                selectionPath == "root" ? (index + 1).ToString() : $"{selectionPath}.{index + 1}",
                 selectionPath,
                 answers,
                 surfaces);
