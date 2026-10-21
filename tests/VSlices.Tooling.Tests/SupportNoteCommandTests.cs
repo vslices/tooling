@@ -172,6 +172,29 @@ public sealed class SupportNoteCommandTests
     }
 
     [Fact]
+    public async Task Generic_relate_supports_different_artifact_families()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "note", "--kind", "draft", "--target", "Scope");
+        await Success(project, "new", "document", "context", "--kind", "context", "--target", "Scope");
+        await Success(project, "relate", "note", "--to", "context", "--role", "Explains context");
+
+        var noteRelation = Assert.Single(Relations(project, "note"));
+        Assert.Equal("document", Value(noteRelation, "kind"));
+        Assert.Equal("context.md", Value(noteRelation, "target"));
+        var contextMetadata = ArtifactTestMetadata.Read(
+            File.ReadAllText(Path.Combine(project.Root, "context.md")));
+        var documentRelations = Assert.IsType<YamlSequenceNode>(
+            ArtifactTestMetadata.Node(contextMetadata, "metadata", "relates"));
+        var reciprocal = Assert.IsType<YamlMappingNode>(Assert.Single(documentRelations.Children));
+        Assert.Equal("support-note", Value(reciprocal, "kind"));
+        Assert.Equal("note.md", Value(reciprocal, "target"));
+        Assert.Contains("context.md", await Success(project, "discovery", "support-note", "note"));
+        Assert.Contains("note.md", await Success(project, "discovery", "document", "context"));
+    }
+
+    [Fact]
     public async Task Support_note_requires_a_known_type_and_target()
     {
         using var project = new ToolingTestProject();
