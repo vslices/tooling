@@ -13,13 +13,14 @@ public sealed class SupportNoteDefinitionTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--origin", source);
+            "new", "docs-standard", "--origin", source);
 
         Assert.Equal(0, result.ExitCode);
 
         var installed = Path.Combine(
             project.VslicesRoot,
-            "docs-standard",
+            "docs",
+            "sample",
             "support-notes",
             "draft.yml");
 
@@ -41,11 +42,11 @@ public sealed class SupportNoteDefinitionTests
 
         var result = await project.Run(
             project.Root,
-            "update", "docs-standard", "--origin", source);
+            "new", "docs-standard", "--origin", source);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains("SUPSTD020", result.StandardError, StringComparison.Ordinal);
-        Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "docs-standard")));
+        Assert.False(Directory.Exists(Path.Combine(project.VslicesRoot, "docs", "sample")));
     }
 
     private static void WriteStandard(string root, bool threeQuestions)
@@ -60,6 +61,7 @@ public sealed class SupportNoteDefinitionTests
             """
             kind: vslices-docs-standard
             version: 0.1
+            name: sample
 
             documents:
               - documents/context.yml

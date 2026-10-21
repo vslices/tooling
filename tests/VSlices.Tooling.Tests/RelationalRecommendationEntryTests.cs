@@ -7,8 +7,8 @@ public sealed class RelationalRecommendationEntryTests
     [Theory]
     [InlineData("nexus", "capability", "--from-nexus", "1", "document", "origin/context", "README.md")]
     [InlineData("nexus", "capability", "--from-nexus", "2", "nexus", "origin/detail", "../README.md")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.1", "document", "origin/context", "README.md")]
-    [InlineData("continuity-path", "domain-context", "--from-path", "3.1.2.1", "nexus", "origin/capability", "../README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "1.1", "document", "origin/context", "README.md")]
+    [InlineData("continuity-path", "domain-context", "--from-path", "1.2.1", "nexus", "origin/capability", "../README.md")]
     public async Task Prepared_recommendation_commands_work_without_positional_name(
         string sourceFamily, string sourceType, string flag, string selection, string family, string expectedName, string expectedSourceRelation)
     {
@@ -34,16 +34,16 @@ public sealed class RelationalRecommendationEntryTests
         await Success(project, "new", "continuity-path", "domain", "--kind", "domain-context", "--target", "Domain");
         var discovery = await Success(project, "discovery", "continuity-path", "domain");
         Assert.Contains("¿Qué capacidades nacen desde este dominio?", discovery, StringComparison.Ordinal);
-        Assert.Contains("vslices new nexus --from-path domain:3.4.1", discovery, StringComparison.Ordinal);
-        Assert.Contains("vslices new document --from-path domain:3.5.1", discovery, StringComparison.Ordinal);
-        await Success(project, "new", "nexus", "--from-path", "domain:3.4.1");
+        Assert.Contains("vslices new nexus --from-path domain:4.1", discovery, StringComparison.Ordinal);
+        Assert.Contains("vslices new document --from-path domain:5.1", discovery, StringComparison.Ordinal);
+        await Success(project, "new", "nexus", "--from-path", "domain:4.1");
         var nexus = await Success(project, "discovery", "nexus", "domain/capability");
         Assert.Equal("capability", Value(Metadata(project, "domain/capability"), "artifact", "scope"));
         Assert.Contains("[1] document: scope", nexus, StringComparison.Ordinal);
         Assert.Contains("[6] document: decision-record", nexus, StringComparison.Ordinal);
         Assert.Contains("../README.md", nexus, StringComparison.Ordinal);
         // The Document definition is the synthetic context fixture; candidate Path and Nexus definitions are verbatim snapshots.
-        await Success(project, "new", "document", "--from-path", "domain:3.5.1");
+        await Success(project, "new", "document", "--from-path", "domain:5.1");
         Assert.Equal("Domain", Value(Metadata(project, "domain/context"), "artifact", "target"));
         Assert.Equal(2, Relations(project, "domain").Length);
     }

@@ -5,6 +5,28 @@ namespace VSlices.Tooling.Tests;
 public sealed class NewDocumentCommandTests
 {
     [Fact]
+    public async Task New_document_explains_missing_template_policy_instead_of_failing_opaquely()
+    {
+        using var project = new ToolingTestProject();
+        await WriteDocumentAuthoringEnvironment(project);
+        var configuration = Path.Combine(project.VslicesRoot, "config.yaml");
+        var yaml = File.ReadAllText(configuration);
+        Assert.Contains("template: markdown.question-tree", yaml, StringComparison.Ordinal);
+        File.WriteAllText(configuration, yaml.Replace(
+            "template: markdown.question-tree", "template: ", StringComparison.Ordinal));
+
+        var result = await project.Run(project.Root,
+            "new", "document", "missing-policy", "--kind", "context", "--target", "Tooling");
+
+        Assert.NotEqual(0, result.ExitCode);
+        Assert.Contains("DOCMAT003", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains(".vslices/config.yaml", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("documents.template", result.StandardError, StringComparison.Ordinal);
+        Assert.Contains("markdown.question-tree", result.StandardError, StringComparison.Ordinal);
+        Assert.False(File.Exists(Path.Combine(project.Root, "missing-policy.md")));
+    }
+
+    [Fact]
     public async Task New_document_materializes_promoted_identity_and_markerless_root_question()
     {
         using var project = new ToolingTestProject();
@@ -76,7 +98,7 @@ public sealed class NewDocumentCommandTests
         Assert.Equal(0, discovery.ExitCode);
         Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
         var update = await project.Run(project.Root, "update", "document", "tooling-context",
-            "--question-id", "1", "--answer", "Routed answer");
+            "--question-id", "root", "--answer", "Routed answer");
         Assert.Equal(0, update.ExitCode);
         Assert.Contains("Routed answer", File.ReadAllText(Path.Combine(project.Root, "docs", "knowledge", "tooling-context.md")), StringComparison.Ordinal);
     }

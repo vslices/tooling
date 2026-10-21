@@ -4,6 +4,8 @@ namespace VSlices.Tooling;
 
 internal static class SupportNoteDiscoveryCommands
 {
+    /// <summary>Discovers available questions, answers, and associations in a Support Note.</summary>
+    /// <param name="artifact">Support Note name or path to inspect.</param>
     public static Task<int> Discover(
         [Argument] string artifact,
         CancellationToken cancellationToken = default)
@@ -48,6 +50,8 @@ internal static class SupportNoteDiscoveryCommands
         KnowledgeArtifactTags.WriteDiscovery("support-note", artifact, resolved.Metadata);
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(state.State!.Questions.Select(q => new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
 
         foreach (var question in state.State!.Questions)
         {

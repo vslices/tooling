@@ -1,6 +1,6 @@
-Repository: https://github.com/vslices/ruleset
+Repository: https://github.com/vslices/ruleset-standard
 Commit: e2f5ea85283cc3a91e8c87107a06e0c23ccc1668
-Meaning: merge commit of vslices/ruleset#4 used as the production Ruleset review cut for Tooling 0.2.0.
+Meaning: merge commit of vslices/ruleset-standard#4 used as the production Ruleset review cut for Tooling 0.2.0.
 
 Copied files:
 - manifest.yaml (Git blob 546a2b63de0bd0c2a533d276f54c30fb9ebb6ac3)

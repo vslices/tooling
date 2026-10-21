@@ -19,7 +19,7 @@ public sealed class DocumentFrontMatterTests
         var discovery = await project.Run(project.Root, "discovery", "document", "context");
         Assert.Equal(0, discovery.ExitCode);
         Assert.Contains("type: context", discovery.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[1] ¿En qué contexto existe?", discovery.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿En qué contexto existe?", discovery.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("[1] Texto visible histórico", discovery.StandardOutput, StringComparison.Ordinal);
     }
 
@@ -42,9 +42,9 @@ public sealed class DocumentFrontMatterTests
             """);
         var result = await project.Run(project.Root, "discovery", "document", "context");
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("[1] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Dónde existe?", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: answered", result.StandardOutput, StringComparison.Ordinal);
-        Assert.Contains("[2] ¿Qué estamos asumiendo como cierto?", result.StandardOutput, StringComparison.Ordinal);
+        Assert.Contains("[1] ¿Qué estamos asumiendo como cierto?", result.StandardOutput, StringComparison.Ordinal);
         Assert.Contains("status: available", result.StandardOutput, StringComparison.Ordinal);
         Assert.DoesNotContain("vslices:question", File.ReadAllText(path), StringComparison.Ordinal);
     }

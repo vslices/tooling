@@ -5,7 +5,7 @@ namespace VSlices.Tooling.Tests;
 public sealed class SupportNoteCommandTests
 {
     [Fact]
-    public async Task Draft_support_note_exposes_its_complete_two_question_surface()
+    public async Task Draft_support_note_reveals_children_only_after_parent_is_answered()
     {
         using var project = new ToolingTestProject();
         WriteEnvironment(project);
@@ -26,22 +26,25 @@ public sealed class SupportNoteCommandTests
         Assert.Equal("support-note.question-tree", Value(metadata, "tooling", "template", "name"));
 
         var initial = await Success(project, "discovery", "support-note", "first-submission");
-        Assert.Contains("[1] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
-        Assert.Contains("[1.1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
-        Assert.Contains("parent: [1]", initial, StringComparison.Ordinal);
+        Assert.Contains("[root] ¿Qué estamos esbozando?", initial, StringComparison.Ordinal);
+        Assert.DoesNotContain("[1] ¿Qué sigue abierto?", initial, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(project.Root, "first-submission.md")));
+        Assert.DoesNotContain("¿Qué sigue abierto?", Read(project, "first-submission"), StringComparison.Ordinal);
 
-        // Support Notes are deliberately tiny, so both questions remain directly authorable.
-        await Success(
-            project,
-            "update", "support-note", "first-submission",
-            "--question-id", "1.1",
-            "--answer", "Institutional confirmation of decree-specific variants.");
+        Assert.Contains("SUPART002", await Failure(
+            project, "update", "support-note", "first-submission",
+            "--question-id", "1", "--answer", "Premature child answer."), StringComparison.Ordinal);
 
         await Success(
-            project,
-            "update", "support-note", "first-submission",
-            "--question-id", "1",
-            "--answer", "Reconstructed external-user flow up to first submission.");
+            project, "update", "support-note", "first-submission",
+            "--question-id", "root", "--answer", "Reconstructed external-user flow up to first submission.");
+        var afterRoot = await Success(project, "discovery", "support-note", "first-submission");
+        Assert.Contains("[1] ¿Qué sigue abierto?", afterRoot, StringComparison.Ordinal);
+        Assert.Contains("parent: [root]", afterRoot, StringComparison.Ordinal);
+        Assert.Contains("¿Qué sigue abierto?", Read(project, "first-submission"), StringComparison.Ordinal);
+        await Success(
+            project, "update", "support-note", "first-submission",
+            "--question-id", "1", "--answer", "Institutional confirmation of decree-specific variants.");
 
         var source = Read(project, "first-submission");
         Assert.Contains("Reconstructed external-user flow", source, StringComparison.Ordinal);
@@ -75,44 +78,120 @@ public sealed class SupportNoteCommandTests
 
         Assert.Equal("support-note", Value(resultRelation, "kind"));
         Assert.Equal("validation", Value(resultRelation, "type"));
-        Assert.Equal("../advance-validation/README.md", Value(resultRelation, "target"));
+        Assert.Equal("advance-validation.md", Value(resultRelation, "target"));
         Assert.Equal("support-note", Value(validationRelation, "kind"));
         Assert.Equal("result", Value(validationRelation, "type"));
-        Assert.Equal("../advance-observation/README.md", Value(validationRelation, "target"));
+        Assert.Equal("advance-observation.md", Value(validationRelation, "target"));
 
         var resultDiscovery = await Success(project, "discovery", "support-note", "advance-observation");
         var validationDiscovery = await Success(project, "discovery", "support-note", "advance-validation");
 
-        Assert.Contains("../advance-validation/README.md", resultDiscovery, StringComparison.Ordinal);
-        Assert.Contains("../advance-observation/README.md", validationDiscovery, StringComparison.Ordinal);
+        Assert.Contains("advance-validation.md", resultDiscovery, StringComparison.Ordinal);
+        Assert.Contains("advance-observation.md", validationDiscovery, StringComparison.Ordinal);
         Assert.Contains("Interprets this observed result", resultDiscovery, StringComparison.Ordinal);
 
         await Success(
             project,
             "update", "support-note", "advance-observation",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "The inspected external route validates one financial line.");
 
         await Success(
             project,
             "update", "support-note", "advance-validation",
-            "--question-id", "1",
+            "--question-id", "root",
             "--answer", "The observed route does not by itself demonstrate the complete target rule.");
 
         var resultRelationAfterUpdate = Assert.Single(Relations(project, "advance-observation"));
         var validationRelationAfterUpdate = Assert.Single(Relations(project, "advance-validation"));
 
-        Assert.Equal("../advance-validation/README.md", Value(resultRelationAfterUpdate, "target"));
+        Assert.Equal("advance-validation.md", Value(resultRelationAfterUpdate, "target"));
         Assert.Equal("validation", Value(resultRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
             Value(resultRelationAfterUpdate, "role"));
 
-        Assert.Equal("../advance-observation/README.md", Value(validationRelationAfterUpdate, "target"));
+        Assert.Equal("advance-observation.md", Value(validationRelationAfterUpdate, "target"));
         Assert.Equal("result", Value(validationRelationAfterUpdate, "type"));
         Assert.Equal(
             "Interprets this observed result against the target criterion",
             Value(validationRelationAfterUpdate, "role"));
+    }
+
+    [Fact]
+    public async Task Existing_support_notes_can_be_related_bidirectionally()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "first", "--kind", "draft", "--target", "One");
+        await Success(project, "new", "support-note", "second", "--kind", "result", "--target", "Two");
+        await Success(project, "relate", "first", "--to", "second", "--role", "Complements");
+
+        var first = Assert.Single(Relations(project, "first"));
+        var second = Assert.Single(Relations(project, "second"));
+        Assert.Equal("second.md", Value(first, "target"));
+        Assert.Equal("result", Value(first, "type"));
+        Assert.Equal("first.md", Value(second, "target"));
+        Assert.Equal("draft", Value(second, "type"));
+        Assert.Equal("Complements", Value(first, "role"));
+        Assert.Equal("Complements", Value(second, "role"));
+        Assert.Contains("second.md", await Success(project, "discovery", "support-note", "first"));
+        Assert.Contains("first.md", await Success(project, "discovery", "support-note", "second"));
+
+        await Success(project, "update", "support-note", "first", "--question-id", "root", "--answer", "Done");
+        Assert.Single(Relations(project, "first"));
+        Assert.Single(Relations(project, "second"));
+    }
+
+    [Fact]
+    public async Task Existing_support_note_relation_rejects_invalid_requests_without_mutation()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "first", "--kind", "draft", "--target", "One");
+        await Success(project, "new", "support-note", "second", "--kind", "result", "--target", "Two");
+        var beforeFirst = Read(project, "first");
+        var beforeSecond = Read(project, "second");
+
+        Assert.Contains("RELATE003", await Failure(project,
+            "relate", "first", "--to", "first", "--role", "Self"));
+        Assert.Contains("RELCLI002", await Failure(project,
+            "relate", "first", "--to", "nonexistent", "--role", "Missing"));
+        Assert.Contains("RELATE001", await Failure(project,
+            "relate", "first", "--to", "second"));
+        Assert.Equal(beforeFirst, Read(project, "first"));
+        Assert.Equal(beforeSecond, Read(project, "second"));
+
+        await Success(project, "relate", "first", "--to", "second", "--role", "First link");
+        var linkedFirst = Read(project, "first");
+        var linkedSecond = Read(project, "second");
+        Assert.Contains("RELATE004", await Failure(project,
+            "relate", "second", "--to", "first", "--role", "Duplicate"));
+        Assert.Equal(linkedFirst, Read(project, "first"));
+        Assert.Equal(linkedSecond, Read(project, "second"));
+    }
+
+    [Fact]
+    public async Task Generic_relate_supports_different_artifact_families()
+    {
+        using var project = new ToolingTestProject();
+        WriteEnvironment(project);
+        await Success(project, "new", "support-note", "note", "--kind", "draft", "--target", "Scope");
+        await Success(project, "new", "document", "context", "--kind", "context", "--target", "Scope");
+        await Success(project, "relate", "note", "--to", "context", "--role", "Explains context");
+
+        var noteRelation = Assert.Single(Relations(project, "note"));
+        Assert.Equal("document", Value(noteRelation, "kind"));
+        Assert.Equal("context.md", Value(noteRelation, "target"));
+        var contextMetadata = ArtifactTestMetadata.Read(
+            File.ReadAllText(Path.Combine(project.Root, "context.md")));
+        var documentRelations = Assert.IsType<YamlSequenceNode>(
+            ArtifactTestMetadata.Node(contextMetadata, "metadata", "relates"));
+        var reciprocal = Assert.IsType<YamlMappingNode>(Assert.Single(documentRelations.Children));
+        Assert.Equal("support-note", Value(reciprocal, "kind"));
+        Assert.Equal("note.md", Value(reciprocal, "target"));
+        Assert.Contains("context.md", await Success(project, "discovery", "support-note", "note"));
+        Assert.Contains("note.md", await Success(project, "discovery", "document", "context"));
     }
 
     [Fact]
@@ -131,8 +210,8 @@ public sealed class SupportNoteCommandTests
             await Failure(project, "new", "support-note", "unknown", "--kind", "invented", "--target", "Thing"),
             StringComparison.Ordinal);
 
-        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target", "README.md")));
-        Assert.False(File.Exists(Path.Combine(project.Root, "unknown", "README.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "missing-target.md")));
+        Assert.False(File.Exists(Path.Combine(project.Root, "unknown.md")));
     }
 
     private static void WriteEnvironment(ToolingTestProject project)
@@ -204,7 +283,7 @@ public sealed class SupportNoteCommandTests
     }
 
     private static string Read(ToolingTestProject project, string name) =>
-        File.ReadAllText(Path.Combine(project.Root, name, "README.md"))
+        File.ReadAllText(Path.Combine(project.Root, name + ".md"))
             .Replace("\r\n", "\n", StringComparison.Ordinal);
 
     private static YamlMappingNode Metadata(ToolingTestProject project, string name) =>

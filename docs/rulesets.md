@@ -6,11 +6,17 @@ VSlices separates revisable upstream target knowledge from project-owned semanti
 VSIR
   = semantic document
 
-vslices/ruleset
+vslices/ruleset-standard
   = official revisable lowering knowledge
 
+project/.vslices/ruleset-standards/<name>
+  = independently installed source-owned snapshots
+
+project/.vslices/ruleset-standards/local/<name>
+  = original editable local lowering standard
+
 project/.vslices/ruleset
-  = installed source-owned snapshot
+  = legacy singleton snapshot
 
 project/.vslices/extensions
   = project-owned semantic extension overlay
@@ -23,19 +29,25 @@ A missing rule means unsupported/unresolved lowering. It never authorizes an emb
 
 ## Ownership and lifecycle
 
-`.vslices/ruleset` and `.vslices/extensions` intentionally have different lifecycle owners.
+Ruleset Standards and project semantic extensions intentionally have **different
+authorities and lifecycles**. Multiple independently named standards can coexist
+under `.vslices/ruleset-standards/`: `vslices new ruleset-standard [name]`
+creates an editable local standard, while `--origin` imports a managed snapshot.
+`vslices update ruleset-standard` updates imported snapshots after reviewing
+a diff, without replacing project-owned originals.
 
-```text
-.vslices/ruleset
-  source-owned
-  replaceable by vslices update ruleset
+The project extension overlay remains independent under `.vslices/extensions`.
+It admits project semantics; no source-owned Ruleset Standard installation may
+overwrite it. The legacy `.vslices/ruleset` directory and
+`vslices update ruleset` command continue as a transitional singleton path.
+See [the Ruleset Standard lifecycle specification](design/multiple-ruleset-standards-lifecycle.md)
+for the complete contract.
 
-.vslices/extensions
-  project-owned
-  preserved by vslices update ruleset
-```
-
-This prevents a Ruleset refresh from deleting project semantics while keeping installed Ruleset knowledge reproducible from its configured source.
+At lowering time, validated rules are combined by exact `node`. Definitions
+with different nodes coexist; definitions with the **same node** cause an
+explicit conflict rather than silently overriding each other. Discovery uses
+`<installation>.<node>` for ambiguity, but this qualifier does not invent new
+VSIR intrinsic syntax.
 
 Project extensions are explicitly referenced from their own manifest:
 

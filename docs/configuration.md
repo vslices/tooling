@@ -24,12 +24,14 @@ updates:
 External knowledge is installed independently:
 
 ```text
-vslices update ruleset
+vslices new ruleset-standard --origin "vslices/ruleset-standard:main"
+vslices update ruleset-standard
+vslices new docs-standard --origin "vslices/docs-standard:main"
 vslices update docs-standard
 vslices update template-standard
 ```
 
-Initialization may compose those same operations as convenience through `--ruleset-origin`, `--docs-standard-origin`, `--template-standard-origin`, or `--default-origin`; it does not own a second installation mechanism.
+Initialization composes these operations with `--ruleset-standard-origin`, `--docs-standard-origin`, `--template-standard-origin`, and `--default-origin`. The legacy `--ruleset-origin` remains supported only as a singleton compatibility path.
 
 Operational precedence is:
 
@@ -48,11 +50,29 @@ explicit CLI argument
 .vslices/.ignore
   = project-specific discovery exclusions
 
+.vslices/rulesets/registry.yaml
+  = Ruleset Standard installation registry and source provenance
+
+.vslices/rulesets/<name>/
+  = imported, managed lowering-standard snapshot
+
+.vslices/rulesets/local/<name>/
+  = original, editable local Ruleset Standard
+
 .vslices/ruleset/
-  = optional local target-lowering snapshot
+  = legacy singleton lowering snapshot (still readable)
+
+.vslices/docs/registry.yaml
+  = installation identity, source kind and provenance registry
+
+.vslices/docs/<name>/
+  = optional named imported documentation-vocabulary snapshot
+
+.vslices/docs/local/<name>/
+  = optional original editable project-owned Docs Standard definitions
 
 .vslices/docs-standard/
-  = optional local normative documentation-vocabulary snapshot
+  = legacy singleton Docs Standard snapshot (readable during migration)
 
 .vslices/template-standard/
   = optional local normative materialization-template snapshot
@@ -220,7 +240,7 @@ A local directory with `ruleset.ref` is rejected rather than silently treating t
 If no Ruleset provenance has been configured yet, `vslices update ruleset` resolves the official origin:
 
 ```text
-source: https://github.com/vslices/ruleset
+source: https://github.com/vslices/ruleset-standard
 ref: main
 ```
 
@@ -267,7 +287,7 @@ owner/repository:ref
 For example:
 
 ```text
-vslices update ruleset --origin vslices/ruleset:main
+vslices update ruleset --origin vslices/ruleset-standard:main
 vslices update docs-standard --origin vslices/docs-standard:feat/document-authoring-preview
 vslices update template-standard --origin vslices/template-standard:feat/initial-markdown-template
 ```
@@ -359,3 +379,15 @@ Docs Standard validation follows the manifest-reachable normative definitions an
 Project-specific recursive-discovery exclusions live in `.vslices/.ignore`. Built-in exclusions remain `.git/`, `.vslices/`, `bin/`, and `obj/`.
 
 Configuration cannot disable correctness/safety guarantees such as atomic writes, missing-rule failure, complete ruleset validation before swap, or trusted-ancestry requirements for rebase.
+
+
+## Multiple Docs Standards (branch design and implementation)
+
+The `docs/registry.yaml` file records the installed names and source provenance while the individual `manifest.yaml` files retain each source's declared `name`. When a source is acquired as an alias, Tooling does not change its manifest. A locally created standard contains its original editable definitions under `local/`, not a second snapshot.
+
+`vslices update docs-standard` updates all *imported* snapshots after presenting a diff/confirmation, while project-owned local definitions are left unchanged. Standard-specific authoring and discovery resolve uniquely named definitions with their original short names or explicitly qualified `<standard>.<structure>` identity. The ruleset and template-standard lifecycle remains unchanged by this Docs Standard projection. For design details see [the shared standard lifecycle](design/standard-lifecycle.md) and [Docs Standard projection](design/multiple-docs-lifecycle.md).
+
+
+## Multiple Ruleset Standards (PR #16)
+
+The `rulesets/registry.yaml` records imported or local installation names and origins independently from `.vslices/extensions`. Import with `vslices new ruleset-standard --origin`; create an editable standard using `vslices new ruleset-standard <name>`. Updates differentiate changes, require confirmation unless `--skip-confirm`, refresh imported sources independently and preserve local originals. C# lowering combines non-overlapping rules from all installed standards and explicitly rejects duplicate `node` definitions. See [Ruleset Standard lifecycle](design/multiple-rulesets-lifecycle.md).

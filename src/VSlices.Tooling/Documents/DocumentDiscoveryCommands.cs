@@ -34,7 +34,7 @@ internal static class DocumentDiscoveryCommands
             return 1;
         }
 
-        var catalog = DocsStandardCatalog.Load(standardRoot);
+        var catalog = DocsStandardCatalog.LoadInstalled(standardRoot);
         if (!catalog.IsSuccess)
         {
             TerminalOutput.Error(catalog.Error!);
@@ -90,6 +90,9 @@ internal static class DocumentDiscoveryCommands
         }
         Console.WriteLine();
         Console.WriteLine("Current document surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(artifact.Surface.Select(q =>
+            new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
 
         var answerLabels = artifact.Surface
             .Where(question => question.AnswerInstanceId is not null)

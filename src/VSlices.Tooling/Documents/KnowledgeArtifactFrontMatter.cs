@@ -204,8 +204,9 @@ internal static class KnowledgeArtifactFrontMatter
             metadata.TemplateName, relations, metadata.TemplateVersion, metadata.Tags) + "\n\n" + body;
     }
 
-    private static bool IsIdentifier(string? value) => !string.IsNullOrWhiteSpace(value) && char.IsLetter(value[0]) &&
-        value.All(c => char.IsLetterOrDigit(c) || c is '-' or '_');
+    private static bool IsIdentifier(string? value) => !string.IsNullOrWhiteSpace(value) &&
+        value.Split('.').All(part => part.Length > 0 && char.IsLetter(part[0]) &&
+            part.All(c => char.IsLetterOrDigit(c) || c is '-' or '_'));
     private static bool IsSelection(string value) => value.Split('.').All(part =>
         part.Length > 0 && part[0] != '0' && part.All(char.IsAsciiDigit) && int.TryParse(part, out var number) && number > 0);
 

@@ -33,9 +33,20 @@ internal static class DocsStandardSnapshotInstaller
             var copyError = CopyManifestDefinition(materializedRoot, preparedRoot, relativePath, "Support Note");
             if (copyError is not null) return DocsStandardSnapshotPreparationResult.Failure(copyError);
         }
-        // Candidate vocabularies accompany the snapshot without becoming manifest-promoted Documents.
-        CopyOptionalDefinitionDirectory(materializedRoot, preparedRoot, "nexus");
-        CopyOptionalDefinitionDirectory(materializedRoot, preparedRoot, "continuity-paths");
+        // Explicitly promoted relational vocabulary is part of the manifest-owned snapshot.
+        // Legacy manifests still carry candidate folders to preserve existing authoring behavior.
+        foreach (var family in new[] { "nexus", "continuity-paths" })
+        {
+            if (ManifestHasSection(manifestPath, family))
+            {
+                foreach (var relativePath in ReadDefinitionPaths(manifestPath, family))
+                {
+                    var copyError = CopyManifestDefinition(materializedRoot, preparedRoot, relativePath, family);
+                    if (copyError is not null) return DocsStandardSnapshotPreparationResult.Failure(copyError);
+                }
+            }
+            else CopyOptionalDefinitionDirectory(materializedRoot, preparedRoot, family);
+        }
         var relationalValidation = RelationalStandardCatalog.Load(preparedRoot);
         if (!relationalValidation.IsSuccess) return DocsStandardSnapshotPreparationResult.Failure(relationalValidation.Error!);
         var preparedValidation = DocsStandardCatalog.Load(preparedRoot);
@@ -91,6 +102,15 @@ internal static class DocsStandardSnapshotInstaller
         Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
         File.Copy(sourcePath, targetPath, overwrite: true);
         return null;
+    }
+
+    private static bool ManifestHasSection(string manifestPath, string section)
+    {
+        using var reader = File.OpenText(manifestPath);
+        var yaml = new YamlStream();
+        yaml.Load(reader);
+        var root = (YamlMappingNode)yaml.Documents[0].RootNode;
+        return root.Children.ContainsKey(new YamlScalarNode(section));
     }
 
     private static IReadOnlyList<string> ReadDefinitionPaths(string manifestPath, string section)

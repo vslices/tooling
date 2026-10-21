@@ -139,16 +139,7 @@ internal static class DocumentFrontMatter
 
     private static bool IsStableIdentifier(string value)
     {
-        if (string.IsNullOrWhiteSpace(value) || !char.IsLetter(value[0]))
-            return false;
-
-        for (var index = 1; index < value.Length; index++)
-        {
-            var character = value[index];
-            if (!char.IsLetterOrDigit(character) && character is not '-' and not '_')
-                return false;
-        }
-
-        return true;
+        return value.Split('.').All(part => part.Length > 0 && char.IsLetter(part[0]) &&
+            part.All(character => char.IsLetterOrDigit(character) || character is '-' or '_'));
     }
 }

@@ -41,6 +41,27 @@ internal sealed class DocsStandardCatalog
         this.documents = documents;
     }
 
+    /// <summary>Builds a project-wide catalog. Qualified keys remain stable; short keys work only when unique.</summary>
+    public static DocsStandardCatalog Combine(IReadOnlyList<(string Name, DocsStandardCatalog Catalog)> installed)
+    {
+        var all = new Dictionary<string, DocumentDefinition>(StringComparer.OrdinalIgnoreCase);
+        var shortTypes = new Dictionary<string, List<DocumentDefinition>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, catalog) in installed)
+        {
+            foreach (var definition in catalog.Documents)
+            {
+                var qualified = definition with { Type = name + "." + definition.Type };
+                all.Add(qualified.Type, qualified);
+                if (!shortTypes.TryGetValue(definition.Type, out var values))
+                    shortTypes[definition.Type] = values = [];
+                values.Add(qualified);
+            }
+        }
+        foreach (var (type, values) in shortTypes)
+            if (values.Count == 1) all[type] = values[0];
+        return new DocsStandardCatalog(all);
+    }
+
     public IEnumerable<DocumentDefinition> Documents => documents.Values;
 
     public bool TryGetDocument(string kind, out DocumentDefinition? definition) =>
@@ -48,6 +69,44 @@ internal sealed class DocsStandardCatalog
 
     public static string? FindInstalledRoot(string start)
     {
+        var project = VSlicesProjectContext.FindFrom(start);
+        if (project is not null)
+        {
+            var registry = DocsStandardRegistry.Load(project);
+            if (registry.Installations.Count > 0)
+            {
+                string? type = null;
+                if (File.Exists(start))
+                {
+                    var source = File.ReadAllText(start);
+                    var identity = DocumentFrontMatter.Read(source);
+                    if (identity.IsSuccess) type = identity.DocumentType;
+                }
+                if (type is not null && type.Contains('.', StringComparison.Ordinal))
+                {
+                    var qualifier = type[..type.IndexOf('.')];
+                    var selected = registry.Find(qualifier);
+                    return selected is null ? null : registry.PathFor(selected);
+                }
+                if (registry.Installations.Count == 1)
+                    return registry.PathFor(registry.Installations[0]);
+                if (type is not null)
+                {
+                    var matches = new List<string>();
+                    foreach (var installed in registry.Installations)
+                    {
+                        var root = registry.PathFor(installed);
+                        var catalog = Load(root);
+                        if (catalog.IsSuccess && catalog.Catalog!.TryGetDocument(type, out var definition) &&
+                            definition is not null)
+                            matches.Add(root);
+                    }
+                    if (matches.Count == 1) return matches[0];
+                }
+                return null; // Never pick an ambiguous definition based on directory ordering.
+            }
+        }
+
         var fullPath = Path.GetFullPath(start);
         var current = File.Exists(fullPath)
             ? new DirectoryInfo(Path.GetDirectoryName(fullPath)!)
@@ -58,11 +117,25 @@ internal sealed class DocsStandardCatalog
             var candidate = Path.Combine(current.FullName, ".vslices", "docs-standard");
             if (File.Exists(Path.Combine(candidate, "manifest.yaml")))
                 return candidate;
-
             current = current.Parent;
         }
-
         return null;
+    }
+
+    /// <summary>Reads one installed catalog while retaining the installation qualifier on authored artifacts.</summary>
+    public static DocsStandardCatalogResult LoadInstalled(string root)
+    {
+        var loaded = Load(root);
+        if (!loaded.IsSuccess) return loaded;
+        var project = VSlicesProjectContext.FindFrom(root);
+        if (project is null) return loaded;
+        var registry = DocsStandardRegistry.Load(project);
+        var matching = registry.Installations.SingleOrDefault(installation =>
+            !installation.Legacy && Path.GetFullPath(registry.PathFor(installation)).Equals(
+                Path.GetFullPath(root), OperatingSystem.IsWindows()
+                    ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal));
+        return matching is null ? loaded : DocsStandardCatalogResult.Success(
+            Combine([(matching.Name, loaded.Catalog!)]));
     }
 
     public static DocsStandardCatalogResult Load(string root)
@@ -81,7 +154,7 @@ internal sealed class DocsStandardCatalog
                 return DocsStandardCatalogResult.Failure(manifest.Error!);
 
             var manifestRoot = manifest.Mapping!;
-            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "documents", "support-notes");
+            var unknownManifestKey = FirstUnknownKey(manifestRoot, "kind", "version", "name", "documents", "support-notes", "nexus", "continuity-paths");
             if (unknownManifestKey is not null)
             {
                 return DocsStandardCatalogResult.Failure(
@@ -102,12 +175,18 @@ internal sealed class DocsStandardCatalog
                     "DOCS005: Docs Standard manifest version must currently be '0.1'.");
             }
 
-            if (!manifestRoot.Children.TryGetValue(new YamlScalarNode("documents"), out var documentsNode) ||
-                documentsNode is not YamlSequenceNode documentPaths ||
-                documentPaths.Children.Count == 0)
+            if (manifestRoot.Children.TryGetValue(new YamlScalarNode("name"), out var nameNode) &&
+                (nameNode is not YamlScalarNode nameScalar || !DocsStandardRegistry.IsValidName(nameScalar.Value)))
+                return DocsStandardCatalogResult.Failure("DOCS028: Docs Standard manifest.name must be a valid identifier.");
+
+            var hasName = manifestRoot.Children.ContainsKey(new YamlScalarNode("name"));
+            if (!manifestRoot.Children.TryGetValue(new YamlScalarNode("documents"), out var documentsNode))
+                documentsNode = new YamlSequenceNode();
+            if (documentsNode is not YamlSequenceNode documentPaths ||
+                (!hasName && documentPaths.Children.Count == 0))
             {
                 return DocsStandardCatalogResult.Failure(
-                    "DOCS006: Docs Standard manifest must declare at least one document definition.");
+                    "DOCS006: Legacy manifests must declare at least one Document; named standards may start empty.");
             }
 
             var loaded = new Dictionary<string, DocumentDefinition>(StringComparer.OrdinalIgnoreCase);

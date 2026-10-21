@@ -37,7 +37,7 @@ lineage
 vslices/intermediate-representation
   = VSIR language semantics and reconstructible file contract
 
-vslices/ruleset
+vslices/ruleset-standard
   = revisable target-lowering knowledge
 
 vslices/tooling

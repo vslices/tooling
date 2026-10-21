@@ -4,8 +4,12 @@ namespace VSlices.Tooling;
 
 internal static class RelationalDiscoveryCommands
 {
+    /// <summary>Discovers questions, recommendations, and associations in an existing Nexus artifact.</summary>
+    /// <param name="artifact">Nexus name or path to inspect.</param>
     public static Task<int> Nexus([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "nexus", cancellationToken));
+    /// <summary>Discovers questions, graph connections, recommendations, and associations in a Continuity Path.</summary>
+    /// <param name="artifact">Continuity Path name or path to inspect.</param>
     public static Task<int> ContinuityPath([Argument] string artifact, CancellationToken cancellationToken = default) =>
         Task.FromResult(Discover(artifact, "continuity-path", cancellationToken));
 
@@ -75,6 +79,8 @@ internal static class RelationalDiscoveryCommands
         }
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(state.State!.Questions.Select(q => new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
         var entries = new List<DiscoveryEntry>();
         entries.AddRange(state.State!.Questions.Select(question => new DiscoveryEntry(question.SelectionPath, question, null, null)));
         entries.AddRange(recommendations.Select(item => new DiscoveryEntry(item.Id, null, item.Recommendation,
@@ -145,6 +151,19 @@ internal static class RelationalDiscoveryCommands
             if (ReferenceEquals(left, right)) return 0;
             if (left is null) return -1;
             if (right is null) return 1;
+            // Reserved semantic selections precede numeric question/recommendation paths.
+            var special = new Dictionary<string, int>(StringComparer.Ordinal)
+            {
+                ["purpose"] = 0, ["traversal"] = 1, ["root"] = 2
+            };
+            var leftSpecial = special.TryGetValue(left, out var leftRank);
+            var rightSpecial = special.TryGetValue(right, out var rightRank);
+            if (leftSpecial && rightSpecial) return leftRank.CompareTo(rightRank);
+            if (leftSpecial) return -1;
+            if (rightSpecial) return 1;
+            if (!left.Split('.').All(part => int.TryParse(part, out _)) ||
+                !right.Split('.').All(part => int.TryParse(part, out _)))
+                return StringComparer.Ordinal.Compare(left, right);
             var a = left.Split('.').Select(int.Parse).ToArray();
             var b = right.Split('.').Select(int.Parse).ToArray();
             for (var index = 0; index < Math.Min(a.Length, b.Length); index++)

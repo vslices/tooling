@@ -1,5 +1,11 @@
 # VSlices Tooling
 
+> **PR #16 integration:** This branch implements named, coexisting Docs Standards **and Ruleset Standards**. The reference release line on `main` still represents the previous singleton installation. Review [the shared lifecycle design](docs/design/standard-lifecycle.md), [the Docs Standard projection](docs/design/multiple-docs-lifecycle.md), [the Ruleset Standard projection](docs/design/multiple-rulesets-lifecycle.md), and [the CLI contract](docs/cli.md) for branch behavior. The Docs Standard manifest was merged in [vslices/docs-standard#4](https://github.com/vslices/docs-standard/pull/4). The Ruleset Standard manifest change is tracked in [vslices/ruleset-standard#5](https://github.com/vslices/ruleset-standard/pull/5).
+
+## Agent access to the command catalog
+
+`vslices --cli-schema` emits ConsoleAppFramework's actual command metadata as clean, Native AOT-compatible JSON. See [the CLI schema contract and CI artifacts](docs/cli-schema.md) and the [agent execution protocol in `vslices/protocols`](https://github.com/vslices/protocols/blob/docs/tooling-agent-capability-protocol/vslices-tooling-usage/README.md). Agents can inspect the current command's name/options from JSON and use the protocol only for workflow decisions and evidence discipline; manual lists of options are not the source of truth.
+
 ## v0.3.0-preview — Current integrated CLI capabilities
 
 The v0.3.0-preview release line is integrated into `main` and adds **Docs Standard document authoring** alongside existing VSIR authoring/lowering. See [current CLI status](docs/releases/v0.3.0-preview.md). The previous v0.2.0 capability and safety boundaries remain in force.
@@ -8,9 +14,10 @@ Project bootstrap and installed knowledge:
 
 ```text
 vslices init
-vslices update docs-standard
+vslices new docs-standard --origin "vslices/docs-standard:main"   # first imported installation
+vslices update docs-standard --skip-confirm                      # refresh imported standards
 vslices update template-standard
-vslices update ruleset             # only when VSIR target lowering needs it
+vslices new ruleset-standard --origin "vslices/ruleset-standard:main" # first lowering-standard installation
 ```
 
 `init` creates minimum project policy (`.vslices/config.yaml`, `.vslices/.ignore`); it does **not** imply an installed standard. `documents.route` (typically `docs`) governs user-facing document location, which is separate from operational `.vslices/` state. Docs Standard defines documentary semantics and questions; Template Standard defines materialization/reconstruction; Tooling implements acquisition, authoring and discovery.
@@ -21,18 +28,22 @@ Current knowledge artifact commands:
 vslices new document <name> --kind <type>
 vslices discovery document <name>
 vslices update document <name> --question-id <selection> --answer "<markdown>"
+vslices read document <name> --question-id <selection> [--deep]
 
 vslices new nexus <name> --kind <type> --target <target>
 vslices discovery nexus <name>
 vslices update nexus <name> --question-id <selection> --answer "<answer>"
+vslices read nexus <name> --question-id <selection> [--deep]
 
 vslices new continuity-path <name> --kind <type> --target <target>
 vslices discovery continuity-path <name>
 vslices update continuity-path <name> --question-id <selection> --answer "<answer>"
+vslices read continuity-path <name> --question-id <selection> [--deep]
 
 vslices new support-note <name> --kind <type>
 vslices discovery support-note <name>
 vslices update support-note <name> --question-id <selection> --answer "<answer>"
+vslices read support-note <name> --question-id <selection> [--deep]
 
 vslices search --filter kind:equals:document
 vslices search --filter tags:contains:example
@@ -43,6 +54,8 @@ Nexus and Continuity Path support question/recommendation traversal, concrete as
 Support Notes admit definitions installed through the Docs Standard manifest, including the current draft/result/validation/risk vocabulary; the questions remain deliberately small. All four documentary artifact families support operational searchable tags (`--tags`, `--add-tags`, `--remove-tags`) and participate in `vslices search` alongside VSIR. Tags do not alter documentary semantics.
 
 The CLI manages self-updates through `vslices update self`; no separate manual application publication step is required by the intended workflow.
+
+The `read` operations retrieve the complete answer for a current question selection and, with `--deep`, the ordered chain of ancestor questions and answers; they do not write artifacts. These operations use existing Document/Nexus/Continuity Path/Support Note reconstruction (and distinguish recommendations from questions). See [read command examples](docs/cli.md#reading-documentary-questions-pr-16).
 
 For Documents, question ids come from Docs Standard, visible selections such as `2.1` are ephemeral, and repeated `one|many` AnswerInstances and scoped child questions are handled through Template Standard reconstruction. Nexus/Path recommendation commands are discoverable from the current artifact state. Authoring must follow `new -> discovery -> update -> discovery` and must not invent definitions or silently drop unknown structure.
 
@@ -76,9 +89,18 @@ vslices rebase <artifact>
 vslices lower <artifact-or-project>
 
 vslices update self
-vslices update ruleset
-vslices update docs-standard
+vslices update ruleset        # legacy singleton compatibility
 vslices update template-standard
+vslices new ruleset-standard [name] [--origin <source>]
+vslices update ruleset-standard [name] [--skip-confirm]
+vslices list ruleset-standards
+vslices discovery ruleset-standard [--ruleset-standard <name>] [--structure <node>]
+vslices delete ruleset-standard <name> [--skip-confirm]
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 
 vslices new document <name> --kind <type>
 vslices discovery document <name>
@@ -115,7 +137,7 @@ Structured selections are ephemeral navigation paths projected by discovery, for
 
 Document question cardinality is recognized from Docs Standard as `one` or `many`, with omitted cardinality defaulting to `one`. `many` questions now support the first repeated-answer slice: Tooling can create multiple independently identified AnswerInstances, reconstruct them from the Markdown artifact, and keep the QuestionOccurrence available for another answer. The configured Template Standard must explicitly authorize the repeated-answer materialization/reconstruction strategy. AnswerInstance identity is technical materialization identity and is deliberately independent from answer text; it does not define semantic subject identity, uniqueness, or ordering. Editing/removing a specific repeated instance and authoring child QuestionOccurrences scoped through that instance remain explicit unsupported boundaries.
 
-Document route and template policy are intentionally not chosen by `vslices init`. On the first interactive Docs Standard installation, Tooling asks for missing `documents.route` and `documents.template`; non-interactive installs leave them for manual configuration. Bare Document names then resolve through the configured project-relative route across new, discovery, and update.
+Document route and template policy are intentionally not chosen by `vslices init`. On first Docs Standard installation, the Document route defaults to `docs` (Enter accepts it, or choose another project-relative route). If one compatible Document materialization template is installed, Tooling selects it automatically and reports the selection. When no compatible Template Standard is installed, Tooling skips template selection and warns with the official and custom-origin installation commands. A later `vslices update template-standard` can complete the deferred template choice when there is exactly one compatible candidate. Multiple candidates require a conscious choice; existing project selections are preserved. Bare Document names resolve through the configured project-relative route across new, discovery, and update.
 
 The current authoring loop is:
 
@@ -156,7 +178,7 @@ vslices/tooling
   = parser/validator, authoring/discovery/search/update,
     lowering orchestration, lineage/rebase, CLI and target adapters
 
-vslices/ruleset
+vslices/ruleset-standard
   = revisable deterministic target-realization knowledge
 
 .vslices/config.yaml
@@ -657,8 +679,12 @@ The independent updater surfaces are:
 ```text
 vslices update self
 vslices update ruleset
-vslices update docs-standard
 vslices update template-standard
+vslices new docs-standard [name] [--origin <source>]
+vslices update docs-standard [name] [--std-diff|--skip-diff] [--skip-confirm]
+vslices list docs-standards
+vslices discovery docs-standard [--docs-standard <name>] [--structure <name>]
+vslices delete docs-standard <name> [--skip-confirm]
 ```
 
 There is no aggregate `vslices update` operation.

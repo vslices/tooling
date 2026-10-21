@@ -33,6 +33,24 @@ internal sealed class SupportNoteStandardCatalog
         this.supportNotes = supportNotes;
     }
 
+    public static SupportNoteStandardCatalog Combine(IReadOnlyList<(string Name, SupportNoteStandardCatalog Catalog)> installed)
+    {
+        var all = new Dictionary<string, SupportNoteDefinition>(StringComparer.OrdinalIgnoreCase);
+        var shortTypes = new Dictionary<string, List<SupportNoteDefinition>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, catalog) in installed)
+            foreach (var definition in catalog.SupportNotes)
+            {
+                var qualified = definition with { Type = name + "." + definition.Type };
+                all.Add(qualified.Type, qualified);
+                if (!shortTypes.TryGetValue(definition.Type, out var values))
+                    shortTypes[definition.Type] = values = [];
+                values.Add(qualified);
+            }
+        foreach (var (type, values) in shortTypes)
+            if (values.Count == 1) all[type] = values[0];
+        return new SupportNoteStandardCatalog(all);
+    }
+
     public IEnumerable<SupportNoteDefinition> SupportNotes => supportNotes.Values;
 
     public bool TryGetSupportNote(string type, out SupportNoteDefinition? definition) =>

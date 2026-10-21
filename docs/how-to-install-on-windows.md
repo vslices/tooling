@@ -113,13 +113,13 @@ The executable is still installed, but the destination directory is not added to
 The standalone native CLI can update itself:
 
 ```powershell
-vslices update --self
+vslices update self
 ```
 
 To resolve the available update without replacing the executable:
 
 ```powershell
-vslices update --self --check
+vslices update self --check
 ```
 
 The normal project configuration is release-oriented:
@@ -145,7 +145,7 @@ The intended operating model is config-first:
 .vslices/config.yaml
   = persistent update policy
 
-vslices update --self
+vslices update self
   = normal update action
 ```
 
@@ -164,7 +164,7 @@ build<pr-number>.<run-number>
 For example:
 
 ```text
-build3.173
+build16.<run-number>
 ```
 
 The user does not enter the run number manually.
@@ -175,13 +175,13 @@ To follow the newest successful build from a pull request, configure that develo
 updates:
   source: https://github.com/vslices/tooling
   channel: build
-  pull-request: 3
+  pull-request: 16
 ```
 
 Then the normal workflow is simply:
 
 ```powershell
-vslices update --self
+vslices update self
 ```
 
 The updater:
@@ -194,7 +194,7 @@ The updater:
 6. verifies the SHA-256 checksum contained in the build artifact;
 7. replaces the standalone CLI after the current process exits.
 
-A later push to the same pull request creates a newer build. Running `vslices update --self` again follows that newest successful build without editing either the run number or the command.
+A later push to the same pull request creates a newer build. Running `vslices update self` again follows that newest successful build without editing either the run number or the command.
 
 This is the preferred development loop:
 
@@ -204,11 +204,11 @@ edit .vslices/config.yaml once
 channel: build
 pull-request: <pr>
         ↓
-vslices update --self
+vslices update self
         ↓
 new successful PR build appears
         ↓
-vslices update --self
+vslices update self
 ```
 
 If a one-off override is genuinely needed, the CLI still supports explicit update arguments. Those flags should be treated as overrides of project policy rather than the normal way to follow a PR build.
@@ -238,8 +238,8 @@ A PR build is not a product release version.
 Examples:
 
 ```text
-build3.173
-build3.174
+build16.<run-number>
+build16.<next-run-number>
 ```
 
 These identify development artifacts associated with a PR and CI run. They create neither Git tags nor GitHub Releases.

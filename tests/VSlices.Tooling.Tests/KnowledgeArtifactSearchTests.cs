@@ -60,14 +60,14 @@ public sealed class KnowledgeArtifactSearchTests
             "capability/README.md",
             "context.md",
             "journey/README.md",
-            "note/README.md");
+            "note.md");
 
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:document"),
             "context.md");
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:support-note"),
-            "note/README.md");
+            "note.md");
         AssertSearchResults(
             await Success(project, "search", "--filter", "kind:equals:nexus"),
             "capability/README.md");
@@ -90,7 +90,7 @@ public sealed class KnowledgeArtifactSearchTests
             "capability/README.md",
             "context.md",
             "journey/README.md",
-            "note/README.md");
+            "note.md");
 
         await Success(
             project,
@@ -150,8 +150,8 @@ public sealed class KnowledgeArtifactSearchTests
         var outgoing = Assert.Single(Relations(project, "observed"));
         var incoming = Assert.Single(Relations(project, "validated"));
 
-        Assert.Equal("../validated/README.md", Value(outgoing, "target"));
-        Assert.Equal("../observed/README.md", Value(incoming, "target"));
+        Assert.Equal("validated.md", Value(outgoing, "target"));
+        Assert.Equal("observed.md", Value(incoming, "target"));
         AssertTags(project, "observed", "advance", "legacy");
     }
 

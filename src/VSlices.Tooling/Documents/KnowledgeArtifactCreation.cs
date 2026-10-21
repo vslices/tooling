@@ -164,7 +164,7 @@ internal static class KnowledgeArtifactCreation
             if (!resolved.IsSuccess) return resolved;
         }
 
-        if (family == "document") return resolved;
+        if (family is "document" or "support-note") return resolved;
 
         var surfaceDirectory = Path.ChangeExtension(resolved.Path!, null)!;
         return DocumentPathResolution.Success(Path.Combine(surfaceDirectory, "README.md"));
