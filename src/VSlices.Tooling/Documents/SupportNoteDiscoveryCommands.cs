@@ -50,6 +50,8 @@ internal static class SupportNoteDiscoveryCommands
         KnowledgeArtifactTags.WriteDiscovery("support-note", artifact, resolved.Metadata);
         Console.WriteLine();
         Console.WriteLine("Discovery surface:");
+        Console.WriteLine("Question tree:");
+        QuestionTreePresentation.Write(state.State!.Questions.Select(q => new QuestionTreeNode(q.SelectionPath, q.Text, q.ParentSelectionPath)));
 
         foreach (var question in state.State!.Questions)
         {
